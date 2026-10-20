@@ -39,20 +39,23 @@ export class SceneGesture {
   }
 }
 
-export const SCENE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'])
+export const SCENE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown'])
 
 export function movementForKeys(keys: ReadonlySet<string>, fast: boolean, seconds: number) {
   const x = Number(keys.has('KeyD')) - Number(keys.has('KeyA'))
   const z = Number(keys.has('KeyW')) - Number(keys.has('KeyS'))
-  const y = Number(keys.has('KeyE')) - Number(keys.has('KeyQ'))
+  const y = Number(keys.has('KeyE') || keys.has('ArrowUp')) - Number(keys.has('KeyQ') || keys.has('ArrowDown'))
   const length = Math.hypot(x, y, z)
-  const speed = (fast ? 10 : 3.5) * Math.min(Math.max(seconds, 0), 0.05)
+  const speed = (fast ? 20 : 7) * Math.min(Math.max(seconds, 0), 0.05)
   return length ? { x: x / length * speed, y: y / length * speed, z: z / length * speed }
     : { x: 0, y: 0, z: 0 }
 }
 
 export function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest(
-    'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="combobox"],[data-scene-ui]',
+    'input,textarea,select,button,a[href],[contenteditable]:not([contenteditable="false"]),'
+    + '[role="textbox"],[role="combobox"],[role="listbox"],[role="option"],'
+    + '[role="radio"],[role="radiogroup"],[role="slider"],[role="tab"],[role="tablist"],'
+    + '[role="menu"],[role="menuitem"],[role="tree"],[role="treeitem"],[data-scene-ui]',
   ))
 }

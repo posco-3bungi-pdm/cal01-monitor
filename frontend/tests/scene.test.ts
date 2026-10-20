@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as THREE from 'three'
-import { SceneGesture, movementForKeys } from '../src/components/scene-input.ts'
+import { SceneGesture, movementForKeys, SCENE_KEYS } from '../src/components/scene-input.ts'
 import { anchorOccluded, labelOccluders } from '../src/components/scene-occlusion.ts'
 import { layoutReadouts } from '../src/components/scene-label-layout.ts'
 import {
@@ -41,14 +41,28 @@ test('click guard rejects out-and-back drags, multi-touch and cancellation', () 
 test('keyboard movement is frame-rate independent and normalizes diagonals', () => {
   const forward = new Set(['KeyW'])
   const slow = movementForKeys(forward, false, 1 / 60)
-  assert.ok(Math.abs(slow.z * 60 - 3.5) < 1e-10)
-  assert.ok(Math.abs(movementForKeys(forward, false, 1 / 20).z * 20 - 3.5) < 1e-10)
+  assert.ok(Math.abs(slow.z * 60 - 7) < 1e-10)
+  assert.ok(Math.abs(movementForKeys(forward, false, 1 / 20).z * 20 - 7) < 1e-10)
   const diagonal = movementForKeys(new Set(['KeyW', 'KeyD', 'KeyE']), false, 1 / 60)
   assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y, diagonal.z) - slow.z) < 1e-10)
   assert.equal(movementForKeys(new Set(['KeyW', 'KeyS']), false, 0.02).z, 0)
-  assert.equal(movementForKeys(new Set(['KeyQ']), false, 0.02).y, -0.07)
+  assert.equal(movementForKeys(new Set(['KeyQ']), false, 0.02).y, -0.14)
   assert.ok(movementForKeys(forward, true, 1 / 60).z > slow.z)
-  assert.ok(movementForKeys(forward, true, 10).z <= 0.5, 'resume after a long pause cannot teleport')
+  assert.ok(movementForKeys(forward, true, 10).z <= 1, 'resume after a long pause cannot teleport')
+  assert.ok(Math.abs(movementForKeys(forward, true, 1 / 60).z * 60 - 20) < 1e-10)
+})
+
+test('up and down arrows change height, without doubling the Q/E aliases', () => {
+  assert.ok(SCENE_KEYS.has('ArrowUp') && SCENE_KEYS.has('ArrowDown'))
+  const up = movementForKeys(new Set(['ArrowUp']), false, 0.02)
+  const down = movementForKeys(new Set(['ArrowDown']), false, 0.02)
+  assert.deepEqual(up, { x: 0, y: 0.14, z: 0 })
+  assert.deepEqual(down, { x: 0, y: -0.14, z: 0 })
+  assert.deepEqual(movementForKeys(new Set(['ArrowUp', 'KeyE']), false, 0.02), up)
+  assert.deepEqual(movementForKeys(new Set(['ArrowDown', 'KeyQ']), false, 0.02), down)
+  assert.deepEqual(movementForKeys(new Set(['ArrowDown', 'KeyE']), false, 0.02), { x: 0, y: 0, z: 0 })
+  const diagonal = movementForKeys(new Set(['KeyW', 'KeyD', 'ArrowUp']), false, 0.02)
+  assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y, diagonal.z) - up.y) < 1e-10)
 })
 
 function segmentMeetsBox(a: THREE.Vector2, b: THREE.Vector2, minX: number, maxX: number, minY: number, maxY: number) {
