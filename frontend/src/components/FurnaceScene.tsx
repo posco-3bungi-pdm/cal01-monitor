@@ -9,7 +9,7 @@ import type { Channel, Placement, Theme } from '../types'
 import { numberText } from '../time'
 import {
   FURNACE_ZONES, MODEL_VERSION, OVERVIEW_CAMERA, createStripGeometry,
-  createStripLayout, defaultPlacements, zoneForChannel,
+  createStripLayout, defaultPlacements, zoneForChannel, overviewForViewport,
 } from './furnace-model'
 import type { FurnaceZone, Position3 } from './furnace-model'
 
@@ -467,6 +467,8 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, editing = false, onPlacementChange } = props
   const controls = useRef<CameraControls>(null)
   const previousZone = useRef<string | null>(null)
+  const showingOverview = useRef(true)
+  const { camera, size, scene } = useThree()
   const motion = useRef(0)
   // A single illustrative travel distance drives every moving part.
   // It is independent of channel values and the selected source timestamp.
@@ -499,9 +501,25 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   const focusZone = (zoneId: string) => {
     const zone = FURNACE_ZONES.find((item) => item.id === zoneId)
     if (!zone || !controls.current) return
+    showingOverview.current = false
     const y = Math.max(2.4, zone.height * 0.5)
     const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
     void controls.current.setLookAt(zone.x + 7.5, y + 4.8, 13.8, zone.x, y, 0, animate).catch(() => {})
+  }
+  const fitOverview = (animate: boolean) => {
+    if (!controls.current || !(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
+    const shiftX = camera.view?.enabled ? -2 * camera.view.offsetX / camera.view.width : 0
+    const shiftY = camera.view?.enabled ? 2 * camera.view.offsetY / camera.view.height : 0
+    const fit = overviewForViewport(size.width, size.height, camera.fov, shiftX, shiftY)
+    showingOverview.current = true
+    controls.current.maxDistance = Math.max(85, fit.distance * 1.2)
+    camera.far = Math.max(180, fit.distance + 80)
+    camera.updateProjectionMatrix()
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.near = Math.max(65, fit.distance + 15)
+      scene.fog.far = Math.max(130, fit.distance + 80)
+    }
+    void controls.current.setLookAt(...fit.position, ...OVERVIEW_CAMERA.target, animate).catch(() => {})
   }
   const selectZone = (zoneId: string) => {
     const inZone = channels.filter((channel) => zoneForChannel(channel) === zoneId)
@@ -516,17 +534,17 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
     const firstView = previousZone.current === null
     previousZone.current = selectedZone
     if (firstView) {
-      void controls.current.setLookAt(...OVERVIEW_CAMERA.position, ...OVERVIEW_CAMERA.target, false).catch(() => {})
+      fitOverview(false)
       return
     }
     focusZone(selectedZone)
   }, [selectedZone])
   useEffect(() => {
-    if (resetCounter > 0) void controls.current?.setLookAt(
-      ...OVERVIEW_CAMERA.position, ...OVERVIEW_CAMERA.target,
-      !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    ).catch(() => {})
+    if (resetCounter > 0) fitOverview(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [resetCounter])
+  useEffect(() => {
+    if (showingOverview.current) fitOverview(false)
+  }, [size.width, size.height, props.overlayOpen])
   return <>
     <Lighting theme={theme} />
     <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
