@@ -542,3 +542,94 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .immersive .main-reading > strong { font-size: 29px; }
   .immersive .equipment-alert { bottom: calc(var(--footer-height) + 15px); }
 }
+
+/* Floating controls leave the equipment unobstructed. */
+.immersive .workspace-topbar { inset: 10px 16px auto; height: 52px; border: 0; border-radius: 22px; background: linear-gradient(120deg,color-mix(in srgb,var(--panel) 96%,transparent),color-mix(in srgb,var(--panel-alt) 88%,transparent)); box-shadow: 0 8px 32px #0002; }
+.immersive-navigation button { width: 43px; height: 40px; min-height: 40px; padding: 8px; border: 0; border-radius: 15px; position: relative; }
+.immersive-navigation button span { display: none; }
+.immersive-navigation button svg { display: block; width: 20px; height: 20px; }
+.immersive-navigation button small { position: absolute; right: -3px; top: 0; font-size: 10px; border-radius: 8px; }
+.immersive .icon-button, .immersive .notification-button { border-radius: 50%; }
+.immersive .guide-toggle span { display: none; }
+.immersive .guide-toggle { border: 0; border-radius: 50%; width: 38px; padding: 0; }
+.immersive .equipment-panel { inset: 0; }
+.immersive .workspace-footer { background: none; border: 0; pointer-events: none; }
+.scene-data-control { top: 80px; left: 22px; width: 282px; border: 0; border-radius: 18px; padding: 10px 12px; gap: 5px 8px; background: color-mix(in srgb,var(--panel) 93%,transparent); box-shadow: 0 8px 28px #0002; }
+.scene-data-control select { border: 0; border-radius: 10px; background: transparent; font-weight: 600; }
+.scene-recorded-time { padding: 2px 6px 3px; gap: 3px; }
+.scene-recorded-time > strong { font-size: 13px; }
+.immersive .equipment-panel > .scene-toolbar { top: 80px; right: 22px; gap: 6px; width: auto; flex-wrap: nowrap; }
+.immersive .appearance-control { border: 0; border-radius: 22px; padding: 3px; width: auto; background: var(--panel); }
+.immersive .appearance-control button { width: 39px; padding: 7px; border-radius: 50%; }
+.scene-toolbar > .icon-button, .scene-tools > summary { background: var(--panel); border: 0; box-shadow: 0 5px 18px #0002; }
+.scene-toolbar > .icon-button[aria-pressed="true"] { color: var(--accent); background: color-mix(in srgb,var(--accent) 15%,var(--panel)); }
+.scene-tools > summary { width: 40px; height: 40px; padding: 0; border-radius: 50%; }
+.scene-tools-menu { border: 0; border-radius: 18px; padding: 16px; }
+.scene-tools-menu > button { border: 0; border-radius: 10px; }
+.scene-tools-menu p.scene-help-note { font-size: 12px; margin: -4px 0 4px; }
+.label-groups { display: flex; gap: 6px; }
+.label-groups button { flex: 1; padding: 9px 6px; border-radius: 9px; background: var(--panel-alt); font-size: 13px; }
+.scene-part-picker { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.scene-part-picker select { min-width: 0; width: 100%; padding: 9px; background: var(--panel-alt); border: 0; border-radius: 10px; color: var(--text); }
+.playback-control { position: absolute; z-index: 48; left: 50%; bottom: 38px; transform: translateX(-50%); width: min(630px,calc(100vw - 36px)); display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-radius: 24px; background: linear-gradient(125deg,color-mix(in srgb,var(--panel-alt) 96%,transparent),color-mix(in srgb,var(--panel) 95%,transparent)); box-shadow: 0 12px 45px #0003; }
+.playback-control .replay-toggle { background: var(--accent); color: var(--accent-ink); flex-shrink: 0; }
+.replay-track { flex: 1; min-width: 0; }
+.replay-track input { width: 100%; accent-color: var(--accent); height: 18px; margin: 0; }
+.replay-track > div { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font: 11px/1.5 var(--mono); }
+.replay-track > div > span:nth-child(2) { font-family: inherit; }
+.playback-control select { background: transparent; border: 0; color: var(--text); font: 600 14px var(--mono); padding: 8px 2px; }
+.playback-control .form-error { position: absolute; bottom: calc(100% + 10px); left: 0; width: 100%; background: var(--panel); padding: 12px; border-radius: 14px; }
+.immersive .channel-inspector, .part-inspector { bottom: 124px; border: 0; border-radius: 22px; box-shadow: 0 15px 50px #0003; }
+.inspector-heading { display: flex; align-items: center; gap: 8px; }
+.inspector-heading > .icon-button { margin-left: auto; }
+.inspector-actions { border: 0; }
+.part-inspector { position: absolute; z-index: 35; left: 22px; width: 320px; padding: 17px 20px; background: var(--panel); pointer-events: auto; font-size: 14px; line-height: 1.75; max-height: calc(100dvh - 300px); overflow: auto; }
+.part-inspector header { display: flex; align-items: center; justify-content: space-between; }
+.part-inspector h3 { font-size: 19px; margin: 0; }
+.part-inspector .part-code { font: 12px var(--mono); color: var(--muted); }
+.part-inspector p { margin-top: 10px; }
+.part-inspector details { margin-top: 12px; color: var(--muted); font-size: 13px; }
+.part-inspector a { display: block; color: var(--accent); margin-top: 8px; }
+.thermal-key { position: absolute; top: 136px; right: 24px; z-index: 20; padding: 7px 12px; background: linear-gradient(110deg,#283e64dc,#784629dc); color: #fff; border-radius: 12px; font-size: 12px; pointer-events: none; }
+.immersive .equipment-alert { bottom: 125px; border: 0; border-radius: 20px; background: linear-gradient(125deg,color-mix(in srgb,var(--red) 12%,var(--panel)),var(--panel)); width: min(490px,calc(100vw - 350px)); }
+.immersive.has-drawer .equipment-alert { bottom: 125px; }
+.immersive.has-drawer .part-inspector { display: none; }
+.scene-alert-chip { position: absolute; z-index: 42; right: 24px; bottom: 138px; display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-radius: 20px; color: var(--red); background: color-mix(in srgb,var(--red) 12%,var(--panel)); box-shadow: 0 8px 24px #0002; font-size: 13px; }
+.scene-alert-close { position: absolute; right: 24px; bottom: 263px; z-index: 43; background: var(--panel); }
+.immersive.has-drawer .scene-alert-chip, .immersive.has-drawer .scene-alert-close { display: none; }
+.workspace-drawer { border: 0; border-radius: 22px; overflow: hidden; }
+.drawer-header { border: 0; }
+.csv-import-dialog { border: 0; border-radius: 24px; }
+.csv-import-dialog h2 { font-size: 22px; }
+.csv-file-choice { display: flex; align-items: center; flex-direction: column; gap: 14px; background: var(--panel-alt); border-radius: 18px; padding: 28px 16px; }
+.csv-file-choice input { max-width: 100%; font-size: 13px; }
+.csv-import-dialog [role="status"] { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+@media (max-width:900px) {
+  .immersive { --topbar-height: 72px; }
+  .immersive .workspace-topbar { display: flex; grid-template: none; padding: 0 10px; gap: 4px; }
+  .immersive-navigation { gap: 1px; }
+  .immersive-navigation button { flex: none; width: 37px; padding: 6px; }
+  .immersive .breadcrumb .mode-badge { display: none; }
+  .immersive .topbar-right { margin-left: auto; }
+  .scene-data-control { width: 255px; left: 16px; }
+  .immersive .equipment-panel > .scene-toolbar { right: 16px; top: 80px; }
+  .scene-tools-menu { max-height: calc(100dvh - 220px); }
+}
+@media (max-width:620px) {
+  .immersive .workspace-topbar { inset-inline: 10px; }
+  .immersive .breadcrumb .brand { display: none; }
+  .immersive .breadcrumb { gap: 0; }
+  .scene-data-control { left: 12px; top: 76px; width: 248px; }
+  .scene-recorded-time { flex-direction: column; align-items: flex-start; }
+  .immersive .equipment-panel > .scene-toolbar { top: 76px; right: 12px; flex-wrap: wrap; width: 90px; }
+  .immersive .appearance-control { width: auto; }
+  .immersive .appearance-control button { min-height: 34px; width: 34px; }
+  .scene-toolbar > .icon-button, .scene-tools > summary { width: 34px; height: 34px; min-height: 34px; }
+  .immersive .channel-inspector, .part-inspector { left: 12px; bottom: 124px; width: min(290px,calc(100vw - 24px)); }
+  .immersive .equipment-alert { width: min(370px,calc(100vw - 24px)); bottom: 124px; left: auto; right: 12px; }
+  .immersive.has-candidate .channel-inspector { display: block; z-index: 44; }
+  .thermal-key { top: 200px; right: 12px; max-width: 180px; }
+  .playback-control { padding: 12px; gap: 8px; }
+  .replay-track > div > span:nth-child(2) { display: none; }
+  .immersive.has-drawer .playback-control { display: none; }
+}

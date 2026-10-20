@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { FurnaceZone } from './furnace-model'
@@ -185,32 +185,86 @@ export function HologramMaterial({ color = '#6fdce8', opacity = 0.48 }: {
     side={THREE.DoubleSide} forceSinglePass toneMapped={false} />
 }
 
+const HazeBuffer = createContext<{ texture: THREE.Texture; viewport: THREE.Vector2 } | null>(null)
+
+// One low-resolution capture is shared by every local plume. No full-screen
+// postprocess and no separate scene capture per furnace zone.
+export function HeatHazeLayer({ active, children }: { active: boolean; children: ReactNode }) {
+  const { gl, size, invalidate } = useThree()
+  const group = useRef<THREE.Group>(null)
+  const lastCapture = useRef(-Infinity)
+  const lastCamera = useRef(new THREE.Matrix4())
+  const target = useMemo(() => {
+    const buffer = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: true })
+    buffer.texture.colorSpace = THREE.LinearSRGBColorSpace
+    return buffer
+  }, [])
+  const viewport = useMemo(() => new THREE.Vector2(), [])
+  const context = useMemo(() => ({ texture: target.texture, viewport }), [target, viewport])
+  useEffect(() => {
+    gl.getDrawingBufferSize(viewport)
+    const ratio = Math.min(0.5, 1024 / Math.max(viewport.x, viewport.y))
+    target.setSize(Math.max(1, Math.round(viewport.x * ratio)), Math.max(1, Math.round(viewport.y * ratio)))
+    lastCapture.current = -Infinity
+    invalidate()
+  }, [gl, size, target, viewport, invalidate])
+  useEffect(() => () => target.dispose(), [target])
+  useFrame(({ scene, camera, clock }) => {
+    if (!group.current || group.current.children.length === 0) return
+    const moved = !lastCamera.current.equals(camera.matrixWorld)
+    if (active && !moved && clock.elapsedTime - lastCapture.current < 1 / 24) return
+    const previousTarget = gl.getRenderTarget()
+    const previousToneMapping = gl.toneMapping
+    const previousShadowUpdate = gl.shadowMap.autoUpdate
+    const previousShadowNeedsUpdate = gl.shadowMap.needsUpdate
+    const previousVisible = group.current.visible
+    try {
+      group.current.visible = false
+      gl.shadowMap.autoUpdate = false
+      gl.shadowMap.needsUpdate = false
+      gl.toneMapping = THREE.NoToneMapping
+      gl.setRenderTarget(target)
+      gl.clear()
+      gl.render(scene, camera)
+      lastCapture.current = clock.elapsedTime
+      lastCamera.current.copy(camera.matrixWorld)
+    } finally {
+      group.current.visible = previousVisible
+      gl.toneMapping = previousToneMapping
+      gl.shadowMap.autoUpdate = previousShadowUpdate
+      gl.shadowMap.needsUpdate = previousShadowNeedsUpdate
+      gl.setRenderTarget(previousTarget)
+    }
+  })
+  return <HazeBuffer.Provider value={context}><group ref={group}>{children}</group></HazeBuffer.Provider>
+}
+
 const HEAT_VERTEX = /* glsl */`
-  uniform float uTime;
-  uniform float uHeat;
   varying vec2 vUv;
   void main() {
     vUv = uv;
-    vec3 point = position;
-    float rise = sin(uv.y * 11.0 - uTime * 1.5 + uv.x * 7.0);
-    point.x += rise * uHeat * 0.045 * sin(uv.y * 3.14159265);
-    point.z += sin(uv.x * 10.0 + uv.y * 7.0 - uTime) * uHeat * 0.025;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(point, 1.0);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `
 const HEAT_FRAGMENT = /* glsl */`
+  uniform sampler2D uBackground;
+  uniform vec2 uViewport;
   uniform float uTime;
   uniform float uHeat;
   varying vec2 vUv;
   void main() {
     float edge = smoothstep(0.0, 0.16, vUv.x) * (1.0 - smoothstep(0.84, 1.0, vUv.x));
-    float height = smoothstep(0.0, 0.10, vUv.y) * (1.0 - smoothstep(0.42, 1.0, vUv.y));
-    float warp = sin(vUv.y * 7.0 - uTime * 0.65) * 0.35 + sin(vUv.x * 9.0 + uTime * 0.4) * 0.15;
-    float ripple = pow(0.5 + 0.5 * sin(vUv.x * 33.0 + vUv.y * 8.0 + warp - uTime * 0.85), 10.0);
-    float alpha = edge * height * uHeat * (0.022 + ripple * 0.13);
-    if (alpha < 0.003) discard;
-    vec3 tint = mix(vec3(0.79, 0.85, 0.87), vec3(1.0, 0.72, 0.42), uHeat);
-    gl_FragColor = vec4(tint, alpha);
+    float height = smoothstep(0.0, 0.12, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+    float envelope = edge * height;
+    if (envelope < 0.005) discard;
+    vec2 flow = vec2(
+      sin(vUv.y * 24.0 - uTime * 2.1 + sin(vUv.x * 17.0 + uTime) * 1.8),
+      sin(vUv.x * 23.0 + vUv.y * 13.0 - uTime * 1.6)
+    );
+    vec2 screenUv = gl_FragCoord.xy / uViewport;
+    vec2 offset = flow * envelope * uHeat * vec2(4.0, 2.3) / uViewport;
+    vec3 background = texture2D(uBackground, clamp(screenUv + offset, vec2(0.001), vec2(0.999))).rgb;
+    gl_FragColor = vec4(background, envelope * 0.85);
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
@@ -224,9 +278,14 @@ export function HeatHaze({ zone, temperature, animate, interior }: {
   interior: boolean
 }) {
   const level = heatLevel(temperature)
+  const buffer = useContext(HazeBuffer)
   const { invalidate } = useThree()
   const material = useRef<THREE.ShaderMaterial>(null)
-  const uniforms = useMemo(() => ({ uTime: { value: 0.7 }, uHeat: { value: 0 } }), [])
+  const uniforms = useMemo(() => ({
+    uTime: { value: 0.7 }, uHeat: { value: 0 },
+    uBackground: { value: buffer?.texture ?? null },
+    uViewport: { value: buffer?.viewport ?? new THREE.Vector2(1, 1) },
+  }), [buffer])
   useEffect(() => {
     uniforms.uHeat.value = level
     invalidate()
@@ -236,7 +295,7 @@ export function HeatHaze({ zone, temperature, animate, interior }: {
     uniforms.uTime.value = (uniforms.uTime.value + Math.min(delta, 0.05)) % 1200
     invalidate()
   })
-  if (level === 0) return null
+  if (level === 0 || !buffer) return null
   const height = interior ? Math.min(3.8, zone.height * 0.56) : 0.85 + level * 1.15
   const position: [number, number, number] = interior
     ? [zone.x, zone.height * 0.57, zone.depth / 2 + 0.12]
@@ -246,6 +305,66 @@ export function HeatHaze({ zone, temperature, animate, interior }: {
     <planeGeometry args={[zone.width * 0.88, height, 12, 18]} />
     <shaderMaterial ref={material} vertexShader={HEAT_VERTEX} fragmentShader={HEAT_FRAGMENT}
       uniforms={uniforms} transparent depthWrite={false} depthTest
-      side={THREE.DoubleSide} forceSinglePass toneMapped={false} />
+      side={THREE.DoubleSide} forceSinglePass toneMapped />
   </mesh>
+}
+
+export function illustrativeSurfaceAt(x: number) {
+  const progress = THREE.MathUtils.smoothstep(x, -16.65, -14.45)
+  const wet = THREE.MathUtils.smoothstep(x, -16.65, -16.1)
+    * (1 - THREE.MathUtils.smoothstep(x, -14.05, -10.0))
+  return { soil: 1 - progress, wetness: wet }
+}
+
+// A moving, neutral steel surface. The cleaning profile is a teaching example;
+// neither grade nor CLN-IN is used to invent a measured surface condition.
+export function SteelSurfaceMaterial({ simulationActive, motion, temperatureColors = false }: {
+  simulationActive: boolean
+  motion?: RefObject<number>
+  temperatureColors?: boolean
+}) {
+  const { invalidate } = useThree()
+  const uniforms = useMemo(() => ({
+    uSteelTravel: { value: 0 }, uSurfaceColor: { value: temperatureColors ? 0 : 1 },
+  }), [])
+  useEffect(() => {
+    uniforms.uSurfaceColor.value = temperatureColors ? 0 : 1
+    invalidate()
+  }, [temperatureColors, uniforms, invalidate])
+  useFrame(() => {
+    if (simulationActive && motion) uniforms.uSteelTravel.value = motion.current
+  })
+  const compile = useMemo(() => (shader: THREE.WebGLProgramParametersWithUniforms) => {
+    Object.assign(shader.uniforms, uniforms)
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>
+        attribute float stripDistance;
+        varying vec3 vSteelPoint;
+        varying float vSteelDistance;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vSteelPoint = position;
+        vSteelDistance = stripDistance;`)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+        varying vec3 vSteelPoint;
+        varying float vSteelDistance;
+        uniform float uSteelTravel;
+        uniform float uSurfaceColor;`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        float travel = vSteelDistance - uSteelTravel;
+        float soil = 1.0 - smoothstep(-16.65, -14.45, vSteelPoint.x);
+        float wetness = smoothstep(-16.65, -16.1, vSteelPoint.x)
+          * (1.0 - smoothstep(-14.05, -10.0, vSteelPoint.x));
+        float fineGrain = sin(vSteelPoint.z * 170.0 + sin(travel * 3.0)) * 0.012;
+        float stain = smoothstep(0.2, 0.8, sin(travel * 2.8 + sin(vSteelPoint.z * 11.0))
+          * sin(vSteelPoint.z * 9.0 + travel * 0.35));
+        vec3 dirt = mix(vec3(1.0), vec3(0.48, 0.47, 0.43), soil * stain * 0.28);
+        diffuseColor.rgb *= mix(vec3(1.0), dirt + fineGrain, uSurfaceColor);`)
+      .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(roughnessFactor + soil * 0.1 - wetness * 0.17, 0.12, 0.7);`)
+  }, [uniforms])
+  return <meshStandardMaterial color={temperatureColors ? '#ffffff' : '#b9c4ca'}
+    metalness={0.84} roughness={0.36} vertexColors={temperatureColors}
+    side={THREE.DoubleSide} onBeforeCompile={compile}
+    customProgramCacheKey={() => 'cal01-steel-surface-v1'} />
 }

@@ -5,11 +5,13 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Theme } from '../types'
 import type { FurnaceZone } from './furnace-model'
+import type { SceneGesture } from './scene-input'
 
 type ZoneLabelBridge = {
   elements: Map<string, HTMLDivElement>
   selectZone: ((zoneId: string) => void) | null
   requestFrame: (() => void) | null
+  revision: number
 }
 
 export type ZoneLabelBridgeRef = RefObject<ZoneLabelBridge>
@@ -19,6 +21,7 @@ export function useZoneLabelBridge(): ZoneLabelBridgeRef {
     elements: new Map(),
     selectZone: null,
     requestFrame: null,
+    revision: 0,
   })
 }
 
@@ -26,13 +29,14 @@ const labelOffset = (zoneId: string) =>
   zoneId === 'CLN' ? -36 : zoneId === 'Z1' ? 14 : zoneId === 'Z2' ? -14 : 0
 
 // Render this outside Canvas: the application DOM root owns every label.
-export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZones }: {
+export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZones, gesture }: {
   zones: readonly FurnaceZone[]
   target: HTMLElement | null
   bridge: ZoneLabelBridgeRef
   theme: Theme
   selectedZone: string
   alertZones: ReadonlySet<string>
+  gesture: SceneGesture
 }) {
   if (!target) return null
   return createPortal(zones.map(zone => {
@@ -46,6 +50,7 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
         } else {
           bridge.current.elements.delete(zone.id)
         }
+        bridge.current.revision++
       }}
       style={{
         position: 'absolute', left: 0, top: 0,
@@ -55,7 +60,9 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
       <button type="button" aria-label={`${zone.label}${alert ? ' · 이상 후보' : ''}`}
         aria-pressed={selected}
         title={alert ? '이 LOT에 이상 후보가 있는 구역' : zone.label}
-        onClick={() => bridge.current.selectZone?.(zone.id)}
+        onClick={event => {
+          if (gesture.allowClick(event.detail === 0)) bridge.current.selectZone?.(zone.id)
+        }}
         style={{
           pointerEvents: 'auto',
           color: selected ? '#17240a' : theme === 'dark' ? '#dae4e6' : '#253943',
@@ -90,6 +97,10 @@ export function ZoneLabelProjection({ zones, bridge, onSelectZone }: {
   })), [zones])
   const projected = useMemo(() => new THREE.Vector3(), [])
   const viewPoint = useMemo(() => new THREE.Vector3(), [])
+  const matrix = useMemo(() => new THREE.Matrix4(), [])
+  const previous = useMemo(() => new THREE.Matrix4(), [])
+  const revision = useRef(-1)
+  const previousSize = useRef('')
 
   useLayoutEffect(() => {
     const state = bridge.current
@@ -105,11 +116,17 @@ export function ZoneLabelProjection({ zones, bridge, onSelectZone }: {
   useFrame(() => {
     if (!size.width || !size.height) return
     camera.updateMatrixWorld()
+    matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
+    const sizeKey = `${size.width}:${size.height}`
+    if (matrix.equals(previous) && revision.current === bridge.current.revision && previousSize.current === sizeKey) return
+    previous.copy(matrix)
+    revision.current = bridge.current.revision
+    previousSize.current = sizeKey
     for (const point of points) {
       const element = bridge.current.elements.get(point.id)
       if (!element) continue
       viewPoint.copy(point.world).applyMatrix4(camera.matrixWorldInverse)
-      projected.copy(point.world).project(camera)
+      projected.copy(point.world).applyMatrix4(matrix)
       const x = (projected.x + 1) * size.width / 2
       const y = (1 - projected.y) * size.height / 2
       const visible = Number.isFinite(x) && Number.isFinite(y)
