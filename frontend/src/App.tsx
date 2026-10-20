@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
-  Activity, ArrowDown, ArrowRight, Box, Check, ChevronDown, Database, Eye,
+  Activity, ArrowRight, Box, Check, ChevronDown, Database, Eye,
   EyeOff, FileSpreadsheet, Layers3, LoaderCircle, LogOut, Moon,
   Move3D, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, ShieldCheck, Sun,
   UserRound, X, AlertCircle, BookOpen, ChevronLeft, ChevronRight, Play, Pause, ClipboardList,
@@ -26,6 +26,7 @@ const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
 type Message = { kind: "success" | "error" | "info"; text: string };
 type DrawerName = "channels" | "analysis" | "requests" | null;
+type Appearance = "hologram" | "realistic";
 type GuideContext = {
   datasetId: string; lotNo: string; selectedChannel: string; visibleIds: string[];
   view: TimeRange | null; selection: TimeRange | null; cursor: string | null;
@@ -34,9 +35,12 @@ type GuideContext = {
 const initialTheme = (): Theme => {
   try { return localStorage.getItem("cal01-theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
 };
+const initialAppearance = (): Appearance => {
+  try { return localStorage.getItem("cal01-appearance") === "hologram" ? "hologram" : "realistic"; } catch { return "realistic"; }
+};
 
 function Brand({ compact = false }: { compact?: boolean }) {
-  return <div className={`brand ${compact ? "compact" : ""}`}><span className="brand-symbol"><i /><i /><i /></span><span>CAL<span className="brand-number">01</span></span>{!compact && <small>FIELD / MONITOR</small>}</div>;
+  return <div className={`brand ${compact ? "compact" : ""}`}><span className="brand-symbol"><i /><i /><i /></span><span>CAL<span className="brand-number">01</span></span>{!compact && <small>소둔로 공동 검토</small>}</div>;
 }
 
 function ThemeButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
@@ -76,14 +80,12 @@ function Login({ onLogin, theme, onThemeToggle, sessionError }: { onLogin: (user
     <header className="login-header"><Brand /><ThemeButton theme={theme} onToggle={onThemeToggle} /></header>
     <div className="login-main">
       <motion.section className="login-story" initial={reducedMotion ? false : { opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <span className="eyebrow"><span className="tiny-cross">+</span> CONTINUOUS ANNEALING LINE</span>
+        <span className="eyebrow">연속 소둔로</span>
         <h1>설비의 흐름을 보고,<br /><em>같은 구간을<br className="mobile-break" /> 함께 확인.</em></h1>
         <p>채널값과 설비 위치를 한 화면에서.<br />모니터링팀과 현장팀이 같은 기록을 봅니다.</p>
-        <div className="login-line-drawing" aria-hidden="true"><span className="schematic-baseline" /><span className="schematic-zone zone-one" /><span className="schematic-zone zone-two" /><span className="schematic-zone zone-three" /><span className="schematic-zone zone-four" /><span className="schematic-strip" /><span className="schematic-pin" /><span className="schematic-label">CAL01 · ZONE / CHANNEL</span></div>
-        <div className="login-story-footer"><span>01 / OBSERVE</span><span>02 / UNDERSTAND</span><span>03 / COLLABORATE</span></div>
+        <div className="login-line-drawing" aria-hidden="true"><span className="schematic-baseline" /><span className="schematic-zone zone-one" /><span className="schematic-zone zone-two" /><span className="schematic-zone zone-three" /><span className="schematic-zone zone-four" /><span className="schematic-strip" /><span className="schematic-pin" /><span className="schematic-label">CAL01</span></div>
       </motion.section>
       <motion.section className="login-form-panel" initial={reducedMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-        <span className="section-number">TEAM ACCESS</span>
         <h2>팀 계정으로 로그인</h2>
         <p>관리자가 발급한 아이디와 비밀번호를 입력해 주세요.</p>
         <form onSubmit={submit}>
@@ -99,7 +101,7 @@ function Login({ onLogin, theme, onThemeToggle, sessionError }: { onLogin: (user
         <p className="login-help">접속이 안 된다면 팀 관리자에게 계정을 확인해 주세요.</p>
       </motion.section>
     </div>
-    <footer className="login-footer"><span>CAL01 / TEAM WORKSPACE</span><span>데이터는 서버에, 판단은 함께.</span></footer>
+    <footer className="login-footer"><span>CAL01 · 소둔로 공동 검토</span><span>데이터는 서버에, 판단은 함께.</span></footer>
   </main>;
 }
 
@@ -117,6 +119,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [selection, setSelection] = useState<TimeRange | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const [showInterior, setShowInterior] = useState(false);
+  const [appearance, setAppearance] = useState<Appearance>(initialAppearance);
   const [editing, setEditing] = useState(false);
   const [draftPlacements, setDraftPlacements] = useState<Placement[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -224,6 +227,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     }
   }, [pendingFocus, lot, datasetId]);
   useEffect(() => { if (reducedMotion) setMotionPlaying(false); }, [reducedMotion]);
+  useEffect(() => {
+    try { localStorage.setItem("cal01-appearance", appearance); } catch { /* Display preference is optional. */ }
+  }, [appearance]);
   useEffect(() => {
     if (channels.length && !channels.some(item => item.id === selectedChannel)) setSelectedChannel(channels[0].id);
   }, [channels, selectedChannel]);
@@ -456,18 +462,17 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const fatalAuth = [datasetsQuery.error, channelsQuery.error, lotsQuery.error, frameQuery.error, seriesQuery.error].some(error => error instanceof ApiError && error.status === 401);
   if (fatalAuth) return <div className="session-expired"><ShieldCheck size={36} /><h1>다시 로그인해 주세요.</h1><p>로그인이 만료됐습니다. 저장된 자료는 서버에 남아 있습니다.</p><button className="primary-button" onClick={() => { queryClient.clear(); onLogout(); }}>로그인 화면으로<ArrowRight size={16} /></button></div>;
 
-  return <div className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""}`}>
+  return <div className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${alertCandidate && guideIndex === null ? "has-candidate" : ""}`}>
     <aside className="sidebar" aria-label="작업 메뉴" hidden={!sidebarOpen} onKeyDown={event => { if (event.key === "Escape") setSidebarOpen(false); }}>
       <div className="sidebar-brand"><Brand compact /><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
-      <div className="workspace-label"><span className="status-dot neutral" />CAL01 WORKSPACE</div>
-      <div className="sidebar-section-label">WORKSPACE</div>
+      <div className="sidebar-section-label">작업 화면</div>
       <nav className="main-navigation">
         <button className={section === "equipment" ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={18} /><span>설비 관제</span><ArrowRight size={14} /></button>
         <button className={section === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={18} /><span>채널 확인</span><ArrowRight size={14} /></button>
         <button onClick={() => { if (window.innerWidth <= 760) setSidebarOpen(false); openRequests(); }}><ClipboardList size={18} /><span>팀 확인 요청</span><ArrowRight size={14} /></button>
       </nav>
       <div className="sidebar-source">
-        <div className="sidebar-section-label">DATA SOURCE</div>
+        <div className="sidebar-section-label">불러온 자료</div>
         <label htmlFor="dataset-select">현재 데이터</label>
         <div className="select-wrap"><select id="dataset-select" value={datasetId} onChange={event => { setDatasetId(event.target.value); setLotNo(""); setView(null); setCursor(null); firstLotKey.current = ""; }} disabled={datasetsQuery.isPending || !datasets.length || analysisRunning}>
           {!datasets.length && <option>{datasetsQuery.isPending ? "불러오는 중…" : "등록된 자료 없음"}</option>}
@@ -489,7 +494,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     </aside>
     <div className="workspace-main">
       <header className="workspace-topbar">
-        <div className="breadcrumb"><button className="icon-button" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={18} /></button><Brand compact /><span className="mode-badge">과거 LOT</span></div>
+        <div className="breadcrumb"><button className="icon-button" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><span className="mode-badge">과거 자료</span></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
           <button aria-label="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
           <button aria-label="채널 그래프 열기" className={drawer === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={15} /><span>그래프</span></button>
@@ -500,15 +505,13 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       </header>
       <main className="main-content">
         <section className="scene-data-control" aria-label="현재 보고 있는 자료">
-          <span className="eyebrow">HISTORICAL / {fieldTeam ? "FIELD TEAM" : "MONITORING TEAM"}</span>
           <label htmlFor="scene-lot-select">LOT</label><select id="scene-lot-select" value={lotNo} onChange={event => setLotNo(event.target.value)} disabled={!lots.length || analysisRunning || editing || !!guideStep}>
             {!lots.length && <option>자료 불러오는 중</option>}{lots.map(item => <option key={item.lot_no} value={String(item.lot_no)}>{item.lot_no} · {item.grade || "강종 미기록"}</option>)}
           </select>
-          <span title={dataset?.name}>{dataset?.name ?? "서버 자료 확인 중"}</span>
-          <small>{cursor ? dateTime(cursor, true) : "—"} · 원자료 시각</small>
+          <div className="scene-recorded-time"><span>선택 시각</span><strong>{cursor ? dateTime(cursor, true) : "불러오는 중"}</strong></div>
         </section>
         {guideStep && guideIndex !== null && <section className="guide-panel" aria-label="공정과 채널 읽기 가이드" aria-live="polite">
-          <div className="guide-panel-top"><span className="eyebrow"><BookOpen size={13} />GUIDE MODE</span><span>{guideIndex + 1} / {GUIDE_STEPS.length}</span><button className="icon-button" onClick={closeGuide} aria-label="가이드 닫고 이전 화면으로 돌아가기"><X size={16} /></button></div>
+          <div className="guide-panel-top"><span><BookOpen size={16} />공정 읽기</span><span>{guideIndex + 1} / {GUIDE_STEPS.length}</span><button className="icon-button" onClick={closeGuide} aria-label="가이드 닫고 이전 화면으로 돌아가기"><X size={18} /></button></div>
           <div className="guide-content"><div className="guide-steps" aria-label="가이드 단계">{GUIDE_STEPS.map((step, index) => <button key={step.id} className={index === guideIndex ? "active" : ""} onClick={() => moveGuide(index)} aria-current={index === guideIndex ? "step" : undefined}><span>{String(index + 1).padStart(2, "0")}</span>{step.title}</button>)}</div>
             <div className="guide-explanation"><span className="guide-kind">{guideStep.kind === "practice" ? "설명용 연습 · 실제 경고가 아닙니다" : guideStep.kind === "reading" ? "기록 읽는 방법" : "설비 공정 이해"}</span><h2>{guideStep.title}</h2><p>{guideStep.body}</p><div className="guide-check"><Check size={15} /><span>{guideStep.check}</span></div><p className="guide-preservation">설명에 맞춰 채널만 선택합니다. 종료하면 가이드 시작 전에 보던 LOT와 시각으로 돌아갑니다.</p></div>
           </div>
@@ -526,37 +529,42 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           time: alertCandidate.peak_at, reason: `과거 LOT ${lotNo} · |Z| > 3으로 찾은 후보`, severity: "candidate", acknowledged: alertCandidate.acknowledged,
         }} pending={acknowledging === alertCandidate.id} onAcknowledge={() => void acknowledgeCandidate(alertCandidate)} onFocus={() => focusCandidate(alertCandidate)} />}
         <section className="panel equipment-panel" aria-labelledby="equipment-heading">
-          <div className="panel-heading">
-            <div><span className="eyebrow">EQUIPMENT VIEW</span><h2 id="equipment-heading">연속 소둔로 <span className="technical-tag">CAL01</span></h2></div>
-            <div className="button-row">
-              <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} title={reducedMotion ? "동작 줄이기 설정에서는 정적으로 표시합니다." : "실제 속도와 무관한 설비 동작 설명입니다."} onClick={() => setMotionPlaying(value => !value)}>{motionPlaying ? <Pause size={15} /> : <Play size={15} />}{motionPlaying ? "설명 동작 멈춤" : "설비 동작 설명"}</button>
-              <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => setShowInterior(value => !value)}><Layers3 size={15} />{showInterior ? "외함 보기" : "내부 보기"}</button>
-              {user.can_edit_layout && !editing && <button className="subtle-button" onClick={beginEditing} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={15} />표시점 편집</button>}
-              {editing && <><button className="subtle-button" onClick={cancelEditing} disabled={saving}><X size={14} />취소</button><button className="primary-button compact" onClick={() => void saveLayout()} disabled={saving || !dirty || layoutConflict}>{saving ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}위치 저장</button></>}
+          <div className="panel-heading scene-toolbar">
+            <h2 id="equipment-heading" className="visually-hidden">연속 소둔로 CAL01</h2>
+            <div className="segmented-control appearance-control" role="group" aria-label="설비 표현 방식">
+              <button aria-pressed={appearance === "hologram"} onClick={() => setAppearance("hologram")}>홀로그램</button>
+              <button aria-pressed={appearance === "realistic"} onClick={() => setAppearance("realistic")}>실제 설비</button>
             </div>
+            <details className="scene-tools">
+              <summary>도구 <ChevronDown size={16} /></summary>
+              <div className="scene-tools-menu">
+                <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} onClick={() => setMotionPlaying(value => !value)}>{motionPlaying ? <Pause size={16} /> : <Play size={16} />}{motionPlaying ? "강판 이동 멈춤" : "강판 이동 재생"}</button>
+                {reducedMotion && <p>기기의 동작 줄이기 설정에 따라 재생을 껐습니다.</p>}
+                <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => setShowInterior(value => !value)}><Layers3 size={16} />{showInterior ? "외함 보기" : "내부 보기"}</button>
+                {user.can_edit_layout && !editing && <button className="subtle-button" onClick={beginEditing} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}
+                <details className="display-help"><summary>화면 설명</summary><p>드래그로 회전하고 휠로 확대합니다. 오른쪽 드래그로 화면을 옮깁니다.</p><p>설비는 공정을 설명하는 모형입니다. 실제 치수·채널 부착 위치·운전 속도를 재현한 것은 아닙니다.</p><p>열기와 색은 존의 온도값을 표현한 효과입니다. 실제 외벽·강판 온도나 열해석 결과는 아닙니다.</p><p>날짜와 시각은 원자료에 적힌 값입니다. 원자료의 시간대는 아직 확인되지 않았습니다.</p></details>
+              </div>
+            </details>
+            {editing && <div className="editing-actions"><button className="subtle-button" onClick={cancelEditing} disabled={saving}>취소</button><button className="primary-button" onClick={() => void saveLayout()} disabled={saving || !dirty || layoutConflict}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}위치 저장</button></div>}
           </div>
           <div className="equipment-body">
             <div className="equipment-stage">
-              <div className="stage-meta"><span className="stage-coordinate">ZONES / CHANNELS</span><span>{editing ? "표시점 편집 중" : "드래그 회전 · 스크롤 확대"}</span></div>
-              {channels.length ? <Suspense fallback={<div className="scene-placeholder"><LoaderCircle className="spin" size={24} /><span>3D 설비를 불러오는 중</span></div>}><FurnaceScene channels={channels} selectedChannel={selectedChannel} onSelectChannel={selectSceneChannel} values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined} editing={editing} showInterior={showInterior} theme={theme} alertChannelIds={guideStep ? [] : alertChannelIds} alertZoneIds={guideStep ? [] : alertZoneIds} motionPlaying={motionPlaying && !editing} overlayOpen={drawer !== null} /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
+              {channels.length ? <Suspense fallback={<div className="scene-placeholder"><LoaderCircle className="spin" size={24} /><span>3D 설비를 불러오는 중</span></div>}><FurnaceScene channels={channels} selectedChannel={selectedChannel} onSelectChannel={selectSceneChannel} values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined} editing={editing} showInterior={showInterior} appearance={appearance} theme={theme} alertChannelIds={guideStep ? [] : alertChannelIds} alertZoneIds={guideStep ? [] : alertZoneIds} motionPlaying={motionPlaying && !editing} overlayOpen={drawer !== null} /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
             </div>
             <aside className="channel-inspector" aria-label="선택한 채널 정보">
-              <div className="inspector-heading"><span className="eyebrow">SELECTED CHANNEL</span><span className="zone-badge">{channel?.zone || "—"}</span></div>
-              <h3>{channel?.id ?? "채널 선택"}</h3>
-              <p className="channel-description">{channel?.label ?? "설비의 표시점을 눌러 주세요."}</p>
+              <div className="inspector-heading"><h3>{channel?.id ?? "채널 선택"}</h3><span className="zone-badge">{channel?.zone || "—"}</span></div>
               <div className={`main-reading ${frameQuery.isFetching ? "is-loading" : ""}`}><strong>{numberText(frameValue?.value)}</strong><span>{channel?.unit || "단위 미확인"}</span></div>
-              <div className="inspector-fields">
-                <div><span>원자료 기록 시각</span><strong>{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : frameQuery.isFetching ? "불러오는 중" : "관측값 없음"}</strong></div>
-                <div><span>그래프에서 고른 시각</span><strong>{cursor ? dateTime(cursor, true) : "—"}</strong></div>
-                <div><span>자료 상태</span><strong>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</strong></div>
-              </div>
+              <p className="inspector-measured-time">{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : frameQuery.isFetching ? "불러오는 중" : "관측값 없음"}</p>
+              {frameValue?.quality_status === "stale" && <p className="inspector-stale">선택 시각보다 오래된 값입니다.</p>}
               <ErrorMessage error={frameQuery.error} retry={() => void frameQuery.refetch()} />
-              <button className="inspector-graph-button" onClick={() => { selectChannel(selectedChannel); goToSection("channels"); }} disabled={!lot}><span>이 채널 그래프 보기</span><ArrowDown size={17} /></button>
-              <div className="inspector-note"><ShieldCheck size={14} /><span>표시된 값은 선택한 과거 시각의 관측값입니다. 실시간 이상 경고가 아닙니다.</span></div>
+              <div className="inspector-actions">
+                <button className="inspector-graph-button" onClick={() => { selectChannel(selectedChannel); goToSection("channels"); }} disabled={!lot}>그래프 보기<ArrowRight size={16} /></button>
+                <details className="channel-help"><summary>설명</summary><div><p>{channel?.label ?? "설비의 표시점을 눌러 주세요."}</p><p>값 아래 시각은 실제 기록 시각입니다. 위에서 고른 시각과 다를 수 있습니다.</p><p>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</p></div></details>
+              </div>
             </aside>
           </div>
           <ErrorMessage error={layoutQuery.error} retry={() => void layoutQuery.refetch()} />
-          {editing && <div className="editing-instructions"><Move3D size={15} /><span>표시점을 선택하고 이동 도구로 위치를 옮긴 뒤 <strong>위치 저장</strong>을 눌러 주세요.</span><span className="revision-label">REV {savedRevision.current}</span></div>}
+          {editing && <div className="editing-instructions"><Move3D size={18} /><span>채널을 고르고 화살표로 옮긴 뒤 <strong>위치 저장</strong>을 누르세요.</span></div>}
         </section>
         <WorkspaceDrawer open={drawer === "analysis"} title="과거 LOT의 이상 후보" name="analysis" onClose={() => setDrawer(null)}>
         <div className="analysis-channel-choice"><span>분석할 채널</span><div className="segmented-control"><button onClick={() => setChannelGroup("all")}>전체</button><button onClick={() => setChannelGroup("TC")}>TC</button><button onClick={() => setChannelGroup("OP")}>OP</button><button onClick={() => setChannelGroup("selected")}>선택한 채널만</button></div><p>{displayedChannels.map(item => item.id).join(" · ") || "선택한 채널 없음"}</p></div>
@@ -602,7 +610,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <WorkspaceDrawer open={drawer === "requests"} title="팀 확인 요청" name="requests" onClose={() => setDrawer(null)}>
           <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenCandidate={location => void openCandidateLocation(location)} />
         </WorkspaceDrawer>
-        <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>원자료 시각 기준 · 시간대 미확인</span></footer>
+        <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>과거 자료 · 원자료 시각 기준</span></footer>
       </main>
     </div>
     {requestCandidate && <RequestDialog key={requestCandidate.id} candidate={requestCandidate} onClose={() => setRequestCandidate(null)} onSaved={(request, reused) => {

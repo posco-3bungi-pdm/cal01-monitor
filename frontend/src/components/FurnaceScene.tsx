@@ -1,8 +1,8 @@
-import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Component, Suspense, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ErrorInfo, ReactNode, RefObject } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
-import { CameraControls, ContactShadows, Edges, Grid, Html, TransformControls } from '@react-three/drei'
+import { CameraControls, Edges, Html, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
 import type { Channel, Placement, Theme } from '../types'
@@ -12,6 +12,10 @@ import {
   createStripLayout, defaultPlacements, zoneForChannel, overviewForViewport,
 } from './furnace-model'
 import type { FurnaceZone, Position3 } from './furnace-model'
+import { HeatHaze, HologramMaterial, IndustrialMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
+import type { FurnaceAppearance } from './furnace-appearance'
+import { ZoneLabels, ZoneLabelProjection, useZoneLabelBridge } from './ZoneLabels'
+import type { ZoneLabelBridgeRef } from './ZoneLabels'
 
 export type FurnaceSceneProps = {
   channels: Channel[]
@@ -27,9 +31,23 @@ export type FurnaceSceneProps = {
   alertZoneIds?: string[]
   motionPlaying?: boolean
   overlayOpen?: boolean
+  appearance: FurnaceAppearance
 }
 
 type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
+const AppearanceContext = createContext({ appearance: 'realistic' as FurnaceAppearance, theme: 'light' as Theme })
+
+function ModelMaterial({ weathered = false, ...props }: {
+  color?: string; metalness?: number; roughness?: number; emissive?: string;
+  emissiveIntensity?: number; side?: THREE.Side; weathered?: boolean
+}) {
+  const { appearance, theme } = useContext(AppearanceContext)
+  if (appearance === 'hologram') {
+    return <HologramMaterial color={theme === 'dark' ? '#4ae2ff' : '#00748b'} opacity={weathered ? 0.15 : 0.42} />
+  }
+  return weathered ? <IndustrialMaterial color={props.color} emissive={props.emissive}
+    emissiveIntensity={props.emissiveIntensity} /> : <meshStandardMaterial {...props} />
+}
 
 function SceneViewport({ overlayOpen }: { overlayOpen: boolean }) {
   const { camera, size, invalidate } = useThree()
@@ -77,7 +95,7 @@ function StructuralBeams({ beams, color = '#4c5960' }: { beams: BeamSpec[]; colo
   return (
     <instancedMesh ref={ref} args={[undefined, undefined, beams.length]} castShadow receiveShadow name="STRUCTURAL_MEMBERS">
       <boxGeometry />
-      <meshStandardMaterial color={color} metalness={0.72} roughness={0.39} />
+      <ModelMaterial color={color} metalness={0.72} roughness={0.39} />
     </instancedMesh>
   )
 }
@@ -91,7 +109,7 @@ function Pipe({ points, radius = 0.15, color = '#99a4aa' }: {
   ), [points, radius])
   useEffect(() => () => geometry.dispose(), [geometry])
   return <mesh geometry={geometry} castShadow>
-    <meshStandardMaterial color={color} roughness={0.34} metalness={0.78} />
+    <ModelMaterial color={color} roughness={0.34} metalness={0.78} />
   </mesh>
 }
 
@@ -107,16 +125,16 @@ function Roller({ x, y, radius, direction, motion }: {
       <group ref={rotor} name="ROTATING_ROLL_AND_SHAFT">
         <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
           <cylinderGeometry args={[radius, radius, 1.7, 24]} />
-          <meshStandardMaterial color="#a8b6bf" metalness={0.86} roughness={0.24} />
+          <ModelMaterial color="#a8b6bf" metalness={0.86} roughness={0.24} />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
           <cylinderGeometry args={[0.115, 0.115, 3.55, 12]} />
-          <meshStandardMaterial color="#6d7d86" metalness={0.85} roughness={0.29} />
+          <ModelMaterial color="#6d7d86" metalness={0.85} roughness={0.29} />
         </mesh>
         {[-1, 1].map((side) => <group key={side} position={[0, 0, side * 0.857]}>
           {[0, Math.PI / 2].map((angle) => <mesh key={angle} rotation={[0, 0, angle]}>
             <boxGeometry args={[radius * 1.65, 0.042, 0.012]} />
-            <meshStandardMaterial color="#344952" metalness={0.35} roughness={0.6} />
+            <ModelMaterial color="#344952" metalness={0.35} roughness={0.6} />
           </mesh>)}
         </group>)}
       </group>
@@ -124,11 +142,11 @@ function Roller({ x, y, radius, direction, motion }: {
         <group key={side} position={[0, 0, side * 1.7]}>
           <mesh castShadow>
             <boxGeometry args={[0.39, 0.36, 0.32]} />
-            <meshStandardMaterial color="#46555d" metalness={0.65} roughness={0.42} />
+            <ModelMaterial color="#46555d" metalness={0.65} roughness={0.42} />
           </mesh>
           <mesh position={[0, 0, side * 0.18]} rotation={[Math.PI / 2, 0, 0]}>
             <cylinderGeometry args={[0.18, 0.18, 0.15, 16]} />
-            <meshStandardMaterial color="#b8c1c5" metalness={0.8} roughness={0.35} />
+            <ModelMaterial color="#b8c1c5" metalness={0.8} roughness={0.35} />
           </mesh>
         </group>
       ))}
@@ -181,7 +199,9 @@ function FrameAndWalkways() {
 function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
   zone: FurnaceZone; selected: boolean; interior: boolean; onSelect: () => void; theme: Theme; alert: boolean
 }) {
-  const shellColor = theme === 'dark' ? '#9faeb2' : '#899ca6'
+  const { appearance } = useContext(AppearanceContext)
+  const shellColor = theme === 'dark' ? '#a4aaa5' : '#9ba29f'
+  const hologram = appearance === 'hologram'
   const floorY = 0.8
   const height = zone.height - floorY
   const hotSection = ['Z3', 'Z4', 'Z5', 'Z6'].includes(zone.id)
@@ -208,12 +228,13 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
             <group key={index}>
               <mesh position={[zone.x, panelY, zone.depth / 2]} castShadow receiveShadow>
                 <boxGeometry args={[zone.width - 0.065, height / panelCount - 0.045, 0.11]} />
-                <meshStandardMaterial color={shellColor} metalness={0.55} roughness={0.42}
+                <ModelMaterial weathered color={shellColor} metalness={0.55} roughness={0.42}
                   emissive={selected ? '#a3d334' : '#000000'} emissiveIntensity={selected ? 0.1 : 0} />
+                {hologram && <Edges color={theme === 'dark' ? '#57cde7' : '#238296'} lineWidth={1} />}
               </mesh>
               <mesh position={[zone.x, panelY, -zone.depth / 2]} castShadow receiveShadow>
                 <boxGeometry args={[zone.width - 0.065, height / panelCount - 0.045, 0.11]} />
-                <meshStandardMaterial color="#61737d" metalness={0.62} roughness={0.4} />
+                <ModelMaterial weathered color="#61737d" metalness={0.62} roughness={0.4} />
               </mesh>
             </group>
           )
@@ -221,27 +242,28 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
         {[-1, 1].map((side) => (
           <mesh key={side} position={[zone.x + side * (zone.width / 2), (height / 2) + floorY, 0]} castShadow>
             <boxGeometry args={[0.12, height, zone.depth]} />
-            <meshStandardMaterial color="#768c98" metalness={0.57} roughness={0.43} />
+            <ModelMaterial weathered color="#768c98" metalness={0.57} roughness={0.43} />
           </mesh>
         ))}
         <mesh position={[zone.x, zone.height, 0]} castShadow>
           <boxGeometry args={[zone.width, 0.12, zone.depth]} />
-          <meshStandardMaterial color="#bbc4c7" metalness={0.65} roughness={0.32} />
+          <ModelMaterial weathered color="#bbc4c7" metalness={0.65} roughness={0.32} />
+          {hologram && <Edges color={theme === 'dark' ? '#57cde7' : '#238296'} />}
         </mesh>
         {/* Service hatch and narrow trim give the shell its assembly scale. */}
         <mesh position={[zone.x - zone.width * 0.15, 2.1, zone.depth / 2 + 0.075]}>
           <boxGeometry args={[Math.min(0.85, zone.width * 0.5), 1.25, 0.07]} />
-          <meshStandardMaterial color="#637983" metalness={0.65} roughness={0.38} />
+          <ModelMaterial weathered color="#637983" metalness={0.65} roughness={0.38} />
         </mesh>
         <mesh position={[zone.x - zone.width * 0.15 + 0.2, 2.1, zone.depth / 2 + 0.13]}>
           <boxGeometry args={[0.045, 0.22, 0.055]} />
-          <meshStandardMaterial color="#d9dedc" metalness={0.8} roughness={0.25} />
+          <ModelMaterial color="#d9dedc" metalness={0.8} roughness={0.25} />
         </mesh>
       </group>
       <group name={`ZONE_FRAME_${zone.id}`}><StructuralBeams beams={members} color="#526773" /></group>
       <mesh position={[zone.x, 0.69, 0]} onClick={pick}>
         <boxGeometry args={[zone.width, 0.14, zone.depth + 0.12]} />
-        <meshStandardMaterial color={selected ? '#c8ed77' : '#3a4a52'} metalness={0.5} roughness={0.4}
+        <ModelMaterial color={selected ? '#c8ed77' : '#3a4a52'} metalness={0.5} roughness={0.4}
           emissive={selected ? '#abda47' : '#000000'} emissiveIntensity={0.12} />
       </mesh>
       {alert && <mesh position={[zone.x, zone.height / 2 + 0.4, 0]}>
@@ -249,15 +271,6 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
         <meshBasicMaterial visible={false} />
         <Edges color="#f16d64" lineWidth={1.6} />
       </mesh>}
-      <Html position={[zone.x, zone.height + 0.7, 0]} center style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
-        <button type="button" onClick={onSelect} style={{
-          pointerEvents: 'auto', color: selected ? '#17240a' : theme === 'dark' ? '#dae4e6' : '#253943',
-          background: selected ? '#c9ee78' : theme === 'dark' ? '#172127e8' : '#f4f7f4ed',
-          border: `1px solid ${selected ? '#c9ee78' : theme === 'dark' ? '#4e626a' : '#acb9bd'}`,
-          font: '600 10px ui-monospace, monospace', letterSpacing: '0.05em', padding: '4px 6px',
-          cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: 2,
-        }}>{zone.label}{alert ? ' · 이 LOT에 이상 후보 있음' : ''}</button>
-      </Html>
     </group>
   )
 }
@@ -276,20 +289,20 @@ function Services() {
           <Pipe points={points} radius={0.3} />
           <mesh position={[x, h + 0.15, -0.7]} rotation={[0, 0, 0]} castShadow>
             <cylinderGeometry args={[0.44, 0.44, 0.12, 20]} />
-            <meshStandardMaterial color="#4e6470" metalness={0.6} roughness={0.4} />
+            <ModelMaterial color="#4e6470" metalness={0.6} roughness={0.4} />
           </mesh>
           <mesh position={[x, 1.2, -4.25]} castShadow>
             <boxGeometry args={[1.05, 1.2, 1.1]} />
-            <meshStandardMaterial color="#697d86" metalness={0.62} roughness={0.37} />
+            <ModelMaterial color="#697d86" metalness={0.62} roughness={0.37} />
           </mesh>
         </group>
       ))}
       <Pipe points={bus} radius={0.13} color="#bac1b9" />
       <mesh position={[8.6, 0.45, -4.2]} receiveShadow>
-        <boxGeometry args={[2.2, 0.7, 1.4]} /><meshStandardMaterial color="#3d515c" metalness={0.55} roughness={0.45} />
+        <boxGeometry args={[2.2, 0.7, 1.4]} /><ModelMaterial color="#3d515c" metalness={0.55} roughness={0.45} />
       </mesh>
       <mesh position={[8.6, 1.05, -4.2]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.48, 0.48, 1.6, 24]} /><meshStandardMaterial color="#8a9ba1" metalness={0.7} roughness={0.34} />
+        <cylinderGeometry args={[0.48, 0.48, 1.6, 24]} /><ModelMaterial color="#8a9ba1" metalness={0.7} roughness={0.34} />
       </mesh>
     </group>
   )
@@ -307,30 +320,30 @@ function Coil({ x, motion }: { x: number; motion: StripMotion }) {
       <group ref={rotor} name={x < 0 ? 'UNCOILER_ROTATION' : 'RECOILER_ROTATION'}>
         <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
           <cylinderGeometry args={[radius, radius, 1.45, 48]} />
-          <meshStandardMaterial color="#aab9c2" metalness={0.9} roughness={0.25} />
+          <ModelMaterial color="#aab9c2" metalness={0.9} roughness={0.25} />
         </mesh>
         {[-1, 1].map((side) => (
           <group key={side} position={[0, 0, side * 0.74]}>
             <mesh><ringGeometry args={[0.31, radius + 0.005, 48, 5]} />
-              <meshStandardMaterial color="#ccd5d9" metalness={0.84} roughness={0.32} side={THREE.DoubleSide} />
+              <ModelMaterial color="#ccd5d9" metalness={0.84} roughness={0.32} side={THREE.DoubleSide} />
             </mesh>
             <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.29, 0.29, 0.12, 24]} />
-              <meshStandardMaterial color="#263944" metalness={0.6} roughness={0.4} /></mesh>
+              <ModelMaterial color="#263944" metalness={0.6} roughness={0.4} /></mesh>
             {[0.46, 0.6, 0.73].map((ringRadius) => <mesh key={ringRadius}>
               <torusGeometry args={[ringRadius, 0.008, 4, 48]} />
-              <meshStandardMaterial color="#7a8c98" metalness={0.7} roughness={0.4} />
+              <ModelMaterial color="#7a8c98" metalness={0.7} roughness={0.4} />
             </mesh>)}
             {[0, Math.PI * 2 / 3, Math.PI * 4 / 3].map((angle) => <group key={angle} rotation={[0, 0, angle]}>
               <mesh position={[radius * 0.66, 0, side * 0.014]}>
                 <boxGeometry args={[radius * 0.6, 0.052, 0.012]} />
-                <meshStandardMaterial color="#4e646f" metalness={0.45} roughness={0.5} />
+                <ModelMaterial color="#4e646f" metalness={0.45} roughness={0.5} />
               </mesh>
             </group>)}
           </group>
         ))}
       </group>
       <mesh position={[0, -centreY / 2, 0]} receiveShadow><boxGeometry args={[1.1, centreY, 2.1]} />
-        <meshStandardMaterial color="#4d626e" metalness={0.62} roughness={0.4} /></mesh>
+        <ModelMaterial color="#4d626e" metalness={0.62} roughness={0.4} /></mesh>
     </group>
   )
 }
@@ -381,7 +394,7 @@ function StripTravelMarks({ points, motion }: { points: THREE.Vector2[]; motion:
   return <instancedMesh ref={marks} args={[undefined, undefined, path.count * 2]}
     name="ILLUSTRATIVE_STRIP_TRAVEL_MARKS" frustumCulled={false}>
     <boxGeometry args={[0.12, 0.008, 1.24]} />
-    <meshStandardMaterial color="#ecf7d1" emissive="#b8d591" emissiveIntensity={0.13}
+    <ModelMaterial color="#ecf7d1" emissive="#b8d591" emissiveIntensity={0.13}
       metalness={0.35} roughness={0.4} />
   </instancedMesh>
 }
@@ -394,7 +407,7 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
   const object = useRef<THREE.Group>(null)
   const { invalidate } = useThree()
   const output = channel.id.startsWith('OP-')
-  const labelVisible = hovered || selected
+  const labelVisible = hovered || (editing && selected)
   const color = alert ? '#f5746b' : selected ? '#c9f07b' : value == null ? '#879397' : output ? '#b2c4e0' : '#dce6e8'
   const readout = value == null || !Number.isFinite(value) ? '값 없음' : `${numberText(value)}${channel.unit ? ` ${channel.unit}` : ''}`
   useEffect(() => { object.current?.position.set(...position); invalidate() }, [position, invalidate])
@@ -415,12 +428,12 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
         <div style={{ background: theme === 'dark' ? '#131e24f5' : '#fffffffa',
           borderLeft: `3px solid ${selected ? '#b6dc65' : '#9aabb2'}`, padding: '7px 10px',
           boxShadow: '0 4px 20px #0002', color: theme === 'dark' ? '#ecf2f3' : '#142d3a',
-          minWidth: 112, whiteSpace: 'nowrap', fontSize: 11, lineHeight: 1.5 }}>
-          <strong style={{ font: '600 11px ui-monospace, monospace' }}>{channel.id}</strong>
-          {output && <span style={{ marginLeft: 7, fontSize: 10, opacity: 0.7 }}>제어 출력</span>}
+          minWidth: 112, whiteSpace: 'nowrap', fontSize: 14, lineHeight: 1.6 }}>
+          <strong style={{ font: '600 14px ui-monospace, monospace' }}>{channel.id}</strong>
+          {output && <span style={{ marginLeft: 7, fontSize: 12, opacity: 0.85 }}>출력</span>}
           <div style={{ marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{readout}</div>
-          {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 10 }}>
-            이 LOT에 이상 후보 있음<br />지금 표시한 값의 상태와는 별도
+          {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 12 }}>
+            이 LOT에 이상 후보 있음
           </div>}
           {editing && selected && <div style={{ opacity: 0.65, fontSize: 10, marginTop: 3 }}>축을 끌어 표시점 이동</div>}
         </div>
@@ -463,12 +476,14 @@ function Lighting({ theme }: { theme: Theme }) {
   </>
 }
 
-function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCounter: number }) {
-  const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, editing = false, onPlacementChange } = props
+function Facility({ props, resetCounter, animateHeat, zoneLabelBridge }: {
+  props: FurnaceSceneProps; resetCounter: number; animateHeat: boolean; zoneLabelBridge: ZoneLabelBridgeRef
+}) {
+  const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, appearance, editing = false, onPlacementChange } = props
   const controls = useRef<CameraControls>(null)
   const previousZone = useRef<string | null>(null)
   const showingOverview = useRef(true)
-  const { camera, size, scene } = useThree()
+  const { camera, size, scene, invalidate } = useThree()
   const motion = useRef(0)
   // A single illustrative travel distance drives every moving part.
   // It is independent of channel values and the selected source timestamp.
@@ -490,6 +505,24 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   })), [defaults, placements])
   const strip = useMemo(createStripLayout, [])
   const ribbonGeometry = useMemo(() => createStripGeometry(strip.points), [strip])
+  const zoneTemperatures = useMemo(() => new Map(FURNACE_ZONES.map(zone =>
+    [zone.id, temperatureForZone(zone.id, values)])), [values])
+  useLayoutEffect(() => {
+    const positions = ribbonGeometry.getAttribute('position')
+    const colors = new Float32Array(positions.count * 3)
+    const cold = new THREE.Color('#aab9c0')
+    const hot = new THREE.Color('#ffab52')
+    const color = new THREE.Color()
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index)
+      const zone = FURNACE_ZONES.reduce((closest, current) =>
+        Math.abs(current.x - x) < Math.abs(closest.x - x) ? current : closest)
+      color.copy(cold).lerp(hot, Math.pow(heatLevel(zoneTemperatures.get(zone.id) ?? null), 2))
+      color.toArray(colors, index * 3)
+    }
+    ribbonGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    invalidate()
+  }, [ribbonGeometry, zoneTemperatures, invalidate])
   const rollerGroups = useMemo(() => FURNACE_ZONES.map((zone) => ({
     zone,
     rollers: strip.rollers.map((roller, index) => ({
@@ -545,7 +578,8 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   useEffect(() => {
     if (showingOverview.current) fitOverview(false)
   }, [size.width, size.height, props.overlayOpen])
-  return <>
+  return <AppearanceContext.Provider value={{ appearance, theme }}>
+    <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} />
     <Lighting theme={theme} />
     <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
       minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.025} smoothTime={0.3} draggingSmoothTime={0.12}
@@ -556,6 +590,8 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
         selected={selectedZone === zone.id} interior={showInterior} theme={theme}
         alert={alertedZones.has(zone.id)}
         onSelect={() => selectZone(zone.id)} />)}
+      {appearance === 'realistic' && FURNACE_ZONES.map(zone => <HeatHaze key={zone.id} zone={zone}
+        temperature={zoneTemperatures.get(zone.id) ?? null} animate={animateHeat} interior={showInterior} />)}
       <group name="ROLLERS">{rollerGroups.map(({ zone, rollers }) => (
         <group key={zone.id} name={`INTERNAL_${zone.id}`} userData={{ zone_id: zone.id }}
           onClick={(event) => { event.stopPropagation(); selectZone(zone.id) }}>
@@ -569,7 +605,9 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
             Math.abs(zone.x - event.point.x) < Math.abs(previous.x - event.point.x) ? zone : previous)
           selectZone(closest.id)
         }}>
-        <meshStandardMaterial color="#c5d0d8" metalness={0.88} roughness={0.24} side={THREE.DoubleSide} />
+        {appearance === 'hologram'
+          ? <HologramMaterial color={theme === 'dark' ? '#b0f9ff' : '#005b75'} opacity={0.8} />
+          : <meshStandardMaterial vertexColors metalness={0.6} roughness={0.38} side={THREE.DoubleSide} />}
       </mesh>
       <StripTravelMarks points={strip.points} motion={motion} />
       <Services />
@@ -585,17 +623,25 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
           onChange={(position) => onPlacementChange?.(channel.id, position)} />)}
       </group>
     </group>
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.07, 0]} receiveShadow>
-      <planeGeometry args={[150, 150]} />
-      <meshStandardMaterial color={theme === 'dark' ? '#142028' : '#dce4e4'} roughness={0.85} metalness={0.08} />
-    </mesh>
-    <Grid position={[0, -0.045, 0]} args={[90, 90]} cellSize={2} sectionSize={10}
-      cellThickness={0.45} sectionThickness={0.7}
-      cellColor={theme === 'dark' ? '#2b3b43' : '#b8c5c9'} sectionColor={theme === 'dark' ? '#3e5057' : '#9aaeb5'}
-      fadeDistance={75} fadeStrength={1.4} infiniteGrid={false} />
-    <ContactShadows position={[0, 0, 0]} opacity={0.35} scale={55} blur={2.2} far={15}
-      resolution={512} color="#071218" frames={1} />
-  </>
+    {appearance === 'realistic'
+      ? <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => {}}>
+        <planeGeometry args={[46, 14]} />
+        <shaderMaterial transparent depthWrite={false}
+          vertexShader={`varying vec2 vUv; void main() {
+            vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`}
+          fragmentShader={`varying vec2 vUv; void main() {
+            float fade = 1.0 - smoothstep(0.16, 0.5, length(vUv - 0.5));
+            gl_FragColor = vec4(0.02, 0.035, 0.045, fade * 0.32);
+          }`} />
+      </mesh>
+      : <group name="HOLOGRAM_PROJECTION" rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]} scale={[1, 0.45, 1]}>
+        {[21, 22].map(radius => <mesh key={radius} raycast={() => {}}>
+          <ringGeometry args={[radius, radius + 0.025, 96]} />
+          <meshBasicMaterial color={theme === 'dark' ? '#3cc9e2' : '#397b8c'} transparent opacity={0.3} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>)}
+      </group>}
+  </AppearanceContext.Provider>
 }
 
 class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -613,37 +659,48 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 
 export default function FurnaceScene(props: FurnaceSceneProps) {
   const [resetCounter, setResetCounter] = useState(0)
+  const zoneLabelBridge = useZoneLabelBridge()
+  const [zoneLabelTarget, setZoneLabelTarget] = useState<HTMLDivElement | null>(null)
+  const selected = props.channels.find(channel => channel.id === props.selectedChannel)
+  const selectedZone = selected ? zoneForChannel(selected) : ''
+  const alertChannels = new Set(props.alertChannelIds ?? [])
+  const alertZones = new Set([
+    ...(props.alertZoneIds ?? []).map(id => id === 'OUT1' || id === 'OUT2' ? 'OUT' : id),
+    ...props.channels.filter(channel => alertChannels.has(channel.id)).map(zoneForChannel),
+  ])
   const reducedMotion = useReducedMotion()
   const motionPlaying = Boolean(props.motionPlaying && !reducedMotion)
+  const animateHeat = !reducedMotion && !props.editing && props.appearance === 'realistic'
+    && FURNACE_ZONES.some(zone => heatLevel(temperatureForZone(zone.id, props.values)) > 0)
+  const background = props.appearance === 'hologram'
+    ? (props.theme === 'dark' ? '#07151e' : '#dcebef')
+    : (props.theme === 'dark' ? '#16202a' : '#dce2e4')
   return <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320,
-    background: props.theme === 'dark' ? '#142028' : '#dce4e4', overflow: 'hidden' }}>
+    background, overflow: 'hidden' }}>
     <SceneErrorBoundary>
-      <Canvas shadows frameloop={motionPlaying ? 'always' : 'demand'} dpr={[1, 1.6]} camera={{
+      <Canvas shadows={{ type: THREE.PCFShadowMap }} frameloop={motionPlaying || animateHeat ? 'always' : 'demand'} dpr={[1, 1.6]} camera={{
         position: OVERVIEW_CAMERA.position, fov: 40, near: 0.1, far: 180,
       }} gl={{ antialias: true, alpha: false }}
         onCreated={({ camera, gl }) => {
           camera.lookAt(...OVERVIEW_CAMERA.target)
-          gl.setClearColor(props.theme === 'dark' ? '#142028' : '#dce4e4')
+          gl.setClearColor(background)
           gl.toneMapping = THREE.ACESFilmicToneMapping
           gl.toneMappingExposure = 1.05
         }}>
-        <color attach="background" args={[props.theme === 'dark' ? '#142028' : '#dce4e4']} />
-        <fog attach="fog" args={[props.theme === 'dark' ? '#142028' : '#dce4e4', 65, 130]} />
+        <color attach="background" args={[background]} />
+        <fog attach="fog" args={[background, 65, 130]} />
         <SceneViewport overlayOpen={Boolean(props.overlayOpen)} />
-        <Suspense fallback={null}><Facility props={{ ...props, motionPlaying }} resetCounter={resetCounter} /></Suspense>
+        <Suspense fallback={null}><Facility props={{ ...props, motionPlaying }} resetCounter={resetCounter}
+          animateHeat={animateHeat} zoneLabelBridge={zoneLabelBridge} /></Suspense>
       </Canvas>
     </SceneErrorBoundary>
-    <div style={{ position: 'absolute', left: 14, bottom: 12, pointerEvents: 'none',
-      color: props.theme === 'dark' ? '#b7c7ce' : '#3f5965', fontSize: 10, lineHeight: 1.7,
-      background: props.theme === 'dark' ? '#142028d9' : '#edf2f0df', padding: '6px 9px' }}>
-      <div>공정 구조를 설명하는 새 모형 · 실측 치수·실제 부착 위치 아님</div>
-      <div>드래그: 회전 · 휠: 확대 · 오른쪽 드래그: 이동 · 사각 표시: 제어 출력</div>
-      <div>움직임은 강판 흐름 설명용 · 실제 운전 상태·속도와 무관</div>
-    </div>
-    <button type="button" onClick={() => setResetCounter((counter) => counter + 1)}
-      style={{ position: 'absolute', right: 14, bottom: 15, padding: '8px 11px', cursor: 'pointer',
+    <div ref={setZoneLabelTarget} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20 }} />
+    <ZoneLabels zones={FURNACE_ZONES} target={zoneLabelTarget} bridge={zoneLabelBridge}
+      theme={props.theme} selectedZone={selectedZone} alertZones={alertZones} />
+    <button type="button" className="scene-reset" onClick={() => setResetCounter((counter) => counter + 1)}
+      style={{ position: 'absolute', right: 14, padding: '10px 12px', cursor: 'pointer',
         background: props.theme === 'dark' ? '#1c2c34e8' : '#f7faf7ef',
-        color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 11, borderRadius: 2,
+        color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 13, borderRadius: 2,
         border: `1px solid ${props.theme === 'dark' ? '#4f626d' : '#a7b8be'}` }}>전체 설비</button>
   </div>
 }

@@ -24,13 +24,16 @@ export default function EquipmentAlert({ alert, onAcknowledge, onFocus, pending 
   return <>
     {!alert.acknowledged && <div className="warning-edge-pulse" aria-hidden="true" />}
     <section className="equipment-alert" role={alert.acknowledged ? "status" : "alert"}>
-      <AlertTriangle size={22} />
-      <div><strong>과거 자료의 이상 후보 · {alert.equipment} / {alert.zone} / {alert.channel}</strong>
-        <p>{numberText(alert.value)} {alert.unit} · {dateTime(alert.time, true)} · {alert.reason}</p>
-        <p>{alert.acknowledged ? "팀 확인함 · 움직이는 강조를 멈췄습니다. 고장이나 해결 여부를 확정하지 않습니다." : "선택한 과거 LOT를 분석한 결과입니다. 현재 설비에서 새로 발생한 고장 경고가 아닙니다."}</p>
+      <AlertTriangle size={20} aria-hidden="true" />
+      <div className="equipment-alert-copy">
+        <strong>과거 자료의 이상 후보 · {alert.channel}</strong>
+        <p className="alert-recorded-value">{dateTime(alert.time, true)} · {numberText(alert.value)} {alert.unit}</p>
+        <div className="alert-summary"><span>{alert.acknowledged ? "팀 확인함 · 고장 확정 아님" : "고장 확정 아님"}</span>
+          <details className="alert-help"><summary>설명</summary><div><p>{alert.reason}</p><p>{alert.equipment} / {alert.zone}에서 기록한 값입니다. 현재 설비의 실시간 고장 경고가 아닙니다.</p><p>‘확인’은 후보를 읽었다는 표시입니다. 고장이나 해결 여부를 확정하지 않습니다.</p></div></details>
+        </div>
       </div>
-      <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={14} />해당 채널 보기</button>
-        {!alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => onAcknowledge(alert.id)}><Check size={14} />{pending ? "저장 중" : "확인 · 움직임 끄기"}</button>}
+      <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={16} />구간 보기</button>
+        {!alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => onAcknowledge(alert.id)}><Check size={16} />{pending ? "저장 중" : "확인"}</button>}
       </div>
     </section>
   </>;
