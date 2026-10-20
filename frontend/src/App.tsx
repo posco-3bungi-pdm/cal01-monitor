@@ -603,11 +603,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 <div className="label-groups" role="group" aria-label="값을 표시할 채널"><button onClick={() => setChannelGroup("all")}>전체</button><button onClick={() => setChannelGroup("TC")}>TC</button><button onClick={() => setChannelGroup("OP")}>OP</button><button onClick={() => setChannelGroup("selected")}>선택</button></div>
                 <button className="subtle-button" aria-pressed={showDiagnostics} onClick={() => setShowDiagnostics(value => !value)}><Gauge size={16} />그래픽 성능 확인</button>
                 <button className="subtle-button" onClick={() => { setShowLabels(true); selectSceneChannel("CP-Z4"); }}><LocateFixed size={16} />CP-Z4 위치 찾기</button>
-                <label className="scene-part-picker">부품 보기<select aria-label="확인할 설비 부품" value={selectedPartId ?? ""} onChange={event => event.target.value ? selectPart(event.target.value) : setSelectedPartId(null)}>
-                  <option value="">부품 선택</option>{PART_CATALOG.map(part => <option key={part.id} value={part.id}>{part.name}</option>)}
-                </select></label>
+                <div className="scene-part-picker"><ThemedSelect label="확인할 설비 부품" value={selectedPartId ?? ""}
+                  onChange={value => value ? selectPart(value) : setSelectedPartId(null)}
+                  options={[{ value: "", label: "장비·부품 보기" }, ...PART_CATALOG.map(part => ({ value: part.id, label: part.name }))]} /></div>
                 {user.can_edit_layout && !editing && <button className="subtle-button" onClick={beginEditing} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}
-                <details className="display-help"><summary>화면 설명</summary><p>드래그: 회전 · 휠: 확대 · WASD: 이동 · Q/E: 위아래 · Shift: 빠르게</p><p>설비를 한 번 누르면 키보드로 움직일 수 있습니다. 값창은 채널을 눌러 엽니다.</p><p>온도 색은 존의 TC 값을 표현합니다. 강판의 실제 표면온도가 아닙니다. 강종만으로 확인할 수 없는 표면 마감은 기본 금속으로 표시합니다.</p><p>부품 위치와 운전 동작은 공정 설명용입니다. 재생 중에는 마지막 기록을 최대 30초만 표시합니다. 화면 표시 기준이며 이상 판정이나 원본 값을 바꾸지 않습니다.</p></details>
+                <details className="display-help"><summary>화면 설명</summary><p>드래그: 회전 · 휠: 확대 · WASD: 이동 · ↑/E: 상승 · ↓/Q: 하강 · Shift: 더 빠르게</p><p>설비를 한 번 누르면 키보드로 움직일 수 있습니다. 값창은 채널을 눌러 엽니다.</p><p>온도 색은 존의 TC 값을 표현합니다. 강판의 실제 표면온도가 아닙니다. 강종만으로 확인할 수 없는 표면 마감은 기본 금속으로 표시합니다.</p><p>부품 위치와 운전 동작은 공정 설명용입니다. 재생 중에는 마지막 기록을 최대 30초만 표시합니다. 화면 표시 기준이며 이상 판정이나 원본 값을 바꾸지 않습니다.</p></details>
               </div>
             </details>
             {editing && <div className="editing-actions"><button className="subtle-button" onClick={cancelEditing} disabled={saving}>취소</button><button className="primary-button" onClick={() => void saveLayout()} disabled={saving || !dirty || layoutConflict}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}위치 저장</button></div>}
@@ -643,7 +643,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               <header><h3>{selectedPart.name}</h3><button className="icon-button" aria-label="부품 정보 닫기" onClick={() => setSelectedPartId(null)}><X size={18} /></button></header>
               <span className="part-code">{selectedPart.partCode} · {selectedPart.zoneId}</span>
               <p>{selectedPart.description}</p>
-              <p>{selectedPart.evidence === "cal01-replacement" ? "CAL01 부품 교체 기록에 있음." : "부품마스터에 있음."} 부착 위치는 설명용 배치.</p>
+              <p>{selectedPart.evidence === "cal01-replacement" ? "CAL01 부품 교체 기록에 있음." : selectedPart.evidence === "master-only" ? "부품마스터에 있음." : "제조사 자료를 참고한 장비 모형."} 부착 위치는 설명용 배치.</p>
               <details><summary>배치 근거</summary><p>{selectedPart.note}</p>{selectedPart.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}</a>)}</details>
             </aside>}
           </div>

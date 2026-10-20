@@ -15,6 +15,7 @@ import {
 import type { FurnaceZone, Position3 } from './furnace-model'
 import { HeatHaze, HeatHazeLayer, HologramMaterial, IndustrialMaterial, SteelSurfaceMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
 import ProcessEquipment from './ProcessEquipment'
+import HeatingEquipment from './HeatingEquipment'
 import { PART_CATALOG } from './part-catalog'
 import { Focus, Maximize2 } from 'lucide-react'
 import type { FurnaceAppearance } from './furnace-appearance'
@@ -117,19 +118,6 @@ function StructuralBeams({ beams, color = '#4c5960' }: { beams: BeamSpec[]; colo
       <ModelMaterial color={color} metalness={0.72} roughness={0.39} />
     </instancedMesh>
   )
-}
-
-function Pipe({ points, radius = 0.15, color = '#99a4aa' }: {
-  points: Position3[]; radius?: number; color?: string
-}) {
-  const geometry = useMemo(() => new THREE.TubeGeometry(
-    new THREE.CatmullRomCurve3(points.map((point) => new THREE.Vector3(...point)), false, 'centripetal'),
-    28, radius, 10, false,
-  ), [points, radius])
-  useEffect(() => () => geometry.dispose(), [geometry])
-  return <mesh geometry={geometry} castShadow>
-    <ModelMaterial color={color} roughness={0.34} metalness={0.78} />
-  </mesh>
 }
 
 function RollerBank({ rollers, motion, onSelect }: {
@@ -300,39 +288,6 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert, openSer
       <Edges color={alert ? '#f16d64' : theme === 'dark' ? '#57cde7' : '#238296'} lineWidth={alert ? 1.6 : 1} />
     </mesh>}
   </group>
-}
-
-function Services() {
-  const ducts = useMemo(() => [-7.9, -3.5, 0.9, 5.3].map((x, index) => {
-    const h = index === 1 || index === 2 ? 10.8 : 9
-    return { x, h, points: [[x, h + 0.05, -0.7], [x, h + 0.9, -0.7],
-      [x, h + 1.18, -1.1], [x, h + 1.18, -3.9], [x, h + 0.8, -4.25], [x, 1.2, -4.25]] as Position3[] }
-  }), [])
-  const bus = useMemo<Position3[]>(() => [[-11, 3.25, -3.8], [-8, 3.25, -3.8], [5, 3.25, -3.8], [10, 3.25, -3.8]], [])
-  return (
-    <group name="DUCTS_AND_PIPES">
-      {ducts.map(({ x, h, points }) => (
-        <group key={x}>
-          <Pipe points={points} radius={0.3} />
-          <mesh position={[x, h + 0.15, -0.7]} rotation={[0, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.44, 0.44, 0.12, 20]} />
-            <ModelMaterial color="#4e6470" metalness={0.6} roughness={0.4} />
-          </mesh>
-          <mesh position={[x, 1.2, -4.25]} castShadow>
-            <boxGeometry args={[1.05, 1.2, 1.1]} />
-            <ModelMaterial color="#697d86" metalness={0.62} roughness={0.37} />
-          </mesh>
-        </group>
-      ))}
-      <Pipe points={bus} radius={0.13} color="#bac1b9" />
-      <mesh position={[8.6, 0.45, -4.2]} receiveShadow>
-        <boxGeometry args={[2.2, 0.7, 1.4]} /><ModelMaterial color="#3d515c" metalness={0.55} roughness={0.45} />
-      </mesh>
-      <mesh position={[8.6, 1.05, -4.2]} rotation={[0, 0, Math.PI / 2]} castShadow>
-        <cylinderGeometry args={[0.48, 0.48, 1.6, 24]} /><ModelMaterial color="#8a9ba1" metalness={0.7} roughness={0.34} />
-      </mesh>
-    </group>
-  )
 }
 
 function Coil({ x, motion }: { x: number; motion: StripMotion }) {
@@ -603,7 +558,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     const cpPosition = mode === 'work' && !part && channelId === 'CP-Z4' ? positions.get(channelId) : undefined
     const fit = mode === 'full'
       ? overviewForViewport(size.width, size.height, camera.fov, shiftX, shiftY)
-      : part ? partViewForViewport(size.width, size.height, part.position, part.id === 'INS-006' ? 1.5 : 0.85,
+      : part ? partViewForViewport(size.width, size.height, part.position, part.viewRadius ?? (part.id === 'INS-006' ? 1.5 : 0.85),
         camera.fov, shiftX, shiftY)
         : cpPosition ? partViewForViewport(size.width, size.height,
           [cpPosition[0], cpPosition[1], cpPosition[2] - 0.15], 1.2, camera.fov, shiftX, shiftY)
@@ -675,7 +630,9 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
           : <SteelSurfaceMaterial simulationActive={Boolean(props.simulationActive || props.motionPlaying)} motion={motion} temperatureColors={Boolean(props.temperatureColors)} />}
       </mesh>
       <StripTravelMarks points={strip.points} motion={motion} />
-      <Services />
+      <HeatingEquipment showInterior={showInterior} appearance={appearance}
+        selectedPartId={props.selectedPartId ?? undefined}
+        onSelectPart={id => { if (gesture?.allowClick()) props.onSelectPart?.(id) }} />
       <ProcessEquipment simulationActive={Boolean(props.simulationActive)} showInterior={showInterior}
         appearance={appearance} selectedPartId={props.selectedPartId ?? undefined}
         onSelectPart={id => { if (gesture?.allowClick()) props.onSelectPart?.(id) }} />
@@ -791,7 +748,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     cursor: 'pointer', background: props.theme === 'dark' ? '#1c2c34ed' : '#f7faf7f2',
     color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 13, borderRadius: 14,
     border: 0, boxShadow: '0 4px 18px #0002' }
-  return <div ref={host} tabIndex={0} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, Q E 높이, Shift 빠르게."
+  return <div ref={host} tabIndex={0} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, 위 화살표 또는 E 상승, 아래 화살표 또는 Q 하강, Shift 더 빠르게."
     style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, outlineOffset: -2,
       background, overflow: 'hidden' }}>
     <GestureContext.Provider value={gesture}>
