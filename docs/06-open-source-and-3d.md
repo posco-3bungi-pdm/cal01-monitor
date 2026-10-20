@@ -17,6 +17,7 @@
 | 연간 흐름 | [Apache ECharts](https://github.com/apache/echarts/blob/master/LICENSE) | Apache-2.0. 일별 관측·이탈 집계에 사용. 채널 그래프는 기존 SVG 시간축·선택 기능을 재사용해 이번 주에 전면 재작성하지 않음. |
 | 캘린더 | [FullCalendar Standard](https://fullcalendar.io/license) | MIT. 월·주·일 일정에 사용. 별도 라이선스인 Resource/Timeline Premium은 사용하지 않음. |
 | 3D | [Three.js](https://github.com/mrdoob/three.js/blob/dev/LICENSE), [React Three Fiber](https://github.com/pmndrs/react-three-fiber/blob/master/LICENSE), [Drei](https://github.com/pmndrs/drei/blob/master/LICENSE) | 모두 MIT. 모델 표시·회전·선택·센서 위치 편집에 사용. React와 Fiber의 호환 버전을 함께 고정. |
+| 화면 모핑 | [Motion for React](https://motion.dev/docs/react-layout-animations) | 선택한 항목의 위치·크기가 상세 화면으로 이어지는 전환, 패널 펼침, 목록 재배치에 사용. 실제 설치 버전의 라이선스 고지를 함께 보관. 3D 카메라는 Three.js·Drei로 별도 처리. |
 | AI 설명 | [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) | MIT. 서버에서 선택 구간 설명과 현장 요청 초안을 생성. API 서비스 이용 조건·요금은 SDK 라이선스와 별개. |
 | 브라우저 검증 | [Playwright](https://github.com/microsoft/playwright/blob/main/LICENSE) | Apache-2.0. 두 계정의 저장·알림·3D 연결을 실제 화면에서 검증. |
 
@@ -47,6 +48,16 @@ WhiteNoise는 정적 파일을 제공한다. 화면 주소를 새로고침했을
 - 보조 모델 SHA-256: `2b65b8db835607d706c67a2b51470fb66e35bef04e3b7231c59503e6eb34c9da`
 
 생성 근거는 `build/native3d/build_scene.py`, `build/keynote/rebuild_heat_soak.py`, 두 모델의 메타데이터다. 기본 모델은 상자·롤러 등의 형상을 Python으로 만들며, 파일에는 외부 자산을 사용하지 않았다는 생성 정보와 절차적으로 만든 표면 정보가 있다. 다만 이번 확인 범위에서 모델 자체의 별도 라이선스 문서는 찾지 못했다. 저장소에 넣기 전 생성 코드·표면 생성 경로·배포 범위를 정리한다. 발표 표지에 쓰인 외부 사진은 모델과 별개이므로 함께 가져오지 않는다.
+
+### PPTX 안의 모형도 재사용 가능
+
+`_agent/annealing_3d/current-presentation.json`가 지정한 현재 발표 파일은 `keynote/annealing_morph_precision.pptx`다. PPTX 내부 ZIP 목록·슬라이드 관계·GLB 구조를 읽어 실제 3D 파일 10개를 확인했다.
+
+- 발표 순서 8~22쪽의 소둔로는 `ppt/media/model3d2.glb`, 8,557,904바이트다.
+- 8~11쪽은 공장 주변을 포함한 `ppt/media/model3d1.glb`, 10,368,920바이트도 함께 사용한다.
+- 소둔로 모형은 위의 원본 GLB와 같은 생성 기반이지만, 윤곽선 재질 등 발표용 가공이 더해져 파일은 다르다.
+
+개발 첫날 원본 GLB와 PPTX 내장 GLB를 같은 카메라·조명으로 비교한다. 발표에서 사용한 외형을 기준으로 고르고, 모델을 새로 만들지 않는다. 웹에서는 [Three.js GLTFLoader](https://threejs.org/docs/pages/GLTFLoader.html)로 모형을 읽고 채널 표시점·선택·카메라 이동·상태 표시를 붙인다. PPTX의 Morph 전환은 웹 화면의 카메라·패널 전환으로 다시 구현한다. 이 확인에서는 PPTX와 원본 파일을 수정하지 않았다.
 
 ## 3D 위치와 채널을 연결하는 방식
 
