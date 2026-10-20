@@ -1,6 +1,6 @@
 import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { ErrorInfo, ReactNode } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
+import type { ErrorInfo, ReactNode, RefObject } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import type { ThreeEvent } from '@react-three/fiber'
 import { CameraControls, ContactShadows, Edges, Grid, Html, TransformControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -25,9 +25,39 @@ export type FurnaceSceneProps = {
   theme: Theme
   alertChannelIds?: string[]
   alertZoneIds?: string[]
+  motionPlaying?: boolean
+  overlayOpen?: boolean
 }
 
 type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
+
+function SceneViewport({ overlayOpen }: { overlayOpen: boolean }) {
+  const { camera, size, invalidate } = useThree()
+  useLayoutEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
+    if (overlayOpen) {
+      const mobile = size.width <= 760
+      camera.setViewOffset(size.width, size.height,
+        mobile ? 0 : size.width * 0.3, mobile ? size.height * 0.3 : 0,
+        size.width, size.height)
+    } else camera.clearViewOffset()
+    camera.updateProjectionMatrix()
+    invalidate()
+  }, [camera, size.width, size.height, overlayOpen, invalidate])
+  return null
+}
+type StripMotion = RefObject<number>
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const update = () => setReduced(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+  return reduced
+}
 
 function StructuralBeams({ beams, color = '#4c5960' }: { beams: BeamSpec[]; color?: string }) {
   const ref = useRef<THREE.InstancedMesh>(null)
@@ -65,17 +95,31 @@ function Pipe({ points, radius = 0.15, color = '#99a4aa' }: {
   </mesh>
 }
 
-function Roller({ x, y, radius }: { x: number; y: number; radius: number }) {
+function Roller({ x, y, radius, direction, motion }: {
+  x: number; y: number; radius: number; direction: number; motion: StripMotion
+}) {
+  const rotor = useRef<THREE.Group>(null)
+  useFrame(() => {
+    if (rotor.current) rotor.current.rotation.z = (direction * motion.current / radius) % (2 * Math.PI)
+  })
   return (
     <group position={[x, y, 0]} name={`ROLLER_${x.toFixed(2).replace('.', '_')}`}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[radius, radius, 1.7, 24]} />
-        <meshStandardMaterial color="#a8b6bf" metalness={0.86} roughness={0.24} />
-      </mesh>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[0.115, 0.115, 3.55, 12]} />
-        <meshStandardMaterial color="#6d7d86" metalness={0.85} roughness={0.29} />
-      </mesh>
+      <group ref={rotor} name="ROTATING_ROLL_AND_SHAFT">
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[radius, radius, 1.7, 24]} />
+          <meshStandardMaterial color="#a8b6bf" metalness={0.86} roughness={0.24} />
+        </mesh>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.115, 0.115, 3.55, 12]} />
+          <meshStandardMaterial color="#6d7d86" metalness={0.85} roughness={0.29} />
+        </mesh>
+        {[-1, 1].map((side) => <group key={side} position={[0, 0, side * 0.857]}>
+          {[0, Math.PI / 2].map((angle) => <mesh key={angle} rotation={[0, 0, angle]}>
+            <boxGeometry args={[radius * 1.65, 0.042, 0.012]} />
+            <meshStandardMaterial color="#344952" metalness={0.35} roughness={0.6} />
+          </mesh>)}
+        </group>)}
+      </group>
       {[-1, 1].map((side) => (
         <group key={side} position={[0, 0, side * 1.7]}>
           <mesh castShadow>
@@ -212,7 +256,7 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
           border: `1px solid ${selected ? '#c9ee78' : theme === 'dark' ? '#4e626a' : '#acb9bd'}`,
           font: '600 10px ui-monospace, monospace', letterSpacing: '0.05em', padding: '4px 6px',
           cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: 2,
-        }}>{zone.label}{alert ? ' · 기준 이탈' : ''}</button>
+        }}>{zone.label}{alert ? ' · 이 LOT에 이상 후보 있음' : ''}</button>
       </Html>
     </group>
   )
@@ -251,32 +295,95 @@ function Services() {
   )
 }
 
-function Coil({ x }: { x: number }) {
+function Coil({ x, motion }: { x: number; motion: StripMotion }) {
   const radius = 0.8 - 0.012
   const centreY = x < 0 ? 0.9 : 1.44
+  const rotor = useRef<THREE.Group>(null)
+  useFrame(() => {
+    if (rotor.current) rotor.current.rotation.z = (-motion.current / radius) % (2 * Math.PI)
+  })
   return (
     <group position={[x, centreY, 0]} name={x < 0 ? 'ENTRY_COIL' : 'EXIT_COIL'}>
-      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-        <cylinderGeometry args={[radius, radius, 1.45, 48]} />
-        <meshStandardMaterial color="#aab9c2" metalness={0.9} roughness={0.25} />
-      </mesh>
-      {[-1, 1].map((side) => (
-        <group key={side} position={[0, 0, side * 0.74]}>
-          <mesh rotation={[0, 0, 0]}><ringGeometry args={[0.31, radius + 0.005, 48, 5]} />
-            <meshStandardMaterial color="#ccd5d9" metalness={0.84} roughness={0.32} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.29, 0.29, 0.12, 24]} />
-            <meshStandardMaterial color="#263944" metalness={0.6} roughness={0.4} /></mesh>
-          {[0.46, 0.6, 0.73].map((ringRadius) => <mesh key={ringRadius}>
-            <torusGeometry args={[ringRadius, 0.008, 4, 48]} />
-            <meshStandardMaterial color="#7a8c98" metalness={0.7} roughness={0.4} />
-          </mesh>)}
-        </group>
-      ))}
+      <group ref={rotor} name={x < 0 ? 'UNCOILER_ROTATION' : 'RECOILER_ROTATION'}>
+        <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[radius, radius, 1.45, 48]} />
+          <meshStandardMaterial color="#aab9c2" metalness={0.9} roughness={0.25} />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <group key={side} position={[0, 0, side * 0.74]}>
+            <mesh><ringGeometry args={[0.31, radius + 0.005, 48, 5]} />
+              <meshStandardMaterial color="#ccd5d9" metalness={0.84} roughness={0.32} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.29, 0.29, 0.12, 24]} />
+              <meshStandardMaterial color="#263944" metalness={0.6} roughness={0.4} /></mesh>
+            {[0.46, 0.6, 0.73].map((ringRadius) => <mesh key={ringRadius}>
+              <torusGeometry args={[ringRadius, 0.008, 4, 48]} />
+              <meshStandardMaterial color="#7a8c98" metalness={0.7} roughness={0.4} />
+            </mesh>)}
+            {[0, Math.PI * 2 / 3, Math.PI * 4 / 3].map((angle) => <group key={angle} rotation={[0, 0, angle]}>
+              <mesh position={[radius * 0.66, 0, side * 0.014]}>
+                <boxGeometry args={[radius * 0.6, 0.052, 0.012]} />
+                <meshStandardMaterial color="#4e646f" metalness={0.45} roughness={0.5} />
+              </mesh>
+            </group>)}
+          </group>
+        ))}
+      </group>
       <mesh position={[0, -centreY / 2, 0]} receiveShadow><boxGeometry args={[1.1, centreY, 2.1]} />
         <meshStandardMaterial color="#4d626e" metalness={0.62} roughness={0.4} /></mesh>
     </group>
   )
+}
+
+function StripTravelMarks({ points, motion }: { points: THREE.Vector2[]; motion: StripMotion }) {
+  const marks = useRef<THREE.InstancedMesh>(null)
+  const path = useMemo(() => {
+    const distances = new Float64Array(points.length)
+    for (let index = 1; index < points.length; index += 1) {
+      distances[index] = distances[index - 1] + points[index].distanceTo(points[index - 1])
+    }
+    const length = distances.at(-1)!
+    return { distances, length, count: Math.ceil(length / 5.2) }
+  }, [points])
+  const transform = useMemo(() => new THREE.Object3D(), [])
+  useFrame(() => {
+    if (!marks.current) return
+    for (let index = 0; index < path.count; index += 1) {
+      const distance = (motion.current + index * path.length / path.count) % path.length
+      // Interpolate the existing tangent path; do not smooth across a roller.
+      let low = 0
+      let high = points.length - 1
+      while (high - low > 1) {
+        const middle = (low + high) >> 1
+        if (path.distances[middle] <= distance) low = middle
+        else high = middle
+      }
+      const before = points[low]
+      const after = points[high]
+      const segment = path.distances[high] - path.distances[low]
+      const fraction = (distance - path.distances[low]) / segment
+      const dx = after.x - before.x
+      const dy = after.y - before.y
+      transform.rotation.set(0, 0, Math.atan2(dy, dx))
+      for (let side = 0; side < 2; side += 1) {
+        const offset = side === 0 ? 0.018 : -0.018
+        transform.position.set(
+          before.x + dx * fraction - dy / segment * offset,
+          before.y + dy * fraction + dx / segment * offset,
+          0,
+        )
+        transform.updateMatrix()
+        marks.current.setMatrixAt(index * 2 + side, transform.matrix)
+      }
+    }
+    marks.current.instanceMatrix.needsUpdate = true
+  })
+  return <instancedMesh ref={marks} args={[undefined, undefined, path.count * 2]}
+    name="ILLUSTRATIVE_STRIP_TRAVEL_MARKS" frustumCulled={false}>
+    <boxGeometry args={[0.12, 0.008, 1.24]} />
+    <meshStandardMaterial color="#ecf7d1" emissive="#b8d591" emissiveIntensity={0.13}
+      metalness={0.35} roughness={0.4} />
+  </instancedMesh>
 }
 
 function ChannelMarker({ channel, position, selected, value, onSelect, theme, editing, onChange, alert }: {
@@ -312,7 +419,9 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
           <strong style={{ font: '600 11px ui-monospace, monospace' }}>{channel.id}</strong>
           {output && <span style={{ marginLeft: 7, fontSize: 10, opacity: 0.7 }}>제어 출력</span>}
           <div style={{ marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{readout}</div>
-          {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 10 }}>기준 이탈 · 확인 필요</div>}
+          {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 10 }}>
+            이 LOT에 이상 후보 있음<br />지금 표시한 값의 상태와는 별도
+          </div>}
           {editing && selected && <div style={{ opacity: 0.65, fontSize: 10, marginTop: 3 }}>축을 끌어 표시점 이동</div>}
         </div>
       </Html>}
@@ -358,6 +467,12 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, editing = false, onPlacementChange } = props
   const controls = useRef<CameraControls>(null)
   const previousZone = useRef<string | null>(null)
+  const motion = useRef(0)
+  // A single illustrative travel distance drives every moving part.
+  // It is independent of channel values and the selected source timestamp.
+  useFrame((_, delta) => {
+    if (props.motionPlaying) motion.current += Math.min(delta, 0.05) * 1.6
+  }, -1)
   const defaults = useMemo(() => defaultPlacements(channels), [channels])
   const selected = channels.find((channel) => channel.id === selectedChannel)
   const selectedZone = selected ? zoneForChannel(selected) : ''
@@ -375,7 +490,9 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
   const ribbonGeometry = useMemo(() => createStripGeometry(strip.points), [strip])
   const rollerGroups = useMemo(() => FURNACE_ZONES.map((zone) => ({
     zone,
-    rollers: strip.rollers.filter((roller) => FURNACE_ZONES.reduce(
+    rollers: strip.rollers.map((roller, index) => ({
+      ...roller, direction: index % 2 === 0 ? 1 : -1,
+    })).filter((roller) => FURNACE_ZONES.reduce(
       (closest, current) => Math.abs(current.x - roller.x) < Math.abs(closest.x - roller.x) ? current : closest,
     ).id === zone.id),
   })), [strip])
@@ -387,7 +504,8 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
     void controls.current.setLookAt(zone.x + 7.5, y + 4.8, 13.8, zone.x, y, 0, animate).catch(() => {})
   }
   const selectZone = (zoneId: string) => {
-    const match = channels.find((channel) => zoneForChannel(channel) === zoneId)
+    const inZone = channels.filter((channel) => zoneForChannel(channel) === zoneId)
+    const match = inZone.find((channel) => alertedChannels.has(channel.id)) ?? inZone[0]
     if (match) onSelectChannel(match.id)
     focusZone(zoneId)
   }
@@ -423,7 +541,7 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
       <group name="ROLLERS">{rollerGroups.map(({ zone, rollers }) => (
         <group key={zone.id} name={`INTERNAL_${zone.id}`} userData={{ zone_id: zone.id }}
           onClick={(event) => { event.stopPropagation(); selectZone(zone.id) }}>
-          {rollers.map((roller) => <Roller key={roller.x} {...roller} />)}
+          {rollers.map((roller) => <Roller key={roller.x} {...roller} motion={motion} />)}
         </group>
       ))}</group>
       <mesh geometry={ribbonGeometry} name="CONTINUOUS_STEEL_STRIP" castShadow
@@ -435,8 +553,9 @@ function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCoun
         }}>
         <meshStandardMaterial color="#c5d0d8" metalness={0.88} roughness={0.24} side={THREE.DoubleSide} />
       </mesh>
+      <StripTravelMarks points={strip.points} motion={motion} />
       <Services />
-      <Coil x={-18.1} /><Coil x={18.1} />
+      <Coil x={-18.1} motion={motion} /><Coil x={18.1} motion={motion} />
       <group name="CHANNEL_MARKERS">
         {channels.map((channel) => <ChannelMarker key={channel.id} channel={channel}
           position={positions.get(channel.id)!} selected={selectedChannel === channel.id}
@@ -476,10 +595,12 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 
 export default function FurnaceScene(props: FurnaceSceneProps) {
   const [resetCounter, setResetCounter] = useState(0)
+  const reducedMotion = useReducedMotion()
+  const motionPlaying = Boolean(props.motionPlaying && !reducedMotion)
   return <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320,
     background: props.theme === 'dark' ? '#142028' : '#dce4e4', overflow: 'hidden' }}>
     <SceneErrorBoundary>
-      <Canvas shadows frameloop="demand" dpr={[1, 1.6]} camera={{
+      <Canvas shadows frameloop={motionPlaying ? 'always' : 'demand'} dpr={[1, 1.6]} camera={{
         position: OVERVIEW_CAMERA.position, fov: 40, near: 0.1, far: 180,
       }} gl={{ antialias: true, alpha: false }}
         onCreated={({ camera, gl }) => {
@@ -490,7 +611,8 @@ export default function FurnaceScene(props: FurnaceSceneProps) {
         }}>
         <color attach="background" args={[props.theme === 'dark' ? '#142028' : '#dce4e4']} />
         <fog attach="fog" args={[props.theme === 'dark' ? '#142028' : '#dce4e4', 65, 130]} />
-        <Suspense fallback={null}><Facility props={props} resetCounter={resetCounter} /></Suspense>
+        <SceneViewport overlayOpen={Boolean(props.overlayOpen)} />
+        <Suspense fallback={null}><Facility props={{ ...props, motionPlaying }} resetCounter={resetCounter} /></Suspense>
       </Canvas>
     </SceneErrorBoundary>
     <div style={{ position: 'absolute', left: 14, bottom: 12, pointerEvents: 'none',
@@ -498,6 +620,7 @@ export default function FurnaceScene(props: FurnaceSceneProps) {
       background: props.theme === 'dark' ? '#142028d9' : '#edf2f0df', padding: '6px 9px' }}>
       <div>공정 구조를 설명하는 새 모형 · 실측 치수·실제 부착 위치 아님</div>
       <div>드래그: 회전 · 휠: 확대 · 오른쪽 드래그: 이동 · 사각 표시: 제어 출력</div>
+      <div>움직임은 강판 흐름 설명용 · 실제 운전 상태·속도와 무관</div>
     </div>
     <button type="button" onClick={() => setResetCounter((counter) => counter + 1)}
       style={{ position: 'absolute', right: 14, bottom: 15, padding: '8px 11px', cursor: 'pointer',
