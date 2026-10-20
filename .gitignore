@@ -1,0 +1,22 @@
+# Secrets and local runtime data
+.env
+.env.*
+!.env.example
+data/
+runtime/
+uploads/
+backups/
+*.csv
+*.sqlite*
+*.db
+*.log
+
+# Development artifacts
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+dist/
+coverage/
+.DS_Store
+Thumbs.db
