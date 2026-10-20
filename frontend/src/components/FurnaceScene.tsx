@@ -24,6 +24,7 @@ import { SceneGesture } from './scene-input'
 import { KeyboardNavigation, SceneDiagnostics, ShadowPolicy } from './SceneRuntime'
 import { ChannelLabels, ChannelLabelProjection, useChannelLabelBridge } from './ChannelLabels'
 import type { ChannelLabelBridge } from './ChannelLabels'
+import { CpChannelProbe } from './CpChannelProbe'
 
 export type FurnaceSceneProps = {
   channels: Channel[]
@@ -442,9 +443,11 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
   const { invalidate } = useThree()
   const output = channel.id.startsWith('OP-')
   const process = channel.id.startsWith('CP-')
+  const cpLocation = channel.id === 'CP-Z4'
   const gesture = useContext(GestureContext)
   const labelVisible = (!hasReadout && hovered) || (editing && selected)
-  const color = alert ? '#f5746b' : selected ? '#c9f07b' : value == null ? '#879397' : output ? '#b2c4e0' : '#dce6e8'
+  const color = alert ? '#f5746b' : selected ? '#c9f07b' : value == null ? '#879397'
+    : cpLocation ? '#b49bd1' : output ? '#b2c4e0' : '#dce6e8'
   const readout = value == null || !Number.isFinite(value) ? '기록 없음' : `${numberText(value)}${channel.unit ? ` ${channel.unit}` : ''}`
   useEffect(() => { object.current?.position.set(...position); invalidate() }, [position, invalidate])
   const marker = (
@@ -452,7 +455,7 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
       <group onClick={event => { event.stopPropagation(); if (gesture?.allowClick()) onSelect() }}
         onPointerOver={event => { event.stopPropagation(); setHovered(true) }}
         onPointerOut={() => setHovered(false)}>
-        {output || process ? <>
+        {cpLocation ? <CpChannelProbe color={color} theme={theme} /> : output || process ? <>
           <mesh castShadow><boxGeometry args={process ? [0.4, 0.46, 0.22] : [0.36, 0.42, 0.18]} />
             <meshStandardMaterial color={color} metalness={0.45} roughness={0.4} />
           </mesh>
@@ -477,7 +480,8 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
           </mesh>
         </>}
         {/* Generous picking area; only the physical marker writes depth. */}
-        <mesh><boxGeometry args={[0.7, 0.75, 0.5]} />
+        <mesh position={cpLocation ? [0, 0.2, 0.05] : [0, 0, 0]}>
+          <boxGeometry args={cpLocation ? [1.1, 1.2, 0.8] : [0.7, 0.75, 0.5]} />
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
       </group>
@@ -491,8 +495,9 @@ function ChannelMarker({ channel, position, selected, value, onSelect, theme, ed
           boxShadow: '0 4px 20px #0002', color: theme === 'dark' ? '#ecf2f3' : '#142d3a',
           minWidth: 112, whiteSpace: 'nowrap', fontSize: 14, lineHeight: 1.6 }}>
           <strong style={{ font: '600 14px ui-monospace, monospace' }}>{channel.id}</strong>
-          <span style={{ marginLeft: 7, fontSize: 12, opacity: 0.85 }}>{output ? '제어 출력' : process ? '공정 채널' : '온도 측정'}</span>
+          <span style={{ marginLeft: 7, fontSize: 12, opacity: 0.85 }}>{cpLocation ? '채널 표시 위치' : output ? '제어 출력' : process ? '공정 채널' : '온도 측정'}</span>
           <div style={{ marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{readout}</div>
+          {cpLocation && <div style={{ opacity: 0.75, fontSize: 12 }}>실제 설치 위치·부품 연결은 확인 전</div>}
           {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 12 }}>
             이 LOT에 이상 후보 있음
           </div>}
@@ -548,6 +553,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   const currentView = useRef<'work' | 'full' | 'custom'>('full')
   const workZone = useRef('Z3')
   const workPart = useRef<string | null>(null)
+  const workChannel = useRef<string | null>(null)
   const gesture = useContext(GestureContext)
   const { camera, size, scene, invalidate } = useThree()
   const motion = useRef(0)
@@ -588,20 +594,25 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     invalidate()
   }, [ribbonGeometry, zoneTemperatures, invalidate])
   const setView = (mode: 'work' | 'full', zoneId: string, animate: boolean,
-    partId: string | null | undefined = props.selectedPartId) => {
+    partId: string | null | undefined = props.selectedPartId,
+    channelId: string | null = selectedChannel) => {
     if (!controls.current || !(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
     const shiftX = camera.view?.enabled ? -2 * camera.view.offsetX / camera.view.width : 0
     const shiftY = camera.view?.enabled ? 2 * camera.view.offsetY / camera.view.height : 0
     const part = mode === 'work' ? PART_CATALOG.find(item => item.id === partId) : undefined
+    const cpPosition = mode === 'work' && !part && channelId === 'CP-Z4' ? positions.get(channelId) : undefined
     const fit = mode === 'full'
       ? overviewForViewport(size.width, size.height, camera.fov, shiftX, shiftY)
       : part ? partViewForViewport(size.width, size.height, part.position, part.id === 'INS-006' ? 1.5 : 0.85,
         camera.fov, shiftX, shiftY)
+        : cpPosition ? partViewForViewport(size.width, size.height,
+          [cpPosition[0], cpPosition[1], cpPosition[2] - 0.15], 1.2, camera.fov, shiftX, shiftY)
         : workViewForViewport(size.width, size.height, zoneId, camera.fov, shiftX, shiftY)
     currentView.current = mode
     workZone.current = zoneId
     workPart.current = part?.id ?? null
-    controls.current.minDistance = part ? 1.25 : 5
+    workChannel.current = cpPosition ? channelId : null
+    controls.current.minDistance = part || cpPosition ? 1.25 : 5
     controls.current.maxDistance = Math.max(85, fit.distance * 1.2)
     camera.far = Math.max(180, fit.distance + 80)
     camera.updateProjectionMatrix()
@@ -615,7 +626,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     const inZone = channels.filter(channel => zoneForChannel(channel) === zoneId)
     const match = inZone.find(channel => alertedChannels.has(channel.id)) ?? inZone[0]
     if (match) onSelectChannel(match.id)
-    setView('work', zoneId, !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null)
+    setView('work', zoneId, !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null, null)
   }
   const selectNearest = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
@@ -633,7 +644,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     setView(viewCommand.mode, selectedZone || workZone.current, viewCommand.serial > 0 && !window.matchMedia('(prefers-reduced-motion: reduce)').matches)
   }, [viewCommand])
   useEffect(() => {
-    if (currentView.current !== 'custom') setView(currentView.current, workZone.current, false, workPart.current)
+    if (currentView.current !== 'custom') setView(currentView.current, workZone.current, false, workPart.current, workChannel.current)
   }, [size.width, size.height, props.overlayOpen])
   const shadowRevision = useMemo(() => [placements, showInterior, props.simulationActive, props.selectedPartId],
     [placements, showInterior, props.simulationActive, props.selectedPartId])
@@ -676,7 +687,8 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
             onSelectChannel(channel.id)
           }}
           theme={theme} editing={editing} alert={alertedChannels.has(channel.id)}
-          hasReadout={props.showLabels !== false && (!props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))}
+          hasReadout={props.showLabels !== false && (selectedChannel === channel.id
+            || !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))}
           onChange={(position) => onPlacementChange?.(channel.id, position)} />)}
       </group>
     </group>
@@ -730,7 +742,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     ...props.channels.filter(channel => alertChannels.has(channel.id)).map(zoneForChannel),
   ])
   const labelChannels = props.showLabels === false ? [] : props.channels.filter(channel =>
-    !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))
+    channel.id === props.selectedChannel || !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))
   const labelPositions = useMemo(() => new Map(defaultPlacements(props.channels).map(fallback => {
     const saved = props.placements.find(item => item.channel_id === fallback.channel_id)
     const valid = saved?.position?.length === 3 && saved.position.every(Number.isFinite)

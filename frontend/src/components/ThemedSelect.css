@@ -1,0 +1,55 @@
+.themed-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--option-bg);
+  color: var(--option-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+.themed-select > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.themed-select > svg { flex: 0 0 auto; }
+.themed-select[aria-expanded="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.themed-select-list {
+  position: fixed;
+  z-index: 2000;
+  margin: 0;
+  padding: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--option-bg);
+  color: var(--option-text);
+  box-shadow: 0 12px 32px #0005;
+  scrollbar-width: thin;
+  pointer-events: auto;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.themed-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  color: var(--option-text);
+  cursor: pointer;
+}
+.themed-select-option > span { overflow-wrap: anywhere; }
+.themed-select-option > svg { flex: 0 0 auto; }
+.themed-select-option.is-active { background: var(--accent); color: var(--accent-ink); }
+.themed-select-option[aria-selected="true"] { font-weight: 700; }
+.scene-data-control .themed-select { flex: 1 1 auto; min-width: 122px; }
+.playback-control .themed-select { flex: 0 0 auto; min-width: 66px; }
