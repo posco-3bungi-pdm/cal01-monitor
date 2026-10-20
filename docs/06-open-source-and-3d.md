@@ -2,6 +2,8 @@
 
 로그인·데이터 저장·그래프·3D는 검증된 오픈소스를 사용한다. 우리가 만들 부분은 **채널값 → 이상 후보 → 팀 판단 → 현장 요청 → 처리 결과**를 연결하는 업무 흐름이다. 사용자 요청에 따라 PPTX 재사용안은 새 모형 제작안으로 변경했다. 아직 앱 구현이나 새 모델 제작은 시작하지 않았다.
 
+완성형 관제·정비 플랫폼과 추가 UI·3D 자산까지 비교한 결과는 [07 오픈소스 비교](07-open-source-selection.md)에 정리했다. 새로 가져올 후보는 Radix·TanStack Query와 CC0 배관·덕트·금속 재질이다. Three.js 생성 코드를 모형의 기준으로 유지하고 Blender는 부품·재질 작업을 돕는 도구로 사용한다.
+
 ## 사용할 구성
 
 | 역할 | 선택 | 라이선스·사용 범위 |
@@ -12,12 +14,14 @@
 | 화면 파일 제공 | [WhiteNoise](https://github.com/evansd/whitenoise/blob/main/LICENSE) | MIT. 빌드한 React의 JS·CSS 등 정적 파일을 제공. 업로드한 CSV와 비공개 데이터는 인증을 확인하는 API로 제공. |
 | 팀 접속 HTTPS | [Caddy](https://github.com/caddyserver/caddy/blob/master/LICENSE) | Apache-2.0. HTTPS를 처리하고 로컬 Waitress로 전달. 내부 인증서를 쓰면 팀원 PC별 신뢰 설정이 필요. |
 | 화면 | [React](https://github.com/react/react/blob/main/LICENSE), [Vite](https://github.com/vitejs/vite/blob/main/LICENSE), [TypeScript](https://github.com/microsoft/TypeScript/blob/main/LICENSE.txt) | React·Vite는 MIT, TypeScript는 Apache-2.0. 기존 대시보드의 화면·조작을 필요한 단위로 옮김. |
+| 모달·탭·토글 | [Radix Primitives](https://github.com/radix-ui/primitives/blob/main/LICENSE) | MIT. 초점·키보드 조작을 재사용하고 색·간격·형태는 우리 화면에 맞춤. 필요한 shadcn/ui 코드를 사용하는 방식도 가능. |
+| 서버 데이터 갱신 | [TanStack Query](https://github.com/TanStack/query/blob/main/LICENSE) | MIT. 알림 폴링과 저장 후 목록 갱신. 판단·알림 이력은 서버 DB에 저장. |
 | 데이터 저장 | [PostgreSQL](https://www.postgresql.org/about/licence/) | PostgreSQL License. 수집 작업과 여러 팀원의 판단 저장을 함께 처리. |
 | CSV·통계 계산 | [pandas](https://github.com/pandas-dev/pandas/blob/main/LICENSE), [NumPy](https://github.com/numpy/numpy/blob/main/LICENSE.txt) | BSD-3-Clause. 기존 Python 전처리·Z-score 기준을 연결. |
 | 연간 흐름 | [Apache ECharts](https://github.com/apache/echarts/blob/master/LICENSE) | Apache-2.0. 일별 관측·이탈 집계에 사용. 채널 그래프는 기존 SVG 시간축·선택 기능을 재사용해 이번 시연에서는 전면 재작성하지 않음. |
 | 캘린더 | [FullCalendar Standard](https://fullcalendar.io/license) | MIT. 월·주·일 일정에 사용. 별도 라이선스인 Resource/Timeline Premium은 사용하지 않음. |
 | 3D | [Three.js](https://github.com/mrdoob/three.js/blob/dev/LICENSE), [React Three Fiber](https://github.com/pmndrs/react-three-fiber/blob/master/LICENSE), [Drei](https://github.com/pmndrs/drei/blob/master/LICENSE) | 모두 MIT. 모델 표시·회전·선택·센서 위치 편집에 사용. React와 Fiber의 호환 버전을 함께 고정. |
-| 화면 모핑 | [Motion for React](https://motion.dev/docs/react-layout-animations) | 선택한 항목의 위치·크기가 상세 화면으로 이어지는 전환, 패널 펼침, 목록 재배치에 사용. 실제 설치 버전의 라이선스 고지를 함께 보관. 3D 카메라는 Three.js·Drei로 별도 처리. |
+| 화면 모핑 | [Motion for React](https://github.com/motiondivision/motion) | MIT 코어의 `layout`·`layoutId`로 선택 항목·패널을 연결. Motion+ 전용 기능은 별도. 3D 카메라는 Three.js·Drei로 처리. |
 | AI 설명 | [Anthropic Python SDK](https://github.com/anthropics/anthropic-sdk-python) | MIT. 서버에서 선택 구간 설명과 현장 요청 초안을 생성. API 서비스 이용 조건·요금은 SDK 라이선스와 별개. |
 | 브라우저 검증 | [Playwright](https://github.com/microsoft/playwright/blob/main/LICENSE) | Apache-2.0. 두 계정의 저장·알림·3D 연결을 실제 화면에서 검증. |
 

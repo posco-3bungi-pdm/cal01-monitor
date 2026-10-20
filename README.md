@@ -27,5 +27,6 @@ flowchart TB
 | [04 감지와 해석](docs/04-detection.md) | Z-score 기준, 알림 묶기, 시간축, AI 역할 |
 | [05 4일 개발 계획](docs/05-delivery.md) | 이번 시연 범위, 개발 순서, 완료 기준 |
 | [06 오픈소스와 3D](docs/06-open-source-and-3d.md) | 사용할 오픈소스, 새 연속 소둔로 모형 제작 |
+| [07 오픈소스 비교](docs/07-open-source-selection.md) | 완성형 관제·정비 제품, 재사용할 UI·3D 부품과 자산, 이번에 가져올 범위 |
 
 제품 이름은 CAL01 Monitor, 저장소는 `posco-3bungi-pdm/cal01-monitor`임. 비공개로 시작함. 원본 CSV, 비밀번호, API 키, 실행 DB는 Git에 올리지 않음.
