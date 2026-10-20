@@ -166,7 +166,7 @@ React는 빌드한 정적 파일을 WhiteNoise로 제공함. Django는 UI 경로
 
 사설 HTTPS를 쓰면 팀원 PC에도 인증서 신뢰 설정이 필요함. 이 설정과 교육장 네트워크의 기기 간 접속을 1일차에 확인함. 인증서 경고를 무시하는 방식으로 완료 처리하지 않음. [Caddy 로컬 인증서](https://caddyserver.com/docs/automatic-https)
 
-코드는 OneDrive 아래에 둘 수 있지만 **DB·실행 중인 업로드 폴더·실행 상태 파일은 OneDrive 밖**에 둠. 동기화 프로그램이 사용 중인 DB 파일을 복제하거나 충돌시키지 않게 하기 위함임. 예: `%LOCALAPPDATA%/CAL01Monitor/` 또는 Docker의 전용 저장 공간.
+코드는 OneDrive 동기화 대상이 아닌 프로젝트 폴더에 둠. **DB·실행 중인 업로드 폴더·실행 상태 파일도 OneDrive 밖**에 둠. 동기화 프로그램이 사용 중인 파일을 복제하거나 충돌시키지 않게 하기 위함임. 실행 데이터는 `%LOCALAPPDATA%/CAL01Monitor/` 또는 Docker의 전용 저장 공간을 사용함.
 
 백업은 PostgreSQL 덤프, 업로드 파일, 모델 기준 파일, 설정 버전을 함께 묶음. 실행 중인 DB 폴더를 단순 복사하지 않음. 데이터 가져오기와 구조 변경 전에 백업하고, 마지막 검수에서 빈 환경으로 실제 복원해 봄. API 키·비밀번호는 Git에 넣지 않고 별도 보관함.
 
