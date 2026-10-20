@@ -18,5 +18,7 @@ __pycache__/
 .pytest_cache/
 dist/
 coverage/
+staticfiles/
+*.tsbuildinfo
 .DS_Store
 Thumbs.db
