@@ -38,6 +38,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "monitor.upload_limits.CsvUploadLimitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -109,3 +110,5 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 LOGIN_FAILURE_LIMIT = 10
 LOGIN_FAILURE_WINDOW = 15 * 60
 CAL01_MODEL_VERSION = "cal01-concept-v1"
+CAL01_UPLOAD_MAX_BYTES = 512 * 1024 * 1024
+CAL01_UPLOAD_MAX_ROWS = 500_000
