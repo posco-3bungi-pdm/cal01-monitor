@@ -1,0 +1,7 @@
+packages: []
+allowBuilds:
+  electron: true
+  app-builder-bin: true
+  electron-winstaller: false
+minimumReleaseAgeExclude:
+  - electron@44.9.1

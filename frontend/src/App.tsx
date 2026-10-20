@@ -6,22 +6,30 @@ import {
   Activity, ArrowDown, ArrowRight, Box, Check, ChevronDown, Database, Eye,
   EyeOff, FileSpreadsheet, Layers3, LoaderCircle, LogOut, Moon,
   Move3D, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, ShieldCheck, Sun,
-  UserRound, X, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
+  UserRound, X, AlertCircle, BookOpen, ChevronLeft, ChevronRight, Play, Pause, ClipboardList,
 } from "lucide-react";
 import { api, ApiError, queryString, refreshCsrf } from "./api";
 import type { Channel, CurrentFrame, Dataset, EquipmentLayout, Lot, Placement, SeriesResponse, Theme, TimeRange, User } from "./types";
-import { clockTime, dateTime, numberText, timeMs } from "./time";
+import { clockTime, dateTime, numberText, timeMs, timeIso } from "./time";
 import ChannelCharts from "./components/ChannelCharts";
 import RecordsPanel from "./components/RecordsPanel";
 import { GUIDE_STEPS } from "./guide-data";
+import DetectionPanel from "./components/DetectionPanel";
+import EquipmentAlert from "./components/EquipmentAlert";
+import RequestDialog from "./components/RequestDialog";
+import TeamNotifications from "./components/TeamNotifications";
+import FieldRequestsPanel from "./components/FieldRequestsPanel";
+import WorkspaceDrawer from "./components/WorkspaceDrawer";
+import type { CandidateLocation, DetectionCandidate, DetectionRun } from "./review-types";
 
 const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
 type Message = { kind: "success" | "error" | "info"; text: string };
+type DrawerName = "channels" | "analysis" | "requests" | null;
 type GuideContext = {
   datasetId: string; lotNo: string; selectedChannel: string; visibleIds: string[];
   view: TimeRange | null; selection: TimeRange | null; cursor: string | null;
-  section: "equipment" | "channels"; scrollY: number;
+  section: "equipment" | "channels"; drawer: DrawerName; scrollY: number;
 };
 const initialTheme = (): Theme => {
   try { return localStorage.getItem("cal01-theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
@@ -98,8 +106,9 @@ function Login({ onLogin, theme, onThemeToggle, sessionError }: { onLogin: (user
 function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLogout: () => void; theme: Theme; onThemeToggle: () => void }) {
   const queryClient = useQueryClient();
   const fieldTeam = /field|현장/i.test(user.team);
-  const [section, setSection] = useState<"equipment" | "channels">(fieldTeam ? "channels" : "equipment");
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 760);
+  const [section, setSection] = useState<"equipment" | "channels">("equipment");
+  const [drawer, setDrawer] = useState<DrawerName>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [datasetId, setDatasetId] = useState("");
   const [lotNo, setLotNo] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("TC-Z3");
@@ -115,10 +124,20 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [message, setMessage] = useState<Message | null>(null);
   const [logoutPending, setLogoutPending] = useState(false);
   const [guideIndex, setGuideIndex] = useState<number | null>(null);
+  const [motionPlaying, setMotionPlaying] = useState(false);
+  const [runChoice, setRunChoice] = useState<{ context: string; id: string } | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [bannerCandidateId, setBannerCandidateId] = useState<string | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<DetectionCandidate | null>(null);
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [analysisError, setAnalysisError] = useState<unknown>(null);
+  const [acknowledging, setAcknowledging] = useState<string | null>(null);
+  const [requestCandidate, setRequestCandidate] = useState<DetectionCandidate | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [requestFocusRevision, setRequestFocusRevision] = useState(0);
   const guideContext = useRef<GuideContext | null>(null);
   const chartTarget = useRef<HTMLDivElement>(null);
   const firstLotKey = useRef("");
-  const enteredTeamSection = useRef(false);
   const savedRevision = useRef(0);
   const reducedMotion = useReducedMotion();
   const guideStep = guideIndex === null ? null : GUIDE_STEPS[guideIndex];
@@ -144,6 +163,26 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const lot = lots.find(item => String(item.lot_no) === lotNo);
   const channel = channels.find(item => item.id === selectedChannel);
   const displayedChannels = useMemo(() => channels.filter(item => visibleIds.includes(item.id)), [channels, visibleIds]);
+  const analysisContext = `${datasetId}:${lotNo}`;
+  const runsQuery = useQuery({
+    queryKey: ["detection-runs", datasetId, lotNo], enabled: !!datasetId && !!lotNo,
+    queryFn: ({ signal }) => api<{ runs: DetectionRun[] }>(`/api/detection/runs?${queryString({ dataset: datasetId, lot: lotNo })}`, { signal }),
+    refetchInterval: 5000,
+  });
+  const runs = runsQuery.data?.runs ?? [];
+  const chosenRunId = runChoice?.context === analysisContext && runs.some(run => run.id === runChoice.id) ? runChoice.id : runs[0]?.id;
+  const chosenRun = runs.find(run => run.id === chosenRunId);
+  const candidatesQuery = useQuery({
+    queryKey: ["detection-candidates", datasetId, lotNo, chosenRunId], enabled: !!chosenRunId,
+    queryFn: ({ signal }) => api<{ candidates: DetectionCandidate[] }>(`/api/detection/candidates?${queryString({ dataset: datasetId, lot: lotNo, run: chosenRunId })}`, { signal }),
+    refetchInterval: 5000,
+  });
+  const candidates = candidatesQuery.data?.candidates ?? [];
+  const focusedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId);
+  const alertCandidate = candidates.find(candidate => candidate.id === bannerCandidateId)
+    ?? focusedCandidate ?? candidates.find(candidate => !candidate.acknowledged) ?? candidates[0];
+  const alertChannelIds = useMemo(() => [...new Set(candidates.map(candidate => candidate.channel_id))], [candidates]);
+  const alertZoneIds = useMemo(() => [...new Set(candidates.map(candidate => candidate.zone_id))], [candidates]);
   const frameQuery = useQuery({
     queryKey: ["frame", datasetId, lotNo, cursor], enabled: !!datasetId && !!lot && !!cursor,
     queryFn: ({ signal }) => api<CurrentFrame>(`/api/current-frame?${queryString({ dataset: datasetId, lot: lotNo, at: cursor ?? undefined })}`, { signal }),
@@ -173,17 +212,21 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       setView({ start: lot.start, end: lot.end });
       setCursor(lot.start);
       setSelection(null);
+      setSelectedCandidateId(null);
+      setBannerCandidateId(null);
+      setAnalysisError(null);
     }
   }, [datasetId, lot]);
   useEffect(() => {
+    if (pendingFocus && lot && datasetId === pendingFocus.dataset_id && String(lot.lot_no) === String(pendingFocus.lot_no)) {
+      focusCandidate(pendingFocus);
+      setPendingFocus(null);
+    }
+  }, [pendingFocus, lot, datasetId]);
+  useEffect(() => { if (reducedMotion) setMotionPlaying(false); }, [reducedMotion]);
+  useEffect(() => {
     if (channels.length && !channels.some(item => item.id === selectedChannel)) setSelectedChannel(channels[0].id);
   }, [channels, selectedChannel]);
-  useEffect(() => {
-    if (!fieldTeam || !lot || !view || enteredTeamSection.current) return;
-    enteredTeamSection.current = true;
-    const timeout = window.setTimeout(() => chartTarget.current?.scrollIntoView({ block: "start" }), 100);
-    return () => window.clearTimeout(timeout);
-  }, [fieldTeam, lot, view]);
   useEffect(() => {
     if (message?.kind !== "success") return;
     const timeout = window.setTimeout(() => setMessage(null), 5000);
@@ -195,19 +238,112 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     window.addEventListener("beforeunload", prevent);
     return () => window.removeEventListener("beforeunload", prevent);
   }, [dirty]);
+  useEffect(() => {
+    const closeOverlay = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (guideIndex !== null) closeGuide();
+      else if (sidebarOpen) setSidebarOpen(false);
+      else setDrawer(null);
+    };
+    window.addEventListener("keydown", closeOverlay);
+    return () => window.removeEventListener("keydown", closeOverlay);
+  }, [guideIndex, sidebarOpen]);
 
   function selectChannel(id: string) {
     setSelectedChannel(id);
     setVisibleIds(previous => previous.includes(id) ? previous : [...previous, id]);
   }
 
+  function focusCandidate(candidate: DetectionCandidate, scroll = true) {
+    if (guideIndex !== null) { setMessage({ kind: "info", text: "가이드를 종료한 뒤 실제 분석 후보를 열어 주세요." }); return; }
+    if (editing) { setMessage({ kind: "info", text: "표시점 편집을 저장하거나 취소한 뒤 후보를 열어 주세요." }); return; }
+    if (!lot || candidate.dataset_id !== datasetId || String(candidate.lot_no) !== lotNo) {
+      setRunChoice({ context: `${candidate.dataset_id}:${candidate.lot_no}`, id: candidate.run_id });
+      setPendingFocus(candidate);
+      setDatasetId(candidate.dataset_id);
+      setLotNo(String(candidate.lot_no));
+      return;
+    }
+    setRunChoice({ context: `${candidate.dataset_id}:${candidate.lot_no}`, id: candidate.run_id });
+    setSelectedCandidateId(candidate.id);
+    setBannerCandidateId(candidate.id);
+    selectChannel(candidate.channel_id);
+    const from = timeMs(candidate.start), to = timeMs(candidate.end);
+    const padding = Math.max(30_000, (to - from) * 0.3);
+    setView({ start: timeIso(Math.max(timeMs(lot.start), from - padding)), end: timeIso(Math.min(timeMs(lot.end), to + padding)) });
+    setCursor(candidate.peak_at);
+    if (scroll) goToSection("channels");
+  }
+
+  function selectSceneChannel(id: string) {
+    if (!editing && guideIndex === null) {
+      const candidate = candidates.find(item => item.channel_id === id && item.id === selectedCandidateId)
+        ?? candidates.find(item => item.channel_id === id && !item.acknowledged)
+        ?? candidates.find(item => item.channel_id === id);
+      if (candidate) { focusCandidate(candidate); return; }
+    }
+    selectChannel(id);
+  }
+
+  async function openCandidateLocation(location: CandidateLocation) {
+    if (analysisRunning) { setMessage({ kind: "info", text: "진행 중인 LOT 분석이 끝난 뒤 다른 후보를 열어 주세요." }); return; }
+    if (guideIndex !== null) { setMessage({ kind: "info", text: "가이드를 종료한 뒤 알림의 후보를 열어 주세요." }); return; }
+    try {
+      const result = await api<{ candidates: DetectionCandidate[] }>(`/api/detection/candidates?${queryString({ dataset: location.dataset_id, lot: location.lot_no, run: location.run_id })}`);
+      const candidate = result.candidates.find(item => item.id === location.candidate_id);
+      if (!candidate) throw new Error("알림에 연결된 후보를 찾지 못했습니다.");
+      focusCandidate(candidate);
+    } catch (error) { setMessage({ kind: "error", text: error instanceof Error ? error.message : "후보를 열지 못했습니다." }); }
+  }
+
+  async function runAnalysis() {
+    if (!lot || analysisRunning || visibleIds.length === 0 || editing || guideIndex !== null) return;
+    const context = analysisContext;
+    const sourceDataset = datasetId;
+    const sourceLot = lotNo;
+    setAnalysisRunning(true); setAnalysisError(null);
+    try {
+      const result = await api<{ run: DetectionRun; candidates: DetectionCandidate[]; reused: boolean }>("/api/detection/runs", { method: "POST", body: JSON.stringify({
+        dataset_id: sourceDataset, lot_no: sourceLot, channels: displayedChannels.map(item => item.id),
+        threshold: 3, ddof: 0, max_gap_seconds: 60, min_valid_samples: 30,
+      }) });
+      queryClient.setQueryData<{ runs: DetectionRun[] }>(["detection-runs", sourceDataset, sourceLot], previous => ({
+        runs: [result.run, ...(previous?.runs ?? []).filter(item => item.id !== result.run.id)],
+      }));
+      queryClient.setQueryData(["detection-candidates", sourceDataset, sourceLot, result.run.id], { candidates: result.candidates });
+      setRunChoice({ context, id: result.run.id });
+      if (result.candidates[0]) focusCandidate(result.candidates[0], false);
+      setMessage({ kind: "success", text: result.reused ? "같은 조건으로 저장된 분석을 불러왔습니다." : `과거 LOT 분석을 저장했습니다. 통계적 후보 ${result.candidates.length}개를 찾았습니다.` });
+    } catch (error) { setAnalysisError(error); }
+    finally { setAnalysisRunning(false); }
+  }
+
+  async function acknowledgeCandidate(candidate: DetectionCandidate) {
+    if (acknowledging) return;
+    setBannerCandidateId(candidate.id); setAcknowledging(candidate.id);
+    try {
+      await api(`/api/detection/candidates/${encodeURIComponent(candidate.id)}/acknowledge`, { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: ["detection-candidates"] });
+      setMessage({ kind: "success", text: "후보를 확인했습니다. 움직이는 강조만 멈추며 고장이나 해결 여부를 확정하지 않습니다." });
+    } catch (error) { setMessage({ kind: "error", text: error instanceof Error ? error.message : "확인 상태를 저장하지 못했습니다." }); }
+    finally { setAcknowledging(null); }
+  }
+
+  function openRequests(requestId?: string) {
+    setSelectedRequestId(requestId ?? null);
+    setRequestFocusRevision(value => value + 1);
+    setDrawer("requests");
+    setSidebarOpen(false);
+  }
+
   function startGuide() {
     if (guideIndex !== null || editing) return;
     guideContext.current = {
       datasetId, lotNo, selectedChannel, visibleIds: [...visibleIds], view, selection, cursor,
-      section, scrollY: window.scrollY,
+      section, drawer, scrollY: window.scrollY,
     };
     setGuideIndex(0);
+    setDrawer(null);
     setSection("equipment");
     if (GUIDE_STEPS[0]?.channel) selectChannel(GUIDE_STEPS[0].channel);
     if (window.innerWidth <= 760) setSidebarOpen(false);
@@ -235,6 +371,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     setSelection(previous.selection);
     setCursor(previous.cursor);
     setSection(previous.section);
+    setDrawer(previous.drawer);
     window.setTimeout(() => window.scrollTo({ top: previous.scrollY, behavior: "instant" }), 100);
   }
 
@@ -247,6 +384,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     savedRevision.current = layoutQuery.data.revision;
     setDraftPlacements(structuredClone(layoutQuery.data.placements));
     setEditing(true);
+    setDrawer(null);
+    setMotionPlaying(false);
     setLayoutConflict(false);
     setMessage({ kind: "info", text: "3D의 표시점을 선택한 뒤 위치를 옮겨 주세요. 저장 전에는 다른 팀원에게 반영되지 않습니다." });
   }
@@ -310,34 +449,34 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   function goToSection(next: "equipment" | "channels") {
     setSection(next);
-    if (window.innerWidth <= 760) setSidebarOpen(false);
-    if (next === "channels") window.setTimeout(() => chartTarget.current?.scrollIntoView({ behavior: reducedMotion ? "instant" : "smooth", block: "start" }), 50);
-    else window.scrollTo({ top: 0, behavior: reducedMotion ? "instant" : "smooth" });
+    setDrawer(next === "channels" ? "channels" : null);
+    setSidebarOpen(false);
   }
 
   const fatalAuth = [datasetsQuery.error, channelsQuery.error, lotsQuery.error, frameQuery.error, seriesQuery.error].some(error => error instanceof ApiError && error.status === 401);
   if (fatalAuth) return <div className="session-expired"><ShieldCheck size={36} /><h1>다시 로그인해 주세요.</h1><p>로그인이 만료됐습니다. 저장된 자료는 서버에 남아 있습니다.</p><button className="primary-button" onClick={() => { queryClient.clear(); onLogout(); }}>로그인 화면으로<ArrowRight size={16} /></button></div>;
 
-  return <div className={`workspace ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
-    <aside className="sidebar" aria-label="작업 메뉴">
+  return <div className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""}`}>
+    <aside className="sidebar" aria-label="작업 메뉴" hidden={!sidebarOpen} onKeyDown={event => { if (event.key === "Escape") setSidebarOpen(false); }}>
       <div className="sidebar-brand"><Brand compact /><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
       <div className="workspace-label"><span className="status-dot neutral" />CAL01 WORKSPACE</div>
       <div className="sidebar-section-label">WORKSPACE</div>
       <nav className="main-navigation">
         <button className={section === "equipment" ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={18} /><span>설비 관제</span><ArrowRight size={14} /></button>
         <button className={section === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={18} /><span>채널 확인</span><ArrowRight size={14} /></button>
+        <button onClick={() => { if (window.innerWidth <= 760) setSidebarOpen(false); openRequests(); }}><ClipboardList size={18} /><span>팀 확인 요청</span><ArrowRight size={14} /></button>
       </nav>
       <div className="sidebar-source">
         <div className="sidebar-section-label">DATA SOURCE</div>
         <label htmlFor="dataset-select">현재 데이터</label>
-        <div className="select-wrap"><select id="dataset-select" value={datasetId} onChange={event => { setDatasetId(event.target.value); setLotNo(""); setView(null); setCursor(null); firstLotKey.current = ""; }} disabled={datasetsQuery.isPending || !datasets.length}>
+        <div className="select-wrap"><select id="dataset-select" value={datasetId} onChange={event => { setDatasetId(event.target.value); setLotNo(""); setView(null); setCursor(null); firstLotKey.current = ""; }} disabled={datasetsQuery.isPending || !datasets.length || analysisRunning}>
           {!datasets.length && <option>{datasetsQuery.isPending ? "불러오는 중…" : "등록된 자료 없음"}</option>}
           {datasets.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
         </select><ChevronDown size={14} /></div>
         {dataset && <div className="source-meta"><span><FileSpreadsheet size={13} />{dataset.row_count.toLocaleString()}행</span><span>{lots.length ? `${lots.length} LOT` : dataset.status}</span></div>}
         <ErrorMessage error={datasetsQuery.error} retry={() => void datasetsQuery.refetch()} />
         <label htmlFor="lot-select">확인할 LOT</label>
-        <div className="select-wrap"><select id="lot-select" value={lotNo} onChange={event => setLotNo(event.target.value)} disabled={lotsQuery.isPending || !lots.length}>
+        <div className="select-wrap"><select id="lot-select" value={lotNo} onChange={event => setLotNo(event.target.value)} disabled={lotsQuery.isPending || !lots.length || analysisRunning}>
           {!lots.length && <option>{lotsQuery.isFetching ? "불러오는 중…" : "LOT 없음"}</option>}
           {lots.map(item => <option key={item.lot_no} value={String(item.lot_no)}>{item.lot_no} · {item.grade || "강종 미기록"}</option>)}
         </select><ChevronDown size={14} /></div>
@@ -350,13 +489,23 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     </aside>
     <div className="workspace-main">
       <header className="workspace-topbar">
-        <div className="breadcrumb">{!sidebarOpen && <button className="icon-button" onClick={() => setSidebarOpen(true)} aria-label="메뉴 펼치기"><PanelLeftOpen size={18} /></button>}<span>CAL01</span><span className="breadcrumb-slash">/</span><strong>{section === "equipment" ? "설비 관제" : "채널 확인"}</strong></div>
-        <div className="topbar-right"><span className="mode-badge"><Database size={12} />과거 자료 조회</span><button className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={guideStep ? closeGuide : startGuide} disabled={editing} aria-pressed={guideStep !== null}><BookOpen size={14} />{guideStep ? "가이드 종료" : "가이드 모드"}</button><span className="topbar-team">{fieldTeam ? "FIELD TEAM" : "MONITORING TEAM"}</span><ThemeButton theme={theme} onToggle={onThemeToggle} /></div>
+        <div className="breadcrumb"><button className="icon-button" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={18} /></button><Brand compact /><span className="mode-badge">과거 LOT</span></div>
+        <nav className="immersive-navigation" aria-label="설비 위에서 열기">
+          <button aria-label="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
+          <button aria-label="채널 그래프 열기" className={drawer === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={15} /><span>그래프</span></button>
+          <button aria-label="과거 LOT 이상 후보 열기" className={drawer === "analysis" ? "active" : ""} onClick={() => setDrawer(drawer === "analysis" ? null : "analysis")}><AlertCircle size={15} /><span>이상 후보</span>{candidates.length > 0 && <small>{candidates.length}</small>}</button>
+          <button aria-label="팀 확인 요청함 열기" className={drawer === "requests" ? "active" : ""} onClick={() => openRequests()}><ClipboardList size={15} /><span>요청함</span></button>
+        </nav>
+        <div className="topbar-right"><TeamNotifications username={user.username} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label={guideStep ? "가이드 종료" : "가이드 모드"} className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={guideStep ? closeGuide : startGuide} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>{guideStep ? "가이드 종료" : "가이드"}</span></button><ThemeButton theme={theme} onToggle={onThemeToggle} /></div>
       </header>
       <main className="main-content">
-        <section className="page-intro">
-          <div><span className="eyebrow">CONTINUOUS ANNEALING / CAL01</span><h1>{fieldTeam ? "같은 구간에서, 함께 확인." : "설비와 채널, 한눈에."}</h1><p>설비의 표시점을 누르면 같은 채널의 그래프가 연결됩니다.</p></div>
-          <div className="intro-reference"><span>SELECTED LOT</span><strong>{lot ? String(lot.lot_no) : "—"}</strong><small>{lot?.grade || "자료 선택 대기"}</small></div>
+        <section className="scene-data-control" aria-label="현재 보고 있는 자료">
+          <span className="eyebrow">HISTORICAL / {fieldTeam ? "FIELD TEAM" : "MONITORING TEAM"}</span>
+          <label htmlFor="scene-lot-select">LOT</label><select id="scene-lot-select" value={lotNo} onChange={event => setLotNo(event.target.value)} disabled={!lots.length || analysisRunning || editing || !!guideStep}>
+            {!lots.length && <option>자료 불러오는 중</option>}{lots.map(item => <option key={item.lot_no} value={String(item.lot_no)}>{item.lot_no} · {item.grade || "강종 미기록"}</option>)}
+          </select>
+          <span title={dataset?.name}>{dataset?.name ?? "서버 자료 확인 중"}</span>
+          <small>{cursor ? dateTime(cursor, true) : "—"} · 원자료 시각</small>
         </section>
         {guideStep && guideIndex !== null && <section className="guide-panel" aria-label="공정과 채널 읽기 가이드" aria-live="polite">
           <div className="guide-panel-top"><span className="eyebrow"><BookOpen size={13} />GUIDE MODE</span><span>{guideIndex + 1} / {GUIDE_STEPS.length}</span><button className="icon-button" onClick={closeGuide} aria-label="가이드 닫고 이전 화면으로 돌아가기"><X size={16} /></button></div>
@@ -371,10 +520,16 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <ErrorMessage error={lotsQuery.error} retry={() => void lotsQuery.refetch()} />
         <ErrorMessage error={channelsQuery.error} retry={() => void channelsQuery.refetch()} />
         {!datasetsQuery.isPending && datasets.length === 0 && !datasetsQuery.error && <div className="panel no-data-panel"><Database size={30} /><h2>등록된 데이터가 없습니다.</h2><p>서버에 CSV를 등록하면 LOT와 채널값을 여기에서 확인할 수 있습니다.</p><button className="subtle-button" onClick={() => void datasetsQuery.refetch()}><RefreshCw size={14} />등록 상태 다시 확인</button></div>}
+        {alertCandidate && guideIndex === null && <EquipmentAlert alert={{
+          id: alertCandidate.id, equipment: "CAL01", zone: alertCandidate.zone_id, channel: alertCandidate.channel_id,
+          value: alertCandidate.peak_value, unit: channels.find(item => item.id === alertCandidate.channel_id)?.unit ?? "단위 미확인",
+          time: alertCandidate.peak_at, reason: `과거 LOT ${lotNo} · |Z| > 3으로 찾은 후보`, severity: "candidate", acknowledged: alertCandidate.acknowledged,
+        }} pending={acknowledging === alertCandidate.id} onAcknowledge={() => void acknowledgeCandidate(alertCandidate)} onFocus={() => focusCandidate(alertCandidate)} />}
         <section className="panel equipment-panel" aria-labelledby="equipment-heading">
           <div className="panel-heading">
             <div><span className="eyebrow">EQUIPMENT VIEW</span><h2 id="equipment-heading">연속 소둔로 <span className="technical-tag">CAL01</span></h2></div>
             <div className="button-row">
+              <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} title={reducedMotion ? "동작 줄이기 설정에서는 정적으로 표시합니다." : "실제 속도와 무관한 설비 동작 설명입니다."} onClick={() => setMotionPlaying(value => !value)}>{motionPlaying ? <Pause size={15} /> : <Play size={15} />}{motionPlaying ? "설명 동작 멈춤" : "설비 동작 설명"}</button>
               <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => setShowInterior(value => !value)}><Layers3 size={15} />{showInterior ? "외함 보기" : "내부 보기"}</button>
               {user.can_edit_layout && !editing && <button className="subtle-button" onClick={beginEditing} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={15} />표시점 편집</button>}
               {editing && <><button className="subtle-button" onClick={cancelEditing} disabled={saving}><X size={14} />취소</button><button className="primary-button compact" onClick={() => void saveLayout()} disabled={saving || !dirty || layoutConflict}>{saving ? <LoaderCircle className="spin" size={14} /> : <Save size={14} />}위치 저장</button></>}
@@ -383,7 +538,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <div className="equipment-body">
             <div className="equipment-stage">
               <div className="stage-meta"><span className="stage-coordinate">ZONES / CHANNELS</span><span>{editing ? "표시점 편집 중" : "드래그 회전 · 스크롤 확대"}</span></div>
-              {channels.length ? <Suspense fallback={<div className="scene-placeholder"><LoaderCircle className="spin" size={24} /><span>3D 설비를 불러오는 중</span></div>}><FurnaceScene channels={channels} selectedChannel={selectedChannel} onSelectChannel={selectChannel} values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined} editing={editing} showInterior={showInterior} theme={theme} /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
+              {channels.length ? <Suspense fallback={<div className="scene-placeholder"><LoaderCircle className="spin" size={24} /><span>3D 설비를 불러오는 중</span></div>}><FurnaceScene channels={channels} selectedChannel={selectedChannel} onSelectChannel={selectSceneChannel} values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined} editing={editing} showInterior={showInterior} theme={theme} alertChannelIds={guideStep ? [] : alertChannelIds} alertZoneIds={guideStep ? [] : alertZoneIds} motionPlaying={motionPlaying && !editing} overlayOpen={drawer !== null} /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
             </div>
             <aside className="channel-inspector" aria-label="선택한 채널 정보">
               <div className="inspector-heading"><span className="eyebrow">SELECTED CHANNEL</span><span className="zone-badge">{channel?.zone || "—"}</span></div>
@@ -391,7 +546,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               <p className="channel-description">{channel?.label ?? "설비의 표시점을 눌러 주세요."}</p>
               <div className={`main-reading ${frameQuery.isFetching ? "is-loading" : ""}`}><strong>{numberText(frameValue?.value)}</strong><span>{channel?.unit || "단위 미확인"}</span></div>
               <div className="inspector-fields">
-                <div><span>원자료 기록 시각</span><strong>{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : "관측값 없음"}</strong></div>
+                <div><span>원자료 기록 시각</span><strong>{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : frameQuery.isFetching ? "불러오는 중" : "관측값 없음"}</strong></div>
                 <div><span>그래프에서 고른 시각</span><strong>{cursor ? dateTime(cursor, true) : "—"}</strong></div>
                 <div><span>자료 상태</span><strong>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</strong></div>
               </div>
@@ -403,6 +558,17 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <ErrorMessage error={layoutQuery.error} retry={() => void layoutQuery.refetch()} />
           {editing && <div className="editing-instructions"><Move3D size={15} /><span>표시점을 선택하고 이동 도구로 위치를 옮긴 뒤 <strong>위치 저장</strong>을 눌러 주세요.</span><span className="revision-label">REV {savedRevision.current}</span></div>}
         </section>
+        <WorkspaceDrawer open={drawer === "analysis"} title="과거 LOT의 이상 후보" name="analysis" onClose={() => setDrawer(null)}>
+        <div className="analysis-channel-choice"><span>분석할 채널</span><div className="segmented-control"><button onClick={() => setChannelGroup("all")}>전체</button><button onClick={() => setChannelGroup("TC")}>TC</button><button onClick={() => setChannelGroup("OP")}>OP</button><button onClick={() => setChannelGroup("selected")}>선택한 채널만</button></div><p>{displayedChannels.map(item => item.id).join(" · ") || "선택한 채널 없음"}</p></div>
+        {lot && <DetectionPanel runs={runs} run={chosenRun} candidates={candidates} selectedId={focusedCandidate?.id ?? null}
+          selectedChannels={displayedChannels.map(item => item.id)} loading={runsQuery.isPending || (!!chosenRunId && candidatesQuery.isPending)} running={analysisRunning}
+          error={analysisError ?? runsQuery.error ?? candidatesQuery.error} disabled={editing || guideStep !== null}
+          onRun={() => void runAnalysis()} onChooseRun={id => { setRunChoice({ context: analysisContext, id }); setSelectedCandidateId(null); setBannerCandidateId(null); }}
+          onFocus={candidate => focusCandidate(candidate)} onRequest={setRequestCandidate}
+          onAcknowledge={candidate => void acknowledgeCandidate(candidate)} acknowledging={acknowledging} />}
+        </WorkspaceDrawer>
+        <WorkspaceDrawer open={drawer === "channels"} title="채널 그래프와 앞뒤 기록" name="channels" onClose={() => setDrawer(null)}>
+        {focusedCandidate && <div className="focused-candidate-actions"><span>선택한 후보 · {focusedCandidate.channel_id} · {dateTime(focusedCandidate.start, true)}</span><button className="primary-button compact" onClick={() => setRequestCandidate(focusedCandidate)}>현장 확인 요청</button></div>}
         <section className="panel channel-selection-panel" aria-labelledby="channel-heading" ref={chartTarget}>
           <div className="channel-controls-heading">
             <div><h2 id="channel-heading">표시할 채널</h2><span className="muted">{visibleIds.filter(id => channels.some(item => item.id === id)).length} / {channels.length}개 선택</span></div>
@@ -421,6 +587,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
             selectedChannel={selectedChannel} selection={selection} cursor={frameTime}
             loading={seriesQuery.isFetching} aggregationSeconds={seriesQuery.data?.aggregation_seconds} sourceCount={seriesQuery.data?.source_count}
             labelIntervals={seriesQuery.data?.label_intervals ?? []}
+            candidates={candidates} focusedCandidate={focusedCandidate}
             onSelectChannel={selectChannel} onSelection={setSelection} onView={setView} onCursor={setCursor} />
           <section className="time-navigation panel" aria-label="3D와 그래프의 공통 시각">
             <div><span className="eyebrow">SHARED TIME</span><strong>{cursor ? dateTime(cursor, true) : "—"}</strong><span className="muted">그래프와 설비가 같은 시각을 봅니다.</span></div>
@@ -431,9 +598,18 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           </section>
           <RecordsPanel datasetId={datasetId} view={view} />
         </> : lotsQuery.isFetching || datasetsQuery.isPending ? <div className="panel data-loading"><LoaderCircle size={20} className="spin" />관측 자료를 불러오는 중</div> : null}
-        <footer className="workspace-footer"><span>CAL01 / {fieldTeam ? "FIELD TEAM" : "MONITORING TEAM"}</span><span>원자료 시각 기준 · 시간대 미확인</span></footer>
+        </WorkspaceDrawer>
+        <WorkspaceDrawer open={drawer === "requests"} title="팀 확인 요청" name="requests" onClose={() => setDrawer(null)}>
+          <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenCandidate={location => void openCandidateLocation(location)} />
+        </WorkspaceDrawer>
+        <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>원자료 시각 기준 · 시간대 미확인</span></footer>
       </main>
     </div>
+    {requestCandidate && <RequestDialog key={requestCandidate.id} candidate={requestCandidate} onClose={() => setRequestCandidate(null)} onSaved={(request, reused) => {
+      setRequestCandidate(null); void queryClient.invalidateQueries({ queryKey: ["field-requests"] });
+      setMessage({ kind: "success", text: reused ? "이미 저장된 요청을 불러왔습니다." : "현장 확인 요청을 저장했습니다. 팀 알림에 반영됩니다." });
+      openRequests(request.id);
+    }} />}
   </div>;
 }
 
