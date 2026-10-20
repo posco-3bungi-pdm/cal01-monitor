@@ -66,50 +66,71 @@ export function defaultPlacements(channels: Channel[]): Placement[] {
   })
 }
 
-export type Roller = { x: number; y: number; radius: number }
+export const STRIP_HALF_WIDTH = 0.68
+export const STRIP_HALF_THICKNESS = 0.012
+export const STRIP_TRANSFER_Y = 1.7
+export const COIL_RADIUS = 0.8 - STRIP_HALF_THICKNESS
+export const COIL_CENTRE_Y = STRIP_TRANSFER_Y - COIL_RADIUS - STRIP_HALF_THICKNESS
+export type Roller = { x: number; y: number; radius: number; direction: number }
 export type StripLayout = { rollers: Roller[]; points: THREE.Vector2[] }
 
-function upperRollerHeight(x: number): number {
-  if (x < -5.7) return 8.25
-  if (x < 3.1) return 10.05
-  if (x < 7.5) return 8.25
-  if (x < 9.9) return 6.15
-  if (x < 12.3) return 4.65
-  return 3.35
-}
-
 export function createStripLayout(): StripLayout {
-  // Centreline radius includes half the strip thickness, so the inside face
-  // rests on the roller instead of intersecting its surface.
-  const radius = 0.52
-  const rollerRadius = radius - 0.012
-  const points: THREE.Vector2[] = [new THREE.Vector2(-18.1, 1.7)]
+  // A conceptual strip route, not a claim about the installed roller count.
+  // Each vertical pass stays inside its own housing. Adjacent housings connect
+  // at one height through real openings, avoiding the old roof intersections.
+  const points: THREE.Vector2[] = [new THREE.Vector2(-18.1, STRIP_TRANSFER_Y)]
   const rollers: Roller[] = []
-  const arc = (x: number, y: number, from: number, to: number, steps = 24) => {
+  const arc = (x: number, y: number, radius: number, from: number, to: number, steps = 32) => {
     for (let i = 0; i <= steps; i += 1) {
       const angle = from + ((to - from) * i) / steps
       points.push(new THREE.Vector2(x + radius * Math.cos(angle), y + radius * Math.sin(angle)))
     }
   }
-
-  // Each connecting line is vertical and tangent to both adjacent rollers.
-  // The entry/exit quarter turns join horizontal portions tangentially.
-  rollers.push({ x: -10.5, y: 2.22, radius: rollerRadius })
-  arc(-10.5, 2.22, -Math.PI / 2, 0, 12)
-  for (let i = 0; i < 24; i += 1) {
-    const x = -9.46 + i * radius * 2
-    const upper = i % 2 === 0
-    const y = upper ? upperRollerHeight(x) : 1.72
-    rollers.push({ x, y, radius: rollerRadius })
-    arc(x, y, Math.PI, upper ? 0 : Math.PI * 2)
+  for (const zone of FURNACE_ZONES.filter(zone => /^Z[3-9]$/.test(zone.id))) {
+    const radius = Math.min(0.48, (zone.width - 0.5) / 6)
+    const lowerY = STRIP_TRANSFER_Y + radius
+    const upperY = zone.height - radius - 0.28
+    const contactRadius = radius - STRIP_HALF_THICKNESS - 0.0015 // tessellated arc clearance
+    rollers.push({ x: zone.x - 2 * radius, y: lowerY, radius: contactRadius, direction: 1 })
+    arc(zone.x - 2 * radius, lowerY, radius, -Math.PI / 2, 0, 16)
+    rollers.push({ x: zone.x, y: upperY, radius: contactRadius, direction: -1 })
+    arc(zone.x, upperY, radius, Math.PI, 0)
+    rollers.push({ x: zone.x + 2 * radius, y: lowerY, radius: contactRadius, direction: 1 })
+    arc(zone.x + 2 * radius, lowerY, radius, Math.PI, Math.PI * 1.5, 16)
   }
-  const exitX = rollers.at(-1)!.x + radius * 2
-  rollers.push({ x: exitX, y: 1.72, radius: rollerRadius })
-  arc(exitX, 1.72, Math.PI, Math.PI / 2, 12)
-  points.push(new THREE.Vector2(18.1, 2.24))
+  points.push(new THREE.Vector2(18.1, STRIP_TRANSFER_Y))
   return { rollers, points: points.filter((point, index) =>
     index === 0 || point.distanceToSquared(points[index - 1]) > 1e-12,
   ) }
+}
+
+export type HousingPanel = { position: Position3; size: Position3; side: 'front' | 'back' | 'side' | 'roof' }
+
+// All wall pieces use this geometry contract. Side openings reserve a gap for
+// the complete strip width and thickness, rather than hiding a solid wall.
+export function housingPanels(zone: FurnaceZone): HousingPanel[] {
+  const floor = 0.8
+  const slotLow = STRIP_TRANSFER_Y - 0.18
+  const slotHigh = STRIP_TRANSFER_Y + 0.18
+  const slotHalfWidth = STRIP_HALF_WIDTH + 0.18
+  const panels: HousingPanel[] = [
+    { position: [zone.x, (floor + zone.height) / 2, zone.depth / 2], size: [zone.width, zone.height - floor, 0.11], side: 'front' },
+    { position: [zone.x, (floor + zone.height) / 2, -zone.depth / 2], size: [zone.width, zone.height - floor, 0.11], side: 'back' },
+    { position: [zone.x, zone.height, 0], size: [zone.width, 0.12, zone.depth], side: 'roof' },
+  ]
+  for (const direction of [-1, 1]) {
+    const x = zone.x + direction * zone.width / 2
+    panels.push(
+      { position: [x, (floor + slotLow) / 2, 0], size: [0.12, slotLow - floor, zone.depth], side: 'side' },
+      { position: [x, (slotHigh + zone.height) / 2, 0], size: [0.12, zone.height - slotHigh, zone.depth], side: 'side' },
+    )
+    const depth = zone.depth / 2 - slotHalfWidth
+    for (const zDirection of [-1, 1]) {
+      panels.push({ position: [x, STRIP_TRANSFER_Y, zDirection * (slotHalfWidth + depth / 2)],
+        size: [0.12, slotHigh - slotLow, depth], side: 'side' })
+    }
+  }
+  return panels
 }
 
 // A closed, thin ribbon: width is along Z; the centreline is the tangent path
@@ -117,15 +138,19 @@ export function createStripLayout(): StripLayout {
 export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeometry {
   const vertices: number[] = []
   const indices: number[] = []
-  const halfWidth = 0.68
-  const halfThickness = 0.012
+  const travelDistances: number[] = []
+  let distance = 0
+  const halfWidth = STRIP_HALF_WIDTH
+  const halfThickness = STRIP_HALF_THICKNESS
   points.forEach((point, index) => {
+    if (index) distance += point.distanceTo(points[index - 1])
     const before = points[Math.max(0, index - 1)]
     const after = points[Math.min(points.length - 1, index + 1)]
     const tangent = after.clone().sub(before).normalize()
     const normal = new THREE.Vector2(-tangent.y, tangent.x)
     for (const side of [-1, 1]) {
       for (const z of [-halfWidth, halfWidth]) {
+        travelDistances.push(distance)
         vertices.push(
           point.x + normal.x * halfThickness * side,
           point.y + normal.y * halfThickness * side,
@@ -148,6 +173,7 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
   indices.push(0, 1, 2, 1, 3, 2, last, last + 2, last + 1, last + 1, last + 2, last + 3)
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+  geometry.setAttribute('stripDistance', new THREE.Float32BufferAttribute(travelDistances, 1))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
   geometry.computeBoundingSphere()
@@ -155,26 +181,48 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
 }
 
 export const OVERVIEW_CAMERA = {
-  position: [30, 20, 37] as Position3,
-  target: [0, 4.4, 0] as Position3,
+  position: [14, 16, 42] as Position3,
+  target: [0, 6, 0] as Position3,
 }
 
-export function overviewForViewport(width: number, height: number, fov = 40, shiftX = 0, shiftY = 0) {
-  const target = new THREE.Vector3(...OVERVIEW_CAMERA.target)
-  const direction = new THREE.Vector3(...OVERVIEW_CAMERA.position).sub(target)
-  let distance = direction.length()
+function fitBounds(width: number, height: number, fov: number, shiftX: number, shiftY: number,
+  targetPosition: Position3, cameraDirection: Position3, bounds: [Position3, Position3], minimumDistance = 5) {
+  const target = new THREE.Vector3(...targetPosition)
+  const direction = new THREE.Vector3(...cameraDirection)
+  let distance = minimumDistance
   direction.normalize()
   const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize()
   const up = new THREE.Vector3().crossVectors(direction, right)
   const vertical = Math.tan(THREE.MathUtils.degToRad(fov) / 2)
   const horizontal = vertical * Math.max(1, width) / Math.max(1, height)
   // Display bounds include both coils, upper ducts and maintenance walkways.
-  for (const x of [-19.2, 19.2]) for (const y of [-0.1, 12.6]) for (const z of [-5, 3.4]) {
+  for (const x of [bounds[0][0], bounds[1][0]]) for (const y of [bounds[0][1], bounds[1][1]]) for (const z of [bounds[0][2], bounds[1][2]]) {
     const corner = new THREE.Vector3(x, y, z).sub(target)
     const across = corner.dot(right), above = corner.dot(up), toward = corner.dot(direction)
     distance = Math.max(distance,
       toward + Math.abs(across) / (horizontal * Math.max(0.1, 0.9 - Math.sign(across) * shiftX)),
       toward + Math.abs(above) / (vertical * Math.max(0.1, 0.9 - Math.sign(above) * shiftY)))
   }
-  return { position: target.clone().addScaledVector(direction, distance).toArray() as Position3, distance }
+  return { position: target.clone().addScaledVector(direction, distance).toArray() as Position3,
+    target: targetPosition, distance }
+}
+
+export function overviewForViewport(width: number, height: number, fov = 40, shiftX = 0, shiftY = 0) {
+  return fitBounds(width, height, fov, shiftX, shiftY, OVERVIEW_CAMERA.target, [14, 10, 42],
+    [[-19.2, -0.1, -5], [19.2, 12.6, 3.4]])
+}
+
+export function workViewForViewport(width: number, height: number, zoneId = 'Z3', fov = 40, shiftX = 0, shiftY = 0) {
+  const zone = FURNACE_ZONES.find(item => item.id === zoneId) ?? FURNACE_ZONES[3]
+  const halfWidth = Math.max(2.6, zone.width * 0.8)
+  const centreY = zone.height / 2 + 0.25
+  return fitBounds(width, height, fov, shiftX, shiftY, [zone.x, centreY, 0], [6, 3.8, 14],
+    [[zone.x - halfWidth, 0.5, -2.2], [zone.x + halfWidth, zone.height + 0.9, 2.6]])
+}
+
+export function partViewForViewport(width: number, height: number, position: Position3, radius: number,
+  fov = 40, shiftX = 0, shiftY = 0) {
+  return fitBounds(width, height, fov, shiftX, shiftY, position, [2.4, 1.3, 7],
+    [[position[0] - radius, position[1] - radius, position[2] - radius],
+      [position[0] + radius, position[1] + radius, position[2] + radius]], 1.25)
 }
