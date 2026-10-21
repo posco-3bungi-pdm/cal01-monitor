@@ -21,7 +21,7 @@ export function KeyboardNavigation({ controls, host, disabled, onMove }: {
   useEffect(() => {
     const clear = () => { keys.current.clear(); fast.current = false }
     const down = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey || !allowed() || isTypingTarget(event.target)) {
+      if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || !allowed() || isTypingTarget(event.target)) {
         clear()
         return
       }
@@ -54,7 +54,7 @@ export function KeyboardNavigation({ controls, host, disabled, onMove }: {
 
   useFrame((_, delta) => {
     if (!controls.current || !keys.current.size) return
-    if (!allowed()) { keys.current.clear(); return }
+    if (!allowed()) { keys.current.clear(); fast.current = false; return }
     const movement = movementForKeys(keys.current, fast.current, delta)
     if (movement.x) void controls.current.truck(movement.x, 0, false)
     if (movement.z) void controls.current.forward(movement.z, false)

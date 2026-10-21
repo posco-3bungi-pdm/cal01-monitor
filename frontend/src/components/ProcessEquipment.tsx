@@ -249,7 +249,7 @@ export default function ProcessEquipment({
       appearance={appearance} radius={0.035} color="#778e90" />
     <Pipe points={[[-2.42, 2.14, 3.2], [-2.42, 2.14, 4.0], [-2.62, 2.14, 4.0]]}
       appearance={appearance} radius={0.05} />
-    {PART_CATALOG.map(part => <group key={part.id} name={`PART_${part.id}`} position={part.position}
+    {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => <group key={part.id} name={`PART_${part.id}`} position={part.position}
       userData={{ partCode: part.partCode, representativePosition: true }}
       onClick={event => { event.stopPropagation(); onSelectPart?.(part.id) }}>
       {part.id === 'INS-006' && <Analyzer appearance={appearance} selected={selectedPartId === part.id} />}
