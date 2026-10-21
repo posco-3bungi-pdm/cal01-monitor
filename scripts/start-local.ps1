@@ -57,7 +57,7 @@ if ($BackendPort) {
     if ($Health.service -ne "cal01-monitor") { throw "9017 포트를 다른 프로그램이 사용 중입니다." }
 } else {
     $Backend = Start-Process -FilePath $Python -ArgumentList @(
-        "-m", "waitress", "--listen=127.0.0.1:9017", "--threads=4", "config.wsgi:application"
+        "-m", "waitress", "--listen=127.0.0.1:9017", "--threads=4", "--max-request-body-size=537919488", "config.wsgi:application"
     ) -WorkingDirectory (Join-Path $Repository "backend") -WindowStyle Hidden -PassThru `
       -RedirectStandardOutput (Join-Path $Runtime "backend.stdout.log") `
       -RedirectStandardError (Join-Path $Runtime "backend.stderr.log")
