@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import auth_views, context_views, views
+from . import auth_views, context_views, detection_views, views, workflow_views
 
 urlpatterns = [
     path("health", auth_views.health),
@@ -15,4 +15,12 @@ urlpatterns = [
     path("current-frame", views.current_frame),
     path("records", context_views.records),
     path("equipment/layout", views.equipment_layout),
+    path("detection/runs", detection_views.runs),
+    path("detection/candidates", detection_views.candidates),
+    path("detection/candidates/<uuid:candidate_id>/acknowledge", detection_views.acknowledge),
+    path("field-requests", workflow_views.field_requests),
+    path("field-requests/<uuid:request_id>", workflow_views.field_request_detail),
+    path("field-requests/<uuid:request_id>/transition", workflow_views.transition),
+    path("field-users", workflow_views.field_users),
+    path("notifications", workflow_views.notifications),
 ]

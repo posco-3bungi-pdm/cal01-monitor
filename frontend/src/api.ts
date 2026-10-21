@@ -47,7 +47,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       typeof message === "string" ? message : response.status === 401
         ? "로그인이 만료됐습니다. 다시 로그인해 주세요."
         : response.status === 409
-          ? "다른 팀원이 위치를 먼저 수정했습니다. 최신 위치를 불러온 뒤 다시 수정해 주세요."
+          ? "다른 팀원이 먼저 수정했습니다. 최신 상태를 확인한 뒤 다시 저장해 주세요."
           : `요청을 처리하지 못했습니다. (${response.status})`,
       payload,
     );

@@ -3,6 +3,7 @@ import type { PointerEvent } from "react";
 import { Crosshair, LoaderCircle, Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import type { Channel, ChannelSeries, SeriesPoint, TimeRange } from "../types";
 import { clockTime, dateTime, numberText, timeIso, timeMs } from "../time";
+import type { ChannelBaseline, DetectionCandidate } from "../review-types";
 
 const WIDTH = 1100;
 const LEFT = 72;
@@ -25,14 +26,16 @@ type Props = {
   aggregationSeconds?: number;
   labelIntervals: TimeRange[];
   sourceCount?: number;
+  candidates?: DetectionCandidate[];
+  focusedCandidate?: DetectionCandidate;
   onSelectChannel: (channel: string) => void;
   onSelection: (range: TimeRange | null) => void;
   onView: (range: TimeRange) => void;
   onCursor: (time: string) => void;
 };
 
-function plotData(points: SeriesPoint[], x: (time: number) => number) {
-  const values = points.flatMap(point => [point.value, point.min, point.max]).filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?: ChannelBaseline) {
+  const values = [...points.flatMap(point => [point.value, point.min, point.max]), baseline?.mean, baseline?.lower, baseline?.upper].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   const minimum = values.length ? Math.min(...values) : 0;
   const maximum = values.length ? Math.max(...values) : 1;
   const padding = Math.max((maximum - minimum) * 0.12, Math.abs(maximum || minimum) * 0.015, maximum === 0 && minimum === 0 ? 1 : Number.MIN_VALUE);
@@ -57,10 +60,10 @@ function plotData(points: SeriesPoint[], x: (time: number) => number) {
     const bottom = [...points].reverse().map(point => `L${x(timeMs(point.time)).toFixed(2)},${y(point.min ?? point.value!).toFixed(2)}`).join(" ");
     return `${top} ${bottom} Z`;
   }).filter(Boolean);
-  return { lines, bands, y, low, high, segments, empty: values.length === 0 };
+  return { lines, bands, y, low, high, segments, empty: segments.length === 0 };
 }
 
-function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, onSelect, onSelection, onCursor, onLabelZoom }: {
+function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, candidates, focusedCandidate, onSelect, onSelection, onCursor, onLabelZoom }: {
   channel: Channel;
   data?: ChannelSeries;
   index: number;
@@ -70,6 +73,8 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   selected: boolean;
   labels: TimeRange[];
   aggregated: boolean;
+  candidates: DetectionCandidate[];
+  focusedCandidate?: DetectionCandidate;
   onSelect: () => void;
   onSelection: (range: TimeRange | null) => void;
   onCursor: (time: string) => void;
@@ -83,7 +88,8 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   const duration = Math.max(1, end - start);
   const x = (time: number) => LEFT + (time - start) / duration * PLOT_WIDTH;
   const points = data?.points ?? [];
-  const plot = useMemo(() => plotData(points, x), [points, start, end]);
+  const baseline = focusedCandidate?.baseline;
+  const plot = useMemo(() => plotData(points, x, baseline), [points, start, end, baseline]);
   const color = COLORS[index % COLORS.length];
   const cursorMs = cursor ? timeMs(cursor) : Number.NaN;
   const nearest = Number.isFinite(cursorMs) ? points.reduce<SeriesPoint | null>((best, point) =>
@@ -139,6 +145,7 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
       </button>
       <div className="chart-reading">{nearest ? <>{aggregated && <span>요약 평균</span>}<strong>{numberText(nearest.value)}</strong><span>{channel.unit || "단위 미확인"}</span><small>{clockTime(nearest.time, true)}</small></> : <span>{points.length ? "그래프를 눌러 시각 선택" : "이 구간에 관측값 없음"}</span>}</div>
     </div>
+    {baseline && <div className="baseline-description">이번 LOT 원자료 전체 기준 · 평균 {numberText(baseline.mean)} · 평균 − 3σ {numberText(baseline.lower)} · 평균 + 3σ {numberText(baseline.upper)} {channel.unit ?? ""}</div>}
     <svg ref={svg} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={`series-svg ${dragging ? "is-dragging" : ""}`}
       role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start)}부터 ${dateTime(view.end)}까지. 드래그해 구간 선택`}
       onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
@@ -157,6 +164,15 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         return <g key={`x-${tick}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={tick === 0 ? "start" : tick === 4 ? "end" : "middle"}>{clockTime(t, duration < 300_000)}</text></g>;
       })}
       <g clipPath={`url(#${clipId})`}>
+        {candidates.map(candidate => {
+          const a = Math.max(LEFT, x(timeMs(candidate.start))), b = Math.min(WIDTH - RIGHT, x(timeMs(candidate.end)));
+          if (b < LEFT || a > WIDTH - RIGHT || b < a) return null;
+          return <rect key={candidate.id} className={`candidate-time-band ${focusedCandidate?.id === candidate.id ? "focused" : ""}`} x={a} y={TOP} width={Math.max(1.2, b - a)} height={BOTTOM - TOP} pointerEvents="none" />;
+        })}
+        {baseline && ([["평균 − 3σ", baseline.lower], ["평균", baseline.mean], ["평균 + 3σ", baseline.upper]] as const).map(([name, raw]) => {
+          if (typeof raw !== "number") return null;
+          return <g key={name} pointerEvents="none"><line className={`baseline-line ${name === "평균" ? "mean" : ""}`} x1={LEFT} x2={WIDTH - RIGHT} y1={plot.y(raw)} y2={plot.y(raw)} /><text className="baseline-label" x={WIDTH - RIGHT - 4} y={plot.y(raw) - 4} textAnchor="end">{name}</text></g>;
+        })}
         {selection && selectionEnd >= selectionX && <rect className="selected-time-band" x={selectionX} y={TOP} width={Math.max(1.5, selectionEnd - selectionX)} height={BOTTOM - TOP} />}
         {plot.bands.map((path, i) => <path key={`band-${i}`} d={path} fill={color} fillOpacity={0.13} />)}
         {plot.lines.map((path, i) => <path key={i} d={path} fill="none" stroke={color} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />)}
@@ -234,7 +250,7 @@ export default function ChannelCharts(props: Props) {
       <span>{dateTime(view.start)} <span className="muted">—</span> {dateTime(view.end)}</span>
       <span className="muted">{props.sourceCount !== undefined ? `${props.sourceCount.toLocaleString()}개 원자료` : ""}{props.aggregationSeconds !== undefined ? ` · ${props.aggregationSeconds === 0 ? "원자료 그대로" : `${props.aggregationSeconds}초 단위 요약`}` : ""}</span>
     </div>
-    <div className="chart-legend"><span><i className="legend-yellow" />드래그한 구간</span><span><i className="legend-label" />CSV 행의 LABEL=1</span><span><Crosshair size={12} />클릭한 시각 → 3D 채널값</span></div>
+    <div className="chart-legend"><span><i className="legend-yellow" />드래그한 구간</span><span><i className="legend-label" />CSV 행의 LABEL=1</span>{(props.candidates?.length ?? 0) > 0 && <span><i className="legend-candidate" />이번 분석의 통계적 후보</span>}<span><Crosshair size={12} />클릭한 시각 → 3D 채널값</span></div>
     {loading && <div className="loading-bar" role="status" aria-label="채널 데이터 불러오는 중" />}
     {channels.length === 0 ? <div className="empty-state">위에서 표시할 채널을 선택해 주세요.</div> :
       loading && series.length === 0 ? <div className="data-loading" role="status"><LoaderCircle size={19} className="spin" />채널값을 불러오는 중</div> :
@@ -242,6 +258,8 @@ export default function ChannelCharts(props: Props) {
         {channels.map((channel, index) => <ChartRow key={channel.id} channel={channel} data={data.get(channel.id)} index={index}
           view={view} selection={selection} cursor={props.cursor} selected={props.selectedChannel === channel.id}
           labels={props.labelIntervals} aggregated={(props.aggregationSeconds ?? 0) > 0}
+          candidates={(props.candidates ?? []).filter(candidate => candidate.channel_id === channel.id)}
+          focusedCandidate={props.focusedCandidate?.channel_id === channel.id ? props.focusedCandidate : undefined}
           onSelect={() => props.onSelectChannel(channel.id)} onSelection={props.onSelection} onCursor={props.onCursor}
           onLabelZoom={range => { props.onSelectChannel(channel.id); props.onSelection(range); zoomTo(range); }} />)}
       </div>}

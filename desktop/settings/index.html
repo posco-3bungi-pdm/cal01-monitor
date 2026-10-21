@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'">
+<title>CAL01 · 서버 연결</title><link rel="stylesheet" href="settings.css"></head>
+<body><main><span>CAL01 / TEAM MONITOR</span><h1>같은 서버에서,<br>같은 기록을 확인.</h1>
+<p>팀 서버 주소를 입력해 주세요. 이 PC에서 실행한 서버는 기본 주소를 그대로 사용하면 됩니다.</p>
+<form id="connection"><label for="server">서버 주소</label><input id="server" type="url" required autocomplete="off" spellcheck="false" value="http://127.0.0.1:9017"><button id="connect">연결하기 →</button></form>
+<p id="status" role="status"></p><small>관측값과 현장 요청은 서버에 저장됩니다. 앱을 닫아도 서버의 기록은 남습니다.</small>
+</main><script src="settings.js"></script></body></html>

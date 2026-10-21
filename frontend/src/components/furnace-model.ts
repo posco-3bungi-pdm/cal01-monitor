@@ -158,3 +158,23 @@ export const OVERVIEW_CAMERA = {
   position: [30, 20, 37] as Position3,
   target: [0, 4.4, 0] as Position3,
 }
+
+export function overviewForViewport(width: number, height: number, fov = 40, shiftX = 0, shiftY = 0) {
+  const target = new THREE.Vector3(...OVERVIEW_CAMERA.target)
+  const direction = new THREE.Vector3(...OVERVIEW_CAMERA.position).sub(target)
+  let distance = direction.length()
+  direction.normalize()
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize()
+  const up = new THREE.Vector3().crossVectors(direction, right)
+  const vertical = Math.tan(THREE.MathUtils.degToRad(fov) / 2)
+  const horizontal = vertical * Math.max(1, width) / Math.max(1, height)
+  // Display bounds include both coils, upper ducts and maintenance walkways.
+  for (const x of [-19.2, 19.2]) for (const y of [-0.1, 12.6]) for (const z of [-5, 3.4]) {
+    const corner = new THREE.Vector3(x, y, z).sub(target)
+    const across = corner.dot(right), above = corner.dot(up), toward = corner.dot(direction)
+    distance = Math.max(distance,
+      toward + Math.abs(across) / (horizontal * Math.max(0.1, 0.9 - Math.sign(across) * shiftX)),
+      toward + Math.abs(above) / (vertical * Math.max(0.1, 0.9 - Math.sign(above) * shiftY)))
+  }
+  return { position: target.clone().addScaledVector(direction, distance).toArray() as Position3, distance }
+}
