@@ -26,6 +26,9 @@
   --input: #101510;
   --shadow: 0 14px 70px rgba(0, 0, 0, .16);
   --mono: "IBM Plex Mono", "Consolas", monospace;
+  --native-select-scheme: dark;
+  --option-bg: #18221c;
+  --option-text: #f1f5ef;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -56,6 +59,9 @@
   --stage: #e8ede2;
   --input: #fff;
   --shadow: 0 14px 60px rgba(38, 51, 29, .06);
+  --native-select-scheme: light;
+  --option-bg: #ffffff;
+  --option-text: #202b22;
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; background: var(--bg); color: var(--text); }
@@ -68,6 +74,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, [role="button"]
 }
 button { border: 0; background: none; color: inherit; }
 input, select { min-width: 0; }
+/* Native popups do not reliably inherit a transparent select's background. */
+select { color-scheme: var(--native-select-scheme); }
+select option, select optgroup {
+  background-color: var(--option-bg);
+  color: var(--option-text);
+}
+select option:disabled { color: var(--muted); }
 h1, h2, h3, p { margin: 0; }
 button, input, select { border-radius: 3px; }
 .mono { font-family: var(--mono); }

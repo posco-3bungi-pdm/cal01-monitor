@@ -32,8 +32,10 @@ export function ChannelLabels({ target, bridge, channels, positions, values, sel
     const focused = channel.id === selected
     const x = output ? 22 : -142
     const y = channel.id.startsWith('CP-') ? 16 : -70
-    const color = theme === 'dark' ? '#8ce6ed' : '#236978'
-    const kind = output ? '제어 출력' : channel.id.startsWith('CP-') ? '공정 채널' : '온도 측정'
+    const color = channel.id === 'CP-Z4'
+      ? (theme === 'dark' ? '#d4b6f3' : '#755093') : (theme === 'dark' ? '#8ce6ed' : '#236978')
+    const kind = channel.id === 'CP-Z4' ? '채널 표시 위치 · 실제 설치 위치와 부품 연결은 확인 전'
+      : output ? '제어 출력' : channel.id.startsWith('CP-') ? '공정 채널' : '온도 측정'
     return <div key={channel.id} data-channel-readout={channel.id}
       ref={node => {
         if (node) bridge.current.entries.set(channel.id, { node, position, offset: [x, y], selected: focused })
