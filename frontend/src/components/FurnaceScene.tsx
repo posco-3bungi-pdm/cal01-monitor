@@ -1,0 +1,508 @@
+import { Component, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { ErrorInfo, ReactNode } from 'react'
+import { Canvas, useThree } from '@react-three/fiber'
+import type { ThreeEvent } from '@react-three/fiber'
+import { CameraControls, ContactShadows, Edges, Grid, Html, TransformControls } from '@react-three/drei'
+import * as THREE from 'three'
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
+import type { Channel, Placement, Theme } from '../types'
+import { numberText } from '../time'
+import {
+  FURNACE_ZONES, MODEL_VERSION, OVERVIEW_CAMERA, createStripGeometry,
+  createStripLayout, defaultPlacements, zoneForChannel,
+} from './furnace-model'
+import type { FurnaceZone, Position3 } from './furnace-model'
+
+export type FurnaceSceneProps = {
+  channels: Channel[]
+  selectedChannel: string
+  onSelectChannel: (id: string) => void
+  values: Record<string, number | null>
+  placements: Placement[]
+  onPlacementChange?: (channelId: string, position: Position3) => void
+  editing?: boolean
+  showInterior: boolean
+  theme: Theme
+  alertChannelIds?: string[]
+  alertZoneIds?: string[]
+}
+
+type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
+
+function StructuralBeams({ beams, color = '#4c5960' }: { beams: BeamSpec[]; color?: string }) {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    const transform = new THREE.Object3D()
+    beams.forEach((beam, index) => {
+      transform.position.set(...beam.position)
+      transform.scale.set(...beam.scale)
+      transform.rotation.set(...(beam.rotation ?? [0, 0, 0]))
+      transform.updateMatrix()
+      ref.current!.setMatrixAt(index, transform.matrix)
+    })
+    ref.current.instanceMatrix.needsUpdate = true
+    ref.current.computeBoundingSphere()
+  }, [beams])
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, beams.length]} castShadow receiveShadow name="STRUCTURAL_MEMBERS">
+      <boxGeometry />
+      <meshStandardMaterial color={color} metalness={0.72} roughness={0.39} />
+    </instancedMesh>
+  )
+}
+
+function Pipe({ points, radius = 0.15, color = '#99a4aa' }: {
+  points: Position3[]; radius?: number; color?: string
+}) {
+  const geometry = useMemo(() => new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3(points.map((point) => new THREE.Vector3(...point)), false, 'centripetal'),
+    28, radius, 10, false,
+  ), [points, radius])
+  useEffect(() => () => geometry.dispose(), [geometry])
+  return <mesh geometry={geometry} castShadow>
+    <meshStandardMaterial color={color} roughness={0.34} metalness={0.78} />
+  </mesh>
+}
+
+function Roller({ x, y, radius }: { x: number; y: number; radius: number }) {
+  return (
+    <group position={[x, y, 0]} name={`ROLLER_${x.toFixed(2).replace('.', '_')}`}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[radius, radius, 1.7, 24]} />
+        <meshStandardMaterial color="#a8b6bf" metalness={0.86} roughness={0.24} />
+      </mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[0.115, 0.115, 3.55, 12]} />
+        <meshStandardMaterial color="#6d7d86" metalness={0.85} roughness={0.29} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={side} position={[0, 0, side * 1.7]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.39, 0.36, 0.32]} />
+            <meshStandardMaterial color="#46555d" metalness={0.65} roughness={0.42} />
+          </mesh>
+          <mesh position={[0, 0, side * 0.18]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.18, 0.18, 0.15, 16]} />
+            <meshStandardMaterial color="#b8c1c5" metalness={0.8} roughness={0.35} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+function FrameAndWalkways() {
+  const members = useMemo(() => {
+    const beams: BeamSpec[] = []
+    const add = (position: Position3, scale: Position3, rotation?: Position3) => beams.push({ position, scale, rotation })
+    const columns = [-10.15, -5.7, -1.3, 3.1, 7.55, 10, 12.4, 14.75]
+    columns.forEach((x, index) => {
+      const h = index < 5 ? 11.7 : index === 5 ? 7.6 : index === 6 ? 6.1 : 4.9
+      for (const z of [-2.05, 2.05]) {
+        // I-section: the web and two flanges share one instanced draw.
+        add([x, h / 2, z], [0.12, h, 0.35])
+        add([x - 0.16, h / 2, z], [0.1, h, 0.47])
+        add([x + 0.16, h / 2, z], [0.1, h, 0.47])
+        add([x, 0.12, z], [0.76, 0.24, 0.8])
+      }
+      add([x, h - 0.12, 0], [0.34, 0.3, 4.55])
+    })
+    for (const y of [1.08, 5.2, 11.45]) {
+      const length = y > 8 ? 17.7 : y > 2 ? 22.1 : 30.5
+      const middle = y > 8 ? -1.3 : y > 2 ? 0.9 : 0
+      for (const z of [-2.06, 2.06]) add([middle, y, z], [length, 0.28, 0.22])
+    }
+    // Maintenance walkway: deck, toe board and thin continuous handrails.
+    for (const z of [2.65, -2.65]) {
+      add([0.1, 1.12, z], [30.6, 0.16, 1])
+      add([0.1, 1.3, z + Math.sign(z) * 0.43], [30.6, 0.2, 0.045])
+      for (const y of [1.8, 2.28]) add([0.1, y, z + Math.sign(z) * 0.44], [30.6, 0.065, 0.065])
+      for (let x = -15; x <= 15; x += 1.5) add([x, 1.73, z + Math.sign(z) * 0.44], [0.065, 1.15, 0.065])
+    }
+    // Upper access deck and guardrail, leaving the front of the furnace clear.
+    add([-1.3, 10.98, -2.65], [17.5, 0.15, 1.2])
+    for (const y of [11.55, 12.03]) add([-1.3, y, -3.18], [17.5, 0.06, 0.06])
+    for (let x = -9.7; x < 7.5; x += 1.45) add([x, 11.5, -3.18], [0.06, 1.1, 0.06])
+    // Two ladders: independent of the furnace walls.
+    for (const x of [-9.5, 7]) {
+      for (const dx of [-0.26, 0.26]) add([x + dx, 6, -3.35], [0.06, 10, 0.08])
+      for (let y = 1.25; y < 11; y += 0.38) add([x, y, -3.35], [0.58, 0.055, 0.06])
+    }
+    return beams
+  }, [])
+  return <group name="FRAME_AND_WALKWAYS"><StructuralBeams beams={members} /></group>
+}
+
+function ZoneHousing({ zone, selected, interior, onSelect, theme, alert }: {
+  zone: FurnaceZone; selected: boolean; interior: boolean; onSelect: () => void; theme: Theme; alert: boolean
+}) {
+  const shellColor = theme === 'dark' ? '#9faeb2' : '#899ca6'
+  const floorY = 0.8
+  const height = zone.height - floorY
+  const hotSection = ['Z3', 'Z4', 'Z5', 'Z6'].includes(zone.id)
+  const panelCount = hotSection ? 4 : 2
+  const members = useMemo<BeamSpec[]>(() => [
+    ...[-1, 1].flatMap((side) => [
+      { position: [zone.x + side * (zone.width / 2), zone.height / 2 + 0.4, 0] as Position3,
+        scale: [0.07, height, zone.depth + 0.07] as Position3 },
+    ]),
+    { position: [zone.x, 0.83, 0], scale: [zone.width, 0.2, zone.depth + 0.13] },
+    { position: [zone.x, zone.height + 0.02, 0], scale: [zone.width + 0.1, 0.15, zone.depth + 0.12] },
+  ], [height, zone])
+
+  const pick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    onSelect()
+  }
+  return (
+    <group name={`ZONE_${zone.id}`} userData={{ zone_id: zone.id, model_version: MODEL_VERSION }}>
+      <group name={`SHELL_${zone.id}`} visible={!interior} onClick={pick}>
+        {Array.from({ length: panelCount }, (_, index) => {
+          const panelY = floorY + (height / panelCount) * (index + 0.5)
+          return (
+            <group key={index}>
+              <mesh position={[zone.x, panelY, zone.depth / 2]} castShadow receiveShadow>
+                <boxGeometry args={[zone.width - 0.065, height / panelCount - 0.045, 0.11]} />
+                <meshStandardMaterial color={shellColor} metalness={0.55} roughness={0.42}
+                  emissive={selected ? '#a3d334' : '#000000'} emissiveIntensity={selected ? 0.1 : 0} />
+              </mesh>
+              <mesh position={[zone.x, panelY, -zone.depth / 2]} castShadow receiveShadow>
+                <boxGeometry args={[zone.width - 0.065, height / panelCount - 0.045, 0.11]} />
+                <meshStandardMaterial color="#61737d" metalness={0.62} roughness={0.4} />
+              </mesh>
+            </group>
+          )
+        })}
+        {[-1, 1].map((side) => (
+          <mesh key={side} position={[zone.x + side * (zone.width / 2), (height / 2) + floorY, 0]} castShadow>
+            <boxGeometry args={[0.12, height, zone.depth]} />
+            <meshStandardMaterial color="#768c98" metalness={0.57} roughness={0.43} />
+          </mesh>
+        ))}
+        <mesh position={[zone.x, zone.height, 0]} castShadow>
+          <boxGeometry args={[zone.width, 0.12, zone.depth]} />
+          <meshStandardMaterial color="#bbc4c7" metalness={0.65} roughness={0.32} />
+        </mesh>
+        {/* Service hatch and narrow trim give the shell its assembly scale. */}
+        <mesh position={[zone.x - zone.width * 0.15, 2.1, zone.depth / 2 + 0.075]}>
+          <boxGeometry args={[Math.min(0.85, zone.width * 0.5), 1.25, 0.07]} />
+          <meshStandardMaterial color="#637983" metalness={0.65} roughness={0.38} />
+        </mesh>
+        <mesh position={[zone.x - zone.width * 0.15 + 0.2, 2.1, zone.depth / 2 + 0.13]}>
+          <boxGeometry args={[0.045, 0.22, 0.055]} />
+          <meshStandardMaterial color="#d9dedc" metalness={0.8} roughness={0.25} />
+        </mesh>
+      </group>
+      <group name={`ZONE_FRAME_${zone.id}`}><StructuralBeams beams={members} color="#526773" /></group>
+      <mesh position={[zone.x, 0.69, 0]} onClick={pick}>
+        <boxGeometry args={[zone.width, 0.14, zone.depth + 0.12]} />
+        <meshStandardMaterial color={selected ? '#c8ed77' : '#3a4a52'} metalness={0.5} roughness={0.4}
+          emissive={selected ? '#abda47' : '#000000'} emissiveIntensity={0.12} />
+      </mesh>
+      {alert && <mesh position={[zone.x, zone.height / 2 + 0.4, 0]}>
+        <boxGeometry args={[zone.width + 0.15, zone.height - 0.65, zone.depth + 0.2]} />
+        <meshBasicMaterial visible={false} />
+        <Edges color="#f16d64" lineWidth={1.6} />
+      </mesh>}
+      <Html position={[zone.x, zone.height + 0.7, 0]} center style={{ pointerEvents: 'none' }} zIndexRange={[20, 0]}>
+        <button type="button" onClick={onSelect} style={{
+          pointerEvents: 'auto', color: selected ? '#17240a' : theme === 'dark' ? '#dae4e6' : '#253943',
+          background: selected ? '#c9ee78' : theme === 'dark' ? '#172127e8' : '#f4f7f4ed',
+          border: `1px solid ${selected ? '#c9ee78' : theme === 'dark' ? '#4e626a' : '#acb9bd'}`,
+          font: '600 10px ui-monospace, monospace', letterSpacing: '0.05em', padding: '4px 6px',
+          cursor: 'pointer', whiteSpace: 'nowrap', borderRadius: 2,
+        }}>{zone.label}{alert ? ' · 기준 이탈' : ''}</button>
+      </Html>
+    </group>
+  )
+}
+
+function Services() {
+  const ducts = useMemo(() => [-7.9, -3.5, 0.9, 5.3].map((x, index) => {
+    const h = index === 1 || index === 2 ? 10.8 : 9
+    return { x, h, points: [[x, h + 0.05, -0.7], [x, h + 0.9, -0.7],
+      [x, h + 1.18, -1.1], [x, h + 1.18, -3.9], [x, h + 0.8, -4.25], [x, 1.2, -4.25]] as Position3[] }
+  }), [])
+  const bus = useMemo<Position3[]>(() => [[-11, 3.25, -3.8], [-8, 3.25, -3.8], [5, 3.25, -3.8], [10, 3.25, -3.8]], [])
+  return (
+    <group name="DUCTS_AND_PIPES">
+      {ducts.map(({ x, h, points }) => (
+        <group key={x}>
+          <Pipe points={points} radius={0.3} />
+          <mesh position={[x, h + 0.15, -0.7]} rotation={[0, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.44, 0.44, 0.12, 20]} />
+            <meshStandardMaterial color="#4e6470" metalness={0.6} roughness={0.4} />
+          </mesh>
+          <mesh position={[x, 1.2, -4.25]} castShadow>
+            <boxGeometry args={[1.05, 1.2, 1.1]} />
+            <meshStandardMaterial color="#697d86" metalness={0.62} roughness={0.37} />
+          </mesh>
+        </group>
+      ))}
+      <Pipe points={bus} radius={0.13} color="#bac1b9" />
+      <mesh position={[8.6, 0.45, -4.2]} receiveShadow>
+        <boxGeometry args={[2.2, 0.7, 1.4]} /><meshStandardMaterial color="#3d515c" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[8.6, 1.05, -4.2]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.48, 0.48, 1.6, 24]} /><meshStandardMaterial color="#8a9ba1" metalness={0.7} roughness={0.34} />
+      </mesh>
+    </group>
+  )
+}
+
+function Coil({ x }: { x: number }) {
+  const radius = 0.8 - 0.012
+  const centreY = x < 0 ? 0.9 : 1.44
+  return (
+    <group position={[x, centreY, 0]} name={x < 0 ? 'ENTRY_COIL' : 'EXIT_COIL'}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+        <cylinderGeometry args={[radius, radius, 1.45, 48]} />
+        <meshStandardMaterial color="#aab9c2" metalness={0.9} roughness={0.25} />
+      </mesh>
+      {[-1, 1].map((side) => (
+        <group key={side} position={[0, 0, side * 0.74]}>
+          <mesh rotation={[0, 0, 0]}><ringGeometry args={[0.31, radius + 0.005, 48, 5]} />
+            <meshStandardMaterial color="#ccd5d9" metalness={0.84} roughness={0.32} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.29, 0.29, 0.12, 24]} />
+            <meshStandardMaterial color="#263944" metalness={0.6} roughness={0.4} /></mesh>
+          {[0.46, 0.6, 0.73].map((ringRadius) => <mesh key={ringRadius}>
+            <torusGeometry args={[ringRadius, 0.008, 4, 48]} />
+            <meshStandardMaterial color="#7a8c98" metalness={0.7} roughness={0.4} />
+          </mesh>)}
+        </group>
+      ))}
+      <mesh position={[0, -centreY / 2, 0]} receiveShadow><boxGeometry args={[1.1, centreY, 2.1]} />
+        <meshStandardMaterial color="#4d626e" metalness={0.62} roughness={0.4} /></mesh>
+    </group>
+  )
+}
+
+function ChannelMarker({ channel, position, selected, value, onSelect, theme, editing, onChange, alert }: {
+  channel: Channel; position: Position3; selected: boolean; value: number | null | undefined;
+  onSelect: () => void; theme: Theme; editing: boolean; onChange?: (position: Position3) => void; alert: boolean
+}) {
+  const [hovered, setHovered] = useState(false)
+  const object = useRef<THREE.Group>(null)
+  const { invalidate } = useThree()
+  const output = channel.id.startsWith('OP-')
+  const labelVisible = hovered || selected
+  const color = alert ? '#f5746b' : selected ? '#c9f07b' : value == null ? '#879397' : output ? '#b2c4e0' : '#dce6e8'
+  const readout = value == null || !Number.isFinite(value) ? '값 없음' : `${numberText(value)}${channel.unit ? ` ${channel.unit}` : ''}`
+  useEffect(() => { object.current?.position.set(...position); invalidate() }, [position, invalidate])
+  const marker = (
+    <group ref={object} position={position} name={`CHANNEL_${channel.id}`} userData={{ channel_id: channel.id }}>
+      <mesh onClick={(event) => { event.stopPropagation(); onSelect() }}
+        onPointerOver={(event) => { event.stopPropagation(); setHovered(true) }}
+        onPointerOut={() => setHovered(false)}>
+        {output ? <boxGeometry args={[0.27, 0.27, 0.12]} /> : <sphereGeometry args={[0.16, 16, 12]} />}
+        <meshStandardMaterial color={color} metalness={0.25} roughness={0.35}
+          emissive={selected ? '#a2cd47' : '#000000'} emissiveIntensity={0.35} depthTest={false} />
+      </mesh>
+      {selected && <mesh rotation={[0, 0, Math.PI / 4]}>
+        <ringGeometry args={[0.23, 0.265, output ? 4 : 32]} />
+        <meshBasicMaterial color="#c9f07b" side={THREE.DoubleSide} depthTest={false} />
+      </mesh>}
+      {labelVisible && <Html position={[0.38, 0.16, 0]} zIndexRange={[40, 25]} style={{ pointerEvents: 'none' }}>
+        <div style={{ background: theme === 'dark' ? '#131e24f5' : '#fffffffa',
+          borderLeft: `3px solid ${selected ? '#b6dc65' : '#9aabb2'}`, padding: '7px 10px',
+          boxShadow: '0 4px 20px #0002', color: theme === 'dark' ? '#ecf2f3' : '#142d3a',
+          minWidth: 112, whiteSpace: 'nowrap', fontSize: 11, lineHeight: 1.5 }}>
+          <strong style={{ font: '600 11px ui-monospace, monospace' }}>{channel.id}</strong>
+          {output && <span style={{ marginLeft: 7, fontSize: 10, opacity: 0.7 }}>제어 출력</span>}
+          <div style={{ marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>{readout}</div>
+          {alert && <div style={{ color: theme === 'dark' ? '#ff9a91' : '#ac342b', fontSize: 10 }}>기준 이탈 · 확인 필요</div>}
+          {editing && selected && <div style={{ opacity: 0.65, fontSize: 10, marginTop: 3 }}>축을 끌어 표시점 이동</div>}
+        </div>
+      </Html>}
+    </group>
+  )
+  return <>
+    {marker}
+    {editing && selected && object.current && <TransformControls object={object as React.RefObject<THREE.Object3D>}
+      mode="translate" size={0.75} showX showY showZ
+      onMouseUp={() => {
+        if (object.current) onChange?.(object.current.position.toArray() as Position3)
+      }} />}
+  </>
+}
+
+function Lighting({ theme }: { theme: Theme }) {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const generator = new THREE.PMREMGenerator(gl)
+    const room = new RoomEnvironment()
+    const target = generator.fromScene(room, 0.04)
+    scene.environment = target.texture
+    scene.environmentIntensity = theme === 'dark' ? 0.65 : 0.85
+    return () => {
+      scene.environment = null
+      target.dispose()
+      room.dispose()
+      generator.dispose()
+    }
+  }, [gl, scene, theme])
+  return <>
+    <ambientLight intensity={theme === 'dark' ? 0.45 : 0.65} />
+    <hemisphereLight args={['#c4dceb', '#5d6c69', 1.25]} />
+    <directionalLight position={[-10, 25, 18]} intensity={2.2} castShadow
+      shadow-mapSize={[2048, 2048]} shadow-camera-left={-24} shadow-camera-right={24}
+      shadow-camera-top={18} shadow-camera-bottom={-18} shadow-camera-near={1} shadow-camera-far={70}
+      shadow-normalBias={0.04} />
+    <directionalLight position={[18, 14, -12]} intensity={1.6} color="#d0e0ef" />
+  </>
+}
+
+function Facility({ props, resetCounter }: { props: FurnaceSceneProps; resetCounter: number }) {
+  const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, editing = false, onPlacementChange } = props
+  const controls = useRef<CameraControls>(null)
+  const previousZone = useRef<string | null>(null)
+  const defaults = useMemo(() => defaultPlacements(channels), [channels])
+  const selected = channels.find((channel) => channel.id === selectedChannel)
+  const selectedZone = selected ? zoneForChannel(selected) : ''
+  const alertedChannels = new Set(props.alertChannelIds ?? [])
+  const alertedZones = new Set([
+    ...(props.alertZoneIds ?? []).map((zoneId) => zoneId === 'OUT1' || zoneId === 'OUT2' ? 'OUT' : zoneId),
+    ...channels.filter((channel) => alertedChannels.has(channel.id)).map(zoneForChannel),
+  ])
+  const positions = useMemo(() => new Map(defaults.map((fallback) => {
+    const saved = placements.find((item) => item.channel_id === fallback.channel_id)
+    const valid = saved?.position?.length === 3 && saved.position.every(Number.isFinite)
+    return [fallback.channel_id, valid ? saved!.position : fallback.position] as const
+  })), [defaults, placements])
+  const strip = useMemo(createStripLayout, [])
+  const ribbonGeometry = useMemo(() => createStripGeometry(strip.points), [strip])
+  const rollerGroups = useMemo(() => FURNACE_ZONES.map((zone) => ({
+    zone,
+    rollers: strip.rollers.filter((roller) => FURNACE_ZONES.reduce(
+      (closest, current) => Math.abs(current.x - roller.x) < Math.abs(closest.x - roller.x) ? current : closest,
+    ).id === zone.id),
+  })), [strip])
+  const focusZone = (zoneId: string) => {
+    const zone = FURNACE_ZONES.find((item) => item.id === zoneId)
+    if (!zone || !controls.current) return
+    const y = Math.max(2.4, zone.height * 0.5)
+    const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    void controls.current.setLookAt(zone.x + 7.5, y + 4.8, 13.8, zone.x, y, 0, animate).catch(() => {})
+  }
+  const selectZone = (zoneId: string) => {
+    const match = channels.find((channel) => zoneForChannel(channel) === zoneId)
+    if (match) onSelectChannel(match.id)
+    focusZone(zoneId)
+  }
+  useEffect(() => () => ribbonGeometry.dispose(), [ribbonGeometry])
+  useEffect(() => {
+    if (!selectedZone || !controls.current) return
+    if (previousZone.current === selectedZone) return
+    const firstView = previousZone.current === null
+    previousZone.current = selectedZone
+    if (firstView) {
+      void controls.current.setLookAt(...OVERVIEW_CAMERA.position, ...OVERVIEW_CAMERA.target, false).catch(() => {})
+      return
+    }
+    focusZone(selectedZone)
+  }, [selectedZone])
+  useEffect(() => {
+    if (resetCounter > 0) void controls.current?.setLookAt(
+      ...OVERVIEW_CAMERA.position, ...OVERVIEW_CAMERA.target,
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    ).catch(() => {})
+  }, [resetCounter])
+  return <>
+    <Lighting theme={theme} />
+    <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
+      minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.025} smoothTime={0.3} draggingSmoothTime={0.12}
+      onControlStart={() => controls.current?.stop()} />
+    <group name="CAL01_ROOT" userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
+      <FrameAndWalkways />
+      {FURNACE_ZONES.map((zone) => <ZoneHousing key={zone.id} zone={zone}
+        selected={selectedZone === zone.id} interior={showInterior} theme={theme}
+        alert={alertedZones.has(zone.id)}
+        onSelect={() => selectZone(zone.id)} />)}
+      <group name="ROLLERS">{rollerGroups.map(({ zone, rollers }) => (
+        <group key={zone.id} name={`INTERNAL_${zone.id}`} userData={{ zone_id: zone.id }}
+          onClick={(event) => { event.stopPropagation(); selectZone(zone.id) }}>
+          {rollers.map((roller) => <Roller key={roller.x} {...roller} />)}
+        </group>
+      ))}</group>
+      <mesh geometry={ribbonGeometry} name="CONTINUOUS_STEEL_STRIP" castShadow
+        onClick={(event) => {
+          event.stopPropagation()
+          const closest = FURNACE_ZONES.reduce((previous, zone) =>
+            Math.abs(zone.x - event.point.x) < Math.abs(previous.x - event.point.x) ? zone : previous)
+          selectZone(closest.id)
+        }}>
+        <meshStandardMaterial color="#c5d0d8" metalness={0.88} roughness={0.24} side={THREE.DoubleSide} />
+      </mesh>
+      <Services />
+      <Coil x={-18.1} /><Coil x={18.1} />
+      <group name="CHANNEL_MARKERS">
+        {channels.map((channel) => <ChannelMarker key={channel.id} channel={channel}
+          position={positions.get(channel.id)!} selected={selectedChannel === channel.id}
+          value={values[channel.id]} onSelect={() => {
+            onSelectChannel(channel.id)
+            if (!editing) focusZone(zoneForChannel(channel))
+          }}
+          theme={theme} editing={editing} alert={alertedChannels.has(channel.id)}
+          onChange={(position) => onPlacementChange?.(channel.id, position)} />)}
+      </group>
+    </group>
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.07, 0]} receiveShadow>
+      <planeGeometry args={[150, 150]} />
+      <meshStandardMaterial color={theme === 'dark' ? '#142028' : '#dce4e4'} roughness={0.85} metalness={0.08} />
+    </mesh>
+    <Grid position={[0, -0.045, 0]} args={[90, 90]} cellSize={2} sectionSize={10}
+      cellThickness={0.45} sectionThickness={0.7}
+      cellColor={theme === 'dark' ? '#2b3b43' : '#b8c5c9'} sectionColor={theme === 'dark' ? '#3e5057' : '#9aaeb5'}
+      fadeDistance={75} fadeStrength={1.4} infiniteGrid={false} />
+    <ContactShadows position={[0, 0, 0]} opacity={0.35} scale={55} blur={2.2} far={15}
+      resolution={512} color="#071218" frames={1} />
+  </>
+}
+
+class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('3D view could not load', error, info.componentStack) }
+  render() {
+    if (this.state.failed) return <div style={{ padding: 24, lineHeight: 1.7 }}>
+      <strong>이 브라우저에서 3D 화면을 열지 못했어요.</strong>
+      <div>채널 목록과 그래프에서 계속 확인할 수 있어요. 브라우저의 하드웨어 가속도 확인해 주세요.</div>
+    </div>
+    return this.props.children
+  }
+}
+
+export default function FurnaceScene(props: FurnaceSceneProps) {
+  const [resetCounter, setResetCounter] = useState(0)
+  return <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320,
+    background: props.theme === 'dark' ? '#142028' : '#dce4e4', overflow: 'hidden' }}>
+    <SceneErrorBoundary>
+      <Canvas shadows frameloop="demand" dpr={[1, 1.6]} camera={{
+        position: OVERVIEW_CAMERA.position, fov: 40, near: 0.1, far: 180,
+      }} gl={{ antialias: true, alpha: false }}
+        onCreated={({ camera, gl }) => {
+          camera.lookAt(...OVERVIEW_CAMERA.target)
+          gl.setClearColor(props.theme === 'dark' ? '#142028' : '#dce4e4')
+          gl.toneMapping = THREE.ACESFilmicToneMapping
+          gl.toneMappingExposure = 1.05
+        }}>
+        <color attach="background" args={[props.theme === 'dark' ? '#142028' : '#dce4e4']} />
+        <fog attach="fog" args={[props.theme === 'dark' ? '#142028' : '#dce4e4', 65, 130]} />
+        <Suspense fallback={null}><Facility props={props} resetCounter={resetCounter} /></Suspense>
+      </Canvas>
+    </SceneErrorBoundary>
+    <div style={{ position: 'absolute', left: 14, bottom: 12, pointerEvents: 'none',
+      color: props.theme === 'dark' ? '#b7c7ce' : '#3f5965', fontSize: 10, lineHeight: 1.7,
+      background: props.theme === 'dark' ? '#142028d9' : '#edf2f0df', padding: '6px 9px' }}>
+      <div>공정 구조를 설명하는 새 모형 · 실측 치수·실제 부착 위치 아님</div>
+      <div>드래그: 회전 · 휠: 확대 · 오른쪽 드래그: 이동 · 사각 표시: 제어 출력</div>
+    </div>
+    <button type="button" onClick={() => setResetCounter((counter) => counter + 1)}
+      style={{ position: 'absolute', right: 14, bottom: 15, padding: '8px 11px', cursor: 'pointer',
+        background: props.theme === 'dark' ? '#1c2c34e8' : '#f7faf7ef',
+        color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 11, borderRadius: 2,
+        border: `1px solid ${props.theme === 'dark' ? '#4f626d' : '#a7b8be'}` }}>전체 설비</button>
+  </div>
+}
