@@ -1,0 +1,10 @@
+{
+ "id": "cal01-v6-zscore-allzones",
+ "rule": "같은 LOT 안에서 현재 분 이전까지의 값으로 expanding 평균과 표준편차를 구하고 |현재값 - 평균| / 표준편차 > 3이면 1",
+ "min_periods": 30,
+ "ddof": 0,
+ "threshold": 3,
+ "zone_rule": "구역 센서 중 하나라도 |Z| > 3이면 그 분을 1로 봄",
+ "early_rows": "앞 30분은 기준이 부족해 0",
+ "source_notebook": "notebooks/sayletskin/03_model_f1.ipynb 7번 셀"
+}
