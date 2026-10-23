@@ -18,6 +18,8 @@ export type DetectionCandidate = {
   peak_at: string; peak_value: number; peak_z: number; point_count: number;
   baseline: ChannelBaseline;
   acknowledged: boolean; acknowledged_by: unknown; acknowledged_at: string | null;
+  resolved?: boolean; resolved_at?: string | null; resolved_by?: string | null; resolution_note?: string;
+  open_request?: { id: string; status: string } | null;
 };
 export type TeamPerson = { username: string; display_name: string };
 export type FieldRequest = {

@@ -401,6 +401,18 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .workspace-drawer[hidden] { display: none; }
 .drawer-header { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; background: var(--panel-alt); border-bottom: 1px solid var(--border); }
 .drawer-header h2 { font-size: 20px; margin: 0; }
+.drawer-title, .drawer-header-actions { display: flex; align-items: center; gap: 10px; }
+.drawer-title { min-width: 0; }
+.drawer-title h2 { overflow-wrap: anywhere; }
+.drawer-header-actions { flex-shrink: 0; gap: 4px; }
+.drawer-back { display: inline-flex; align-items: center; gap: 4px; padding: 7px 8px; border-radius: 8px; color: var(--accent); background: var(--accent-soft); font-size: 12px; white-space: nowrap; }
+.drawer-resize { position: absolute; z-index: 4; padding: 0; min-height: 0; border: 0; background: transparent; touch-action: none; user-select: none; color: var(--muted); }
+.drawer-resize-width { left: 0; top: 30px; bottom: 28px; width: 8px; cursor: ew-resize; }
+.drawer-resize-height { left: 30px; right: 20px; bottom: 0; height: 8px; cursor: ns-resize; }
+.drawer-resize-both { left: 4px; bottom: 4px; width: 25px; height: 25px; border-radius: 6px; display: grid; place-items: center; cursor: nesw-resize; background: var(--panel-alt); }
+.drawer-resize:hover, .drawer-resize:focus-visible { background: var(--accent-soft); color: var(--accent); }
+.drawer-resize-both svg { transform: rotate(90deg); }
+.workspace-drawer.is-resizable .drawer-scroll { padding-bottom: 26px; }
 .immersive .drawer-header .eyebrow, .immersive .panel-heading .eyebrow { display: none; }
 .drawer-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .workspace-drawer .panel { margin: 0; border: 0; border-bottom: 1px solid var(--border); }
@@ -791,7 +803,7 @@ details.analysis-rule p { margin-top: 10px; }
 .history-search-results small { grid-column: 1 / -1; color: var(--muted); }
 
 /* Shared measurements keep panels immediately above the actual process dock. */
-.immersive { --process-dock-bottom: 90px; }
+.immersive { --process-dock-bottom: 90px; --inspection-bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px); }
 .immersive .playback-control { bottom: 30px; width: min(560px,calc(100vw - 28px)); gap: 10px; padding: 7px 11px; border-radius: 16px; }
 .immersive .playback-control .replay-toggle { width: 31px; height: 31px; min-height: 31px; padding: 6px; }
 .immersive .playback-control .replay-toggle svg { width: 18px; height: 18px; }
@@ -808,11 +820,26 @@ details.analysis-rule p { margin-top: 10px; }
 }
 .immersive .channel-inspector { width: 298px; padding: 14px 16px; border-radius: 17px; }
 .immersive .channel-inspector:has(.cp-readings) { width: 332px; }
+/* The left reading panel can sit beside the dock on a desktop viewport. */
+@media (min-width: 1100px) {
+  .immersive { --inspection-bottom: var(--process-dock-bottom); }
+  .immersive .channel-inspector,
+  .immersive.has-candidate .channel-inspector,
+  .immersive:has(.zone-navigation.has-readouts) .channel-inspector { bottom: var(--inspection-bottom); }
+  .immersive .zone-navigation { left: 50%; max-width: calc(100% - 32px); }
+}
 .cp-readings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 .cp-reading { min-width: 0; padding: 10px; background: var(--panel-alt); border-radius: 10px; }
 .cp-reading h4 { font: 500 12px var(--mono); color: var(--muted); margin: 0; }
 .immersive .cp-reading .main-reading { margin: 8px 0 4px; display: flex; flex-wrap: nowrap; gap: 5px; }
 .immersive .cp-reading .main-reading > strong { font-size: 26px; }
+@media (min-width: 1280px) and (max-width: 1399px) {
+  .immersive .channel-inspector, .immersive .channel-inspector:has(.cp-readings) { left: 12px; width: 298px; }
+  .immersive .cp-reading .main-reading > strong { font-size: 24px; }
+}
+@media (min-width: 1100px) and (max-width: 1279px) {
+  .immersive { --inspection-bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px); }
+}
 .cp-reading > small { color: var(--muted); font: 10px var(--mono); }
 .main-reading .reading-exponent, .reading-exponent { font: 400 12px var(--mono); color: #9ca3af; margin-left: 3px; letter-spacing: 0; white-space: nowrap; }
 :root[data-theme="light"] .reading-exponent { color: #697480; }
@@ -877,4 +904,105 @@ details.analysis-rule p { margin-top: 10px; }
   .temperature-toggle > span { display: none; }
   .scene-tools > .scene-tools-trigger { width: 34px; height: 34px; min-height: 34px; }
   .request-period { grid-template-columns: 1fr; }
+}
+
+/* Keep known, unhandled historical events visible independently of the replay clock. */
+.pending-alert-banner { position: absolute; z-index: 45; left: 20px; top: calc(var(--source-card-bottom, 224px) + 18px); width: 298px; border: 1px solid #da7567; border-left: 4px solid #e46657; border-radius: 15px; background: var(--panel); color: var(--text); box-shadow: 0 5px 24px #0002; pointer-events: auto; }
+.pending-alert-heading { display: flex; gap: 10px; align-items: center; padding: 14px 13px; }
+.pending-alert-heading > svg { color: #db6757; flex-shrink: 0; }
+.pending-alert-heading > div { display: grid; gap: 6px; flex: 1; }
+.pending-alert-heading strong { font-size: 17px; }
+.pending-alert-heading small { font-size: 10px; line-height: 1.5; color: var(--muted); }
+.pending-alert-open { display: flex; align-items: center; gap: 4px; padding: 8px 6px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; font-size: 12px; }
+.pending-alert-list > summary { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border); cursor: pointer; font-size: 12px; }
+.pending-alert-list > div { position: absolute; top: calc(100% + 8px); left: -1px; width: 100%; max-height: min(400px, 45dvh); overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
+.immersive:has(.pending-alert-banner) .channel-inspector,
+.immersive:has(.pending-alert-banner):has(.zone-navigation.has-readouts) .channel-inspector {
+  max-height: max(110px, calc(100dvh - var(--inspection-bottom) - var(--source-card-bottom, 224px) - 18px - var(--pending-alert-height, 110px) - 12px));
+  overflow: auto;
+}
+/* A newly opened product sheet gets its own space; pending items stay visible. */
+.scene-data-control:has(.coil-product-popover) { z-index: 60; }
+.immersive:has(.coil-product-popover) .pending-alert-banner {
+  left: auto; right: 20px; top: auto;
+  bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 16px);
+  width: 262px;
+}
+.immersive:has(.coil-product-popover) .pending-alert-heading { padding: 10px 12px; }
+.immersive:has(.coil-product-popover) .pending-alert-heading small { display: none; }
+.pending-alert-list button { width: 100%; padding: 12px 14px; text-align: left; display: grid; gap: 7px; border-bottom: 1px solid var(--border); color: var(--text); }
+.pending-alert-list button:hover { background: var(--accent-soft); }
+.pending-alert-list button strong { font-size: 13px; }
+.pending-alert-list button span, .pending-alert-list p { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.pending-alert-error { display: flex; justify-content: space-between; gap: 8px; padding: 8px 13px; font-size: 12px; color: var(--red); }
+.immersive .workspace-drawer.drawer-incident { width: min(510px, 43vw); right: 18px; left: auto; border-radius: 20px; }
+.incident-details { padding: 22px; display: grid; gap: 18px; }
+.incident-details h3 { font-size: 23px; margin: 0; }
+.incident-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.incident-status > span { color: var(--red); border: 1px solid currentColor; border-radius: 7px; font-size: 12px; padding: 5px 8px; }
+.incident-status small, .incident-period { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.incident-switch { display: grid; gap: 8px; font-size: 12px; }
+.incident-switch select { padding: 9px; background: var(--panel-alt); color: var(--text); border: 1px solid var(--border); border-radius: 8px; width: 100%; }
+.incident-peak-reading { display: grid; gap: 8px; background: var(--panel-alt); border-radius: 12px; padding: 15px; }
+.incident-peak-reading > small { font-size: 12px; color: var(--muted); }
+.incident-peak-reading > span { display: flex; align-items: baseline; gap: 7px; }
+.incident-peak-reading strong { font-size: 30px; font-variant-numeric: tabular-nums; }
+.incident-peak-reading .reading-unit { color: var(--muted); font-size: 14px; }
+.incident-range-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+.incident-range-buttons button { padding: 8px 11px; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 8px; font-size: 12px; }
+.incident-range-buttons button:hover { color: var(--accent); }
+.incident-trend { margin: 0 -6px; }
+.incident-trend svg { width: 100%; display: block; background: var(--panel-alt); border-radius: 12px; cursor: crosshair; }
+.incident-trend text { fill: var(--muted); font: 11px ui-monospace,monospace; }
+.incident-grid { stroke: var(--border); stroke-width: .8; }
+.incident-range { fill: #d85d4324; }
+.incident-reference { stroke: var(--muted); stroke-dasharray: 4 4; stroke-width: 1; }
+.incident-line { fill: none; stroke: var(--accent); stroke-width: 2.2; }
+.incident-peak { fill: #e56a56; }
+.incident-trend p { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 9px; font-size: 10px; color: var(--muted); }
+.incident-trend p i { width: 9px; height: 9px; background: #d85d4366; }
+.incident-trend p span { margin-left: auto; }
+.incident-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.incident-actions .subtle-button { font-size: 12px; padding: 9px; }
+.incident-explanation, .incident-no-data { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.incident-resolution-form, .incident-resolution-form label { display: grid; gap: 10px; font-size: 13px; }
+.incident-resolution-form textarea { width: 100%; min-height: 100px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel-alt); color: var(--text); font: inherit; line-height: 1.7; resize: vertical; }
+.incident-resolution-form > div { display: flex; gap: 9px; justify-content: flex-end; }
+.incident-resolution { padding: 15px; border-radius: 12px; border: 1px solid var(--border); }
+.incident-resolution p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; margin: 10px 0; }
+.incident-resolution small { color: var(--muted); font-size: 11px; }
+/* Measurements retain full contrast in both overview and focused views. */
+button.process-readout { opacity: 1; transition: background-color .25s; }
+/* Immediate hover/focus descriptions for icon controls. */
+button[data-hint], .workspace-topbar button[aria-label] { position: relative; }
+button[data-hint]::after, .workspace-topbar button[aria-label]::after { content: attr(data-hint); position: absolute; display: none; top: calc(100% + 12px); left: 50%; transform: translateX(-50%); z-index: 250; width: max-content; max-width: 240px; padding: 9px 12px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); color: var(--text); font: 12px/1.5 var(--sans); white-space: normal; pointer-events: none; box-shadow: var(--shadow); }
+.workspace-topbar button[aria-label]:not([data-hint])::after { content: attr(aria-label); }
+button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
+.workspace-topbar button[aria-label]:hover::after, .workspace-topbar button[aria-label]:focus-visible::after { display: block; }
+.scene-view-controls button:last-child::after { left: auto; right: 0; transform: none; }
+@media (max-width: 900px) {
+  .immersive .workspace-drawer.drawer-incident { width: calc(100vw - 28px); right: 14px; }
+  .pending-alert-banner { left: 14px; width: min(298px, calc(100vw - 28px)); }
+}
+@media (prefers-reduced-motion: reduce) { button.process-readout { transition: none; } }
+
+/* Keep the incident graph in the initial viewport and its controls beside the visible scene. */
+.immersive .workspace-drawer.drawer-incident,
+.immersive:has(.zone-navigation.has-readouts) .workspace-drawer.drawer-incident { bottom: 38px; }
+.incident-details { padding: 16px 20px; gap: 12px; }
+.incident-peak-reading { grid-template-columns: 1fr auto; gap: 6px 10px; padding: 12px; align-items: center; }
+.incident-peak-reading > small:first-child { grid-column: 1; grid-row: 1; }
+.incident-peak-reading > span { grid-column: 2; grid-row: 1 / 3; }
+.incident-peak-reading > small:last-child { grid-column: 1; grid-row: 2; font-size: 10px; line-height: 1.5; }
+.incident-peak-reading strong { font-size: 28px; }
+.incident-trend text { font-size: 12px; }
+.immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .zone-navigation,
+.immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .playback-control {
+  left: calc((100% - min(510px, 43vw) - 36px) / 2); max-width: calc(100% - min(510px, 43vw) - 64px);
+}
+@media (max-width: 900px) {
+  .immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .zone-navigation,
+  .immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .playback-control { left: 50%; max-width: calc(100% - 28px); }
+  .immersive .workspace-drawer.drawer-incident,
+  .immersive:has(.zone-navigation.has-readouts) .workspace-drawer.drawer-incident { bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px); }
 }

@@ -20,3 +20,12 @@
 .model-next strong { font-size: 14px; }
 .model-next p { color: var(--muted); font-size: 12px; line-height: 1.8; word-break: keep-all; }
 @media (max-width: 600px) { .model-option { padding: 16px; gap: 10px; } .model-option strong { font-size: 14px; } }
+
+.model-selection { padding: 22px 24px 30px; gap: 24px; }
+.model-selection > p { font-size: 15px; line-height: 1.8; }
+.model-options { gap: 16px; }
+.model-option { padding: 23px 22px; gap: 18px; }
+.model-option strong { font-size: 17px; line-height: 1.6; }
+.model-option small, .model-option em { font-size: 13px; line-height: 1.85; }
+.model-option > span { min-width: 0; gap: 10px; }
+.model-next { padding: 18px 8px; }

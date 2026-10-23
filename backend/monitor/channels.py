@@ -17,7 +17,7 @@ def describe_channel(channel_id):
     zone = "CLN" if channel_id == "CLN-IN" else channel_id.split("-", 1)[1]
     if zone == "Z4M":
         zone = "Z4"
-    unit = "%" if kind == "output" else ("°C" if kind == "temperature" else None)
+    unit = "%" if kind == "output" else ("°C" if kind == "temperature" else "무차원" if channel_id == "CP-Z4" else None)
     return {
         "id": channel_id,
         "label": channel_id,
@@ -25,7 +25,7 @@ def describe_channel(channel_id):
         "zone": zone,
         "kind": kind,
         "is_physical_sensor": kind == "temperature",
-        "unit_status": "unconfirmed" if kind == "process" else "project_convention",
+        "unit_status": "user_confirmed" if channel_id == "CP-Z4" else "unconfirmed" if kind == "process" else "project_convention",
         "zone_status": "needs_review" if channel_id == "TC-Z9" else "channel_identifier",
     }
 

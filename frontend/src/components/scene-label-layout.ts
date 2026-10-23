@@ -4,10 +4,10 @@ export const READOUT_WIDTH = 154
 export const READOUT_HEIGHT = 76
 
 export function layoutReadouts(items: LabelAnchor[], width: number, height: number, options: {
-  boxWidth?: number; boxHeight?: number; top?: number; bottom?: number; exclusions?: LabelRect[]
+  boxWidth?: number; boxHeight?: number; gap?: number; top?: number; bottom?: number; exclusions?: LabelRect[]
 } = {}) {
   const placed = new Map<string, LabelRect>()
-  const boxWidth = options.boxWidth ?? READOUT_WIDTH, boxHeight = options.boxHeight ?? READOUT_HEIGHT, gap = 8
+  const boxWidth = options.boxWidth ?? READOUT_WIDTH, boxHeight = options.boxHeight ?? READOUT_HEIGHT, gap = options.gap ?? 8
   const top = options.top ?? (height > 500 ? 100 : 8)
   const bottom = options.bottom ?? (height > 500 ? 230 : 100)
   const maxX = width - boxWidth - gap, maxY = height - boxHeight - bottom

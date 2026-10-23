@@ -45,6 +45,11 @@ class AnomalyCandidate(models.Model):
         related_name="acknowledged_candidates",
     )
     acknowledged_at = models.DateTimeField(null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.PROTECT, related_name="resolved_candidates")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.TextField(blank=True)
 
     class Meta:
         indexes = [
@@ -66,3 +71,14 @@ class CandidatePoint(models.Model):
             models.UniqueConstraint(fields=["candidate", "source_frame"], name="candidate_source_frame_unique"),
         ]
         ordering = ["recorded_at", "source_row"]
+
+
+class CandidateResolution(models.Model):
+    candidate = models.ForeignKey(AnomalyCandidate, on_delete=models.PROTECT, related_name="resolutions")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    note = models.TextField()
+    request = models.OneToOneField("monitor.FieldRequest", null=True, blank=True, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
