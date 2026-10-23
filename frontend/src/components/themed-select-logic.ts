@@ -1,4 +1,4 @@
-export type SelectOption = { value: string; label: string }
+export type SelectOption = { value: string; label: string; color?: string }
 export type PopupPlacement = { left: number; top: number; width: number; maxHeight: number }
 
 export function placeSelectPopup(

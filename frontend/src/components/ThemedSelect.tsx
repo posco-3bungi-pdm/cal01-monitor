@@ -146,7 +146,7 @@ export default function ThemedSelect({ label, value, onChange, options, disabled
       aria-controls={open ? listId : undefined}
       aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
       disabled={unavailable} onClick={() => open ? close() : show()} onKeyDown={keyDown}>
-      <span>{options[selected]?.label ?? (options.length ? '선택해 주세요' : '목록 없음')}</span>
+      <span>{options[selected]?.color && <i className="grade-color-dot" style={{ backgroundColor: options[selected].color }} aria-hidden="true" />}{options[selected]?.label ?? (options.length ? '선택해 주세요' : '목록 없음')}</span>
       <ChevronDown size={14} aria-hidden="true" />
     </button>
     {open && !unavailable && createPortal(
@@ -162,7 +162,7 @@ export default function ThemedSelect({ label, value, onChange, options, disabled
           className={`themed-select-option${index === active ? ' is-active' : ''}`}
           onMouseDown={event => event.preventDefault()}
           onPointerMove={() => setActive(index)} onClick={() => choose(index)}>
-          <span>{option.label}</span>{option.value === value && <Check size={15} aria-hidden="true" />}
+          <span>{option.color && <i className="grade-color-dot" style={{ backgroundColor: option.color }} aria-hidden="true" />}{option.label}</span>{option.value === value && <Check size={15} aria-hidden="true" />}
         </div>)}
       </div>, document.body,
     )}

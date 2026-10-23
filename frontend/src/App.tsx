@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { api, ApiError, queryString, refreshCsrf } from "./api";
 import type { Channel, CurrentFrame, Dataset, EquipmentLayout, Lot, Placement, SeriesResponse, Theme, TimeRange, User } from "./types";
-import { clockTime, dateTime, numberText, timeMs, timeIso } from "./time";
+import { clockTime, dateTime, timeMs, timeIso } from "./time";
 import ChannelCharts from "./components/ChannelCharts";
 import RecordsPanel from "./components/RecordsPanel";
 import { GUIDE_STEPS } from "./guide-data";
@@ -35,6 +35,10 @@ import { sceneChannelIds, toggleSceneLabelGroup } from "./components/scene-label
 import type { SceneLabelGroup, SceneLabelState } from "./components/scene-label-groups";
 import HistorySearchDialog from "./components/HistorySearchDialog";
 import { sceneMotion } from "./components/scene-motion";
+import ReadingValue from "./components/ReadingValue";
+import CoilProductInfo from "./components/CoilProductInfo";
+import { zoneForChannel } from "./components/furnace-model";
+import { measurementName } from "./components/process-readouts";
 
 const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
@@ -147,8 +151,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [guideIndex, setGuideIndex] = useState<number | null>(null);
   const [motionPlaying, setMotionPlaying] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [previewZone, setPreviewZone] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [sceneLabels, setSceneLabels] = useState<SceneLabelState>({ group: 'all', shown: false });
+  const [sceneLabels, setSceneLabels] = useState<SceneLabelState>({ group: 'all', shown: true });
   const showLabels = history && sceneLabels.shown;
   const [sceneToolsOpen, setSceneToolsOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -243,11 +248,26 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const frameValues = useMemo(() => !history ? {} : playback.engaged
     ? playback.frame?.values ?? {}
     : Object.fromEntries((frameQuery.data?.channels ?? []).map(item => [item.channel_id, item.value])), [history, frameQuery.data, playback.engaged, playback.frame]);
-  const frameValue = !history ? undefined : playback.engaged ? {
-    value: playback.frame?.values[selectedChannel] ?? null,
+  const observationFor = (id: string) => !history ? undefined : playback.engaged ? {
+    value: playback.frame?.values[id] ?? null,
     measured_at: playback.frame?.time ?? null,
-    quality_status: playback.frame ? (playback.frame.values[selectedChannel] == null ? "missing" : "replay_record") : "replay_gap",
-  } : frameQuery.data?.channels.find(item => item.channel_id === selectedChannel);
+    quality_status: playback.frame ? (playback.frame.values[id] == null ? "missing" : "replay_record") : "replay_gap",
+  } : frameQuery.data?.channels.find(item => item.channel_id === id);
+  const inspectionChannel = previewZone === 'CP' ? channels.find(item => item.id === 'CP-Z4M')
+    : previewZone ? channels.find(item => !item.id.startsWith('CP-') && zoneForChannel(item) === previewZone) : channel;
+  const inspectionId = inspectionChannel?.id ?? selectedChannel;
+  const showInspector = inspectorOpen || previewZone !== null;
+  const frameValue = observationFor(inspectionId);
+  const cpInspector = showInspector && inspectionId.startsWith('CP-') && !guideStep;
+  const inspectionChannels = cpInspector ? channels.filter(item => item.id.startsWith('CP-'))
+    : channels.filter(item => !item.id.startsWith('CP-') && zoneForChannel(item) === (inspectionChannel ? zoneForChannel(inspectionChannel) : ''));
+  const groupedInspector = inspectionChannels.length > 1;
+  const previewSceneZone = useCallback((zoneId: string) => {
+    // Hover only previews readings. It never changes the camera, graph selection, or a draft.
+    if (!history || editing || guideIndex !== null || drawer || sidebarOpen || sceneToolsOpen || selectedPartId
+      || importOpen || historySearchOpen || requestCandidate || manualRequestOpen) return;
+    setPreviewZone(previous => previous === zoneId ? previous : zoneId);
+  }, [history, editing, guideIndex, drawer, sidebarOpen, sceneToolsOpen, selectedPartId, importOpen, historySearchOpen, requestCandidate, manualRequestOpen]);
   const frameTime = playback.engaged ? cursor : frameQuery.data?.anchor_time ?? cursor;
   const measuredAt = !history ? null : playback.engaged ? playback.frame?.time ?? null : frameQuery.data?.channels[0]?.measured_at ?? null;
   const placements = draftPlacements ?? layoutQuery.data?.placements ?? [];
@@ -270,7 +290,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       setSelectedCandidateId(null);
       setBannerCandidateId(null);
       setAnalysisError(null);
-      setInspectorOpen(false);
+      setInspectorOpen(false); setPreviewZone(null);
       setSelectedPartId(null);
     }
   }, [datasetId, lot]);
@@ -311,7 +331,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       else if (sidebarOpen) setSidebarOpen(false);
       else if (drawer) setDrawer(null);
       else if (sceneToolsOpen) { setSceneToolsOpen(false); setShowDiagnostics(false); }
-      else { setInspectorOpen(false); setSelectedPartId(null); }
+      else { setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); }
     };
     window.addEventListener("keydown", closeOverlay);
     return () => window.removeEventListener("keydown", closeOverlay);
@@ -329,12 +349,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       const target = event.target;
       if (!(target instanceof Element) || !root.contains(target) || editing || document.querySelector('dialog[open]')) return;
       // Reading, scrolling, editing and interacting with the current panel must not dismiss it.
-      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center')) return;
+      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center, .zone-navigation, .scene-data-control')) return;
       if (root.querySelector('.workspace-drawer:not([hidden]) [data-preserve-outside="true"]')) return;
       // The process guide stays open while the learner examines its related 3D process.
       if (guideIndex !== null && target.closest('canvas, [data-scene-ui], [data-channel-readout]')) return;
       if (guideIndex !== null) closeGuide(false);
-      setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+      setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
       setSceneToolsOpen(false);
       setShowDiagnostics(false);
     };
@@ -372,17 +392,17 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   const selectSceneChannel = useCallback((id: string, keepSettings = false) => {
     selectChannel(id);
-    setInspectorOpen(true);
+    setPreviewZone(null); setInspectorOpen(true);
     setSelectedPartId(null);
     setDrawer(null); setSidebarOpen(false); setAlertExpanded(false);
     if (!keepSettings) setSceneToolsOpen(false);
     setShowDiagnostics(false);
   }, [selectChannel]);
   const clearSceneSelection = useCallback(() => {
-    setInspectorOpen(false); setSelectedPartId(null);
+    setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null);
   }, []);
   const selectPart = useCallback((id: string, keepSettings = false) => {
-    setSelectedPartId(id); setInspectorOpen(false); setDrawer(null); setSidebarOpen(false); setAlertExpanded(false); if (!keepSettings) setSceneToolsOpen(false); setShowDiagnostics(false);
+    setSelectedPartId(id); setInspectorOpen(false); setPreviewZone(null); setDrawer(null); setSidebarOpen(false); setAlertExpanded(false); if (!keepSettings) setSceneToolsOpen(false); setShowDiagnostics(false);
   }, []);
 
   function chooseTime(time: string) {
@@ -442,7 +462,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   function dismissTransientPanels(keepSettings = false) {
     if (guideIndex !== null) closeGuide(false);
-    setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+    setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
     if (!keepSettings) setSceneToolsOpen(false);
     setShowDiagnostics(false);
   }
@@ -454,6 +474,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   function chooseSceneLabels(group: SceneLabelGroup) {
     sceneAction(() => setSceneLabels(previous => toggleSceneLabelGroup(previous, group)), true);
+  }
+
+  function toggleCPInspector() {
+    const close = cpInspector;
+    dismissTransientPanels();
+    if (!close) selectSceneChannel('CP-Z4M');
   }
 
   function changeDataMode(next: 'history' | 'live') {
@@ -507,7 +533,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     };
     setGuideIndex(0);
     setDrawer(null);
-    setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+    setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
     setSceneToolsOpen(false);
     setShowDiagnostics(false);
     setSection("equipment");
@@ -670,8 +696,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <button className="icon-button" aria-label="온도 CSV 불러오기" title="CSV 불러오기" disabled={editing || analysisRunning || !!guideStep} onClick={() => { playback.pause(); setImportOpen(true); }}><FileUp size={21} /></button>
           <ThemedSelect id="scene-lot-select" label="LOT" value={lotNo} onChange={setLotNo}
             disabled={!lots.length || analysisRunning || editing || !!guideStep}
-            options={lots.map(item => ({ value: String(item.lot_no), label: `${item.lot_no} · ${item.grade || "강종 미기록"}` }))} />
+            options={lots.map(item => ({ value: String(item.lot_no), label: `${item.lot_no} · ${item.grade || "강종 미기록"}`, color: item.product?.color }))} />
           <div className="scene-recorded-time"><span>{playback.engaged ? "과거 기록 재생" : "선택 시각"}</span><strong>{cursor ? dateTime(cursor, true) : "불러오는 중"}</strong></div>
+          {lot && <CoilProductInfo key={`${datasetId}:${lot.lot_no}`} datasetId={datasetId} lot={lot} disabled={editing || analysisRunning || !!guideStep} onOpen={dismissTransientPanels} />}
         </section> : <section className="scene-data-control live-source-status" aria-label="실시간 연결 상태"><strong>실시간 연결 전</strong><span>현재 수집 대상 LOT·강종·제품 정보 없음</span><small>측정 데이터가 연결되면 현재 코일 정보와 관측값을 표시합니다.</small><button className="text-button" onClick={() => changeDataMode('history')}>과거 기록 보기</button></section>}
         {history && lot && <section className="playback-control" aria-label="온도 기록 재생">
           <button className="icon-button replay-toggle" aria-label={playback.running ? "기록 재생 일시정지" : "기록 재생"} title={playback.running ? "일시정지" : "기록 재생"} disabled={editing || !!guideStep || importOpen} onClick={() => playback.running ? playback.pause() : playback.play(cursor ?? lot.start)}>{playback.running ? <Pause size={21} /> : <Play size={21} />}</button>
@@ -701,7 +728,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               <button aria-label="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
               <button aria-label="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
             </div>
-            <button className="icon-button" aria-label="채널 측정값 표시" title="하단 구역별 전체 계측값 표시·숨기기" disabled={!history} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
+            <button className="icon-button" aria-label="채널 측정값 표시" title="공정 위 전체 계측값 표시·숨기기" disabled={!history} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
             <div className="temperature-control"><button className="subtle-button temperature-toggle" aria-label="존 온도를 색으로 표시" aria-describedby="temperature-display-help" disabled={!history} aria-pressed={history && temperatureColors} onClick={() => sceneAction(() => setTemperatureColors(value => !value))}><Thermometer size={20} /><span>온도 색상</span></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip">TC 관측값 색상 · 설명용<br />실제 강판 표면온도·경보 등급 아님</span></div>
             <div className="scene-tools">
               <button className="scene-tools-trigger icon-button" aria-label="화면 설정" title="화면 설정" aria-expanded={sceneToolsOpen} onClick={() => { const next = !sceneToolsOpen; dismissTransientPanels(); setSceneToolsOpen(next); }}><Settings2 size={21} /></button>
@@ -740,21 +767,25 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 overlayOpen={drawer !== null || sidebarOpen || importOpen || historySearchOpen || requestCandidate !== null || manualRequestOpen || guideStep !== null}
                 overlaySide={drawer ? "right" : guideStep || sidebarOpen ? "left" : null}
                 showLabels={editing || !!guideStep} visibleLabelIds={editing || guideStep ? visibleIds : sceneLabelIds} showDiagnostics={showDiagnostics && sceneToolsOpen}
-                showZoneReadouts={showLabels && !editing && !guideStep} readoutsDisabled={!history} onCloseViewChange={setSceneClose}
+                showZoneReadouts={showLabels && !editing && !guideStep} onPreviewZone={previewSceneZone} readoutsDisabled={!history} onCloseViewChange={setSceneClose}
+                cpReadoutsSelected={cpInspector} onToggleCPReadouts={toggleCPInspector}
                 onToggleZoneReadouts={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}
                 measuredAt={measuredAt} temperatureColors={history && temperatureColors} onClearSelection={clearSceneSelection}
                 selectedPartId={selectedPartId} onSelectPart={selectPart}
               /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
             </div>
-            {inspectorOpen && <aside className="channel-inspector" aria-label="선택한 채널 정보">
-              <div className="inspector-heading"><h3>{channel?.id ?? "채널 선택"}</h3><span className="zone-badge">{channel?.zone || "—"}</span><button className="icon-button" aria-label="채널 정보 닫기" onClick={() => setInspectorOpen(false)}><X size={18} /></button></div>
-              <div className={`main-reading ${frameQuery.isFetching ? "is-loading" : ""}`}><strong>{numberText(frameValue?.value)}</strong><span>{channel?.unit || "단위 미확인"}</span></div>
-              <p className="inspector-measured-time">{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : frameQuery.isFetching ? "불러오는 중" : "관측값 없음"}</p>
+            {showInspector && <aside className="channel-inspector" aria-label="선택한 채널 정보" data-preview-zone={previewZone ?? undefined}>
+              <div className="inspector-heading"><h3>{cpInspector ? 'CP 추가 계측' : groupedInspector ? `${inspectionChannel ? zoneForChannel(inspectionChannel) : ''} 계측` : inspectionId}</h3><span className="zone-badge">{inspectionChannel?.zone || "—"}</span><button className="icon-button" aria-label="채널 정보 닫기" onClick={() => { setInspectorOpen(false); setPreviewZone(null); }}><X size={18} /></button></div>
+              {groupedInspector ? <div className="cp-readings">{inspectionChannels.map(item => {
+                const id = item.id, observed = observationFor(id);
+                return <section key={id} className="cp-reading" aria-label={`${id} 관측값`}><h4>{cpInspector ? id : measurementName(id)}</h4><div className="main-reading"><ReadingValue channelId={id} value={observed?.value} unit={item.unit} /></div><small>{observed?.measured_at ? clockTime(observed.measured_at, true) : '관측값 없음'}</small></section>;
+              })}</div> : <><div className={`main-reading ${frameQuery.isFetching ? "is-loading" : ""}`}><ReadingValue channelId={inspectionId} value={frameValue?.value} unit={inspectionChannel?.unit || (inspectionId.startsWith('CP-') ? null : '단위 미확인')} /></div><p className="inspector-measured-time">{frameValue?.measured_at ? dateTime(frameValue.measured_at, true) : frameQuery.isFetching ? "불러오는 중" : "관측값 없음"}</p></>}
+              {groupedInspector && <p className="inspector-measured-time">{frameTime ? dateTime(frameTime, true) : '선택 시각 없음'}</p>}
               {frameValue?.quality_status === "stale" && <p className="inspector-stale">선택 시각보다 오래된 값입니다.</p>}
               <ErrorMessage error={frameQuery.error} retry={() => void frameQuery.refetch()} />
               <div className="inspector-actions">
-                <button className="inspector-graph-button" onClick={() => { selectChannel(selectedChannel); goToSection("channels"); }} disabled={!lot}>그래프 보기<ArrowRight size={16} /></button>
-                <details className="channel-help"><summary>설명</summary><div><p>{channel?.label ?? "설비의 표시점을 눌러 주세요."}</p>{selectedChannel === "CP-Z4" && <p>Z4의 CP 채널 표시 위치입니다. 실제 설치 좌표나 특정 가스 분석계·프로브와의 연결은 제공 자료로 확인되지 않았습니다.</p>}<p>값 아래 시각은 실제 기록 시각입니다. 위에서 고른 시각과 다를 수 있습니다.</p><p>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정", replay_record: "마지막 기록 표시 · 최대 30초", replay_gap: "최근 30초 안에 기록 없음 · 재생 표시를 비움" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</p></div></details>
+                <button className="inspector-graph-button" onClick={() => { selectChannel(inspectionId); if (groupedInspector) setVisibleIds(inspectionChannels.map(item => item.id)); goToSection("channels"); }} disabled={!lot}>{cpInspector ? 'CP 두 채널 그래프' : groupedInspector ? '구역 그래프 보기' : '그래프 보기'}<ArrowRight size={16} /></button>
+                <details className="channel-help"><summary>설명</summary><div><p>{inspectionChannel?.label ?? "설비의 표시점을 눌러 주세요."}</p>{inspectionId.startsWith('CP-') && <p>CP의 물리 단위는 미확인이다. 회색 e^-10은 10의 -10승을 곱하는 지수 표기이며 측정 단위가 아니다.</p>}{inspectionId === "CP-Z4" && <p>Z4의 CP 채널 표시 위치입니다. 실제 설치 좌표나 특정 가스 분석계·프로브와의 연결은 제공 자료로 확인되지 않았습니다.</p>}<p>값 아래 시각은 실제 기록 시각입니다. 위에서 고른 시각과 다를 수 있습니다.</p><p>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정", replay_record: "마지막 기록 표시 · 최대 30초", replay_gap: "최근 30초 안에 기록 없음 · 재생 표시를 비움" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</p></div></details>
               </div>
             </aside>}
             {selectedPart && <aside className="part-inspector" aria-label="선택한 부품 정보">

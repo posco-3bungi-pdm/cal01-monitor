@@ -5,8 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { AlertTriangle, Tags } from 'lucide-react'
 import * as THREE from 'three'
 import type { Channel, Theme } from '../types'
-import { clockTime, numberText } from '../time'
-import { zoneForChannel } from './furnace-model'
+import { clockTime } from '../time'
 import type { FurnaceZone } from './furnace-model'
 import type { SceneGesture } from './scene-input'
 import type { ZoneAttentionMap } from './zone-attention'
@@ -28,22 +27,32 @@ export function useZoneLabelBridge(): ZoneLabelBridgeRef {
 // The fixed row stays in place; only unacknowledged candidates gain a
 // second attention button projected above the relevant process zone.
 export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZones, attention, gesture,
-  channels = [], values = {}, visibleIds, showReadouts = false, onToggleReadouts, onSelectChannel, disabled = false, measuredAt = null }: {
+  channels = [], showReadouts = false, onToggleReadouts, onSelectChannel, cpSelected = false, onToggleCP, disabled = false, measuredAt = null, onPreviewZone, readoutZones = [] }: {
   zones: readonly FurnaceZone[]; target: HTMLElement | null; bridge: ZoneLabelBridgeRef
   theme: Theme; selectedZone: string; alertZones: ReadonlySet<string>
   attention: ZoneAttentionMap; gesture: SceneGesture
   channels?: Channel[]; values?: Record<string, number | null>; visibleIds?: string[]; showReadouts?: boolean
   onToggleReadouts?: () => void; onSelectChannel?: (id: string) => void; disabled?: boolean; measuredAt?: string | null
+  cpSelected?: boolean; onToggleCP?: () => void; onPreviewZone?: (zoneId: string) => void; readoutZones?: string[]
 }) {
+  const dock = useRef<HTMLElement>(null)
+  useLayoutEffect(() => {
+    const node = dock.current, root = target?.closest<HTMLElement>('.immersive')
+    if (!node || !root) return
+    const sync = () => root.style.setProperty('--process-dock-height', `${node.offsetHeight}px`)
+    const observer = new ResizeObserver(sync)
+    observer.observe(node); sync()
+    return () => { observer.disconnect(); root.style.removeProperty('--process-dock-height') }
+  }, [target])
   if (!target) return null
   const select = (zoneId: string, keyboard: boolean) => {
     if (gesture.allowClick(keyboard)) bridge.current.selectZone?.(zoneId)
   }
   return createPortal(<>
-    <nav className={`zone-navigation${showReadouts ? ' has-readouts' : ''}`} data-scene-ui data-theme={theme} aria-label="공정 구역 선택">
+    <nav ref={dock} className={`zone-navigation${showReadouts ? ' has-readouts' : ''}`} data-scene-ui data-theme={theme} aria-label="공정 구역 선택">
       <div className="zone-navigation-row">
         {onToggleReadouts && <button type="button" className="zone-readout-toggle" aria-label="전체 계측값 표시·숨기기" aria-pressed={showReadouts}
-          disabled={disabled} onClick={onToggleReadouts} title="하단 구역별 전체 계측값 표시·숨기기"><Tags size={18} /></button>}
+          disabled={disabled} onClick={onToggleReadouts} title="공정 위 전체 계측값 표시·숨기기"><Tags size={18} /></button>}
         {zones.map(zone => {
           const status = attention[zone.id]
           const alert = alertZones.has(zone.id)
@@ -54,23 +63,22 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
             aria-label={`${zone.label}${pending ? ` · 확인 필요 ${status.unacknowledged}개` : alert ? ' · 확인한 이상 후보' : ''} · ${action}`}
             aria-pressed={selectedZone === zone.id}
             title={`${zone.label} · ${action}${alert ? ' · 고장 확정 아님' : ''}`}
-            onClick={event => select(zone.id, event.detail === 0)}>
-            <span>{zone.label}</span>
-            {alert && <span className="zone-nav-count" aria-label={`이상 후보 ${status?.count ?? 1}개`}>{status?.count ?? 1}</span>}
-            {showReadouts && <span className="zone-metrics">{channels.filter(channel => zoneForChannel(channel) === zone.id && !channel.id.startsWith('CP-') && (!visibleIds || visibleIds.includes(channel.id))).map(channel =>
-              <span key={channel.id} data-zone-reading={channel.id} title={`${channel.id} · ${channel.unit ?? '단위 미확인'} · ${measuredAt ?? '관측 없음'}`}><small>{channel.id === 'CLN-IN' ? 'TC' : channel.id.startsWith('OP-') ? 'OP' : channel.id.includes('OUT') ? channel.id.replace('TC-', '') : 'TC'}</small><strong>{numberText(values[channel.id])}</strong></span>)}</span>}
+            onPointerEnter={event => { if (event.pointerType !== 'touch') onPreviewZone?.(zone.id) }}
+            onFocus={() => onPreviewZone?.(zone.id)} onClick={event => select(zone.id, event.detail === 0)}>
+            <span className="zone-nav-name">{zone.label}{alert && <span className="zone-nav-count" aria-label={`이상 후보 ${status?.count ?? 1}개`}>{status?.count ?? 1}</span>}</span>
+
           </button>
         })}
-        {onSelectChannel && channels.some(channel => channel.id.startsWith('CP-')) && <button type="button" className="zone-cp-button" aria-label="CP 추가 계측 보기" disabled={disabled} onClick={() => onSelectChannel('CP-Z4M')}>
-          <span>CP</span>{showReadouts && <span className="zone-metrics">{channels.filter(channel => channel.id.startsWith('CP-') && (!visibleIds || visibleIds.includes(channel.id))).map(channel => <span key={channel.id} data-zone-reading={channel.id}><small>{channel.id.endsWith('M') ? 'Z4M' : 'Z4'}</small><strong>{numberText(values[channel.id])}</strong></span>)}</span>}
+        {onSelectChannel && channels.some(channel => channel.id.startsWith('CP-')) && <button type="button" className="zone-cp-button" aria-label="CP 두 채널 계측 보기·닫기" aria-pressed={cpSelected} disabled={disabled} onClick={() => onToggleCP ? onToggleCP() : onSelectChannel('CP-Z4M')}>
+          <span>CP</span>
         </button>}
       </div>
       <p className="zone-navigation-hint">구역을 누르면 확대 · 다시 누르면 전체 보기
         {alertZones.size > 0 && <span className="zone-navigation-status">붉은색: 점검 후보 · 고장 확정 아님</span>}
       </p>
-      {showReadouts && <p className="zone-navigation-hint">TC °C · OP % · CP 단위 미확인 · {measuredAt ? clockTime(measuredAt, true) : '관측 없음'}</p>}
+      {showReadouts && <span className="zone-navigation-legend">공정 위 계측 · {measuredAt ? clockTime(measuredAt, true) : '관측 없음'}</span>}
     </nav>
-    {zones.filter(zone => (attention[zone.id]?.unacknowledged ?? 0) > 0).map(zone => {
+    {zones.filter(zone => (attention[zone.id]?.unacknowledged ?? 0) > 0 && !readoutZones.includes(zone.id)).map(zone => {
       const status = attention[zone.id]
       return <div key={zone.id} className="zone-attention-anchor" data-scene-zone={zone.id}
         ref={node => {

@@ -1,0 +1,32 @@
+"""Reference descriptions, not coil certificates or furnace setpoints."""
+
+COLD_SOURCE = {"title": "POSCO Vietnam 냉연 제품 카탈로그 · p.10–11", "url": "https://www.poscovietnam.com/images/product/2024_Catalogue_edit.pdf#page=6"}
+HOT_SOURCE = {"title": "POSCO 열연강재 카탈로그", "url": "https://posco.co.kr/homepage/docs/kor5/dn/product/info/hotrolled.pdf"}
+GALV_SOURCE = {"title": "POSCO 용융아연도금강판 카탈로그", "url": "https://www.posco.co.kr/homepage/docs/kor5/dn/product/info/galvanizedsteel.pdf"}
+AUTO_SOURCE = {"title": "POSCO Maharashtra 제품 안내 · DP590", "url": "https://poscomaharashtra.com/in/product/product1.jsp"}
+HOT_GENERAL_SOURCE = {"title": "현대제철 제품 안내 · 산세열연강판", "url": "https://www.hyundai-steel.com/kr/product-tech/cold-rolled"}
+
+MATERIAL_GRADES = {
+    "SPCC": {"color": "#9AA7B5", "family": "냉연강판", "characteristics": "일반 가공용", "description": "굽힘·가벼운 성형 등 일반적인 가공에 사용하는 냉연강판 계열.", "sources": [COLD_SOURCE]},
+    "SPCD": {"color": "#3E75A8", "family": "냉연강판", "characteristics": "드로잉용", "description": "판을 금형으로 눌러 용기 모양을 만드는 드로잉 성형에 사용하는 계열.", "sources": [COLD_SOURCE]},
+    "SPCE": {"color": "#3F909A", "family": "냉연강판", "characteristics": "딥드로잉용", "description": "깊은 용기 모양 등 더 큰 성형성이 필요한 딥드로잉에 사용하는 계열.", "sources": [COLD_SOURCE]},
+    "SPCEN": {"color": "#8676AC", "family": "냉연강판", "characteristics": "비시효성 딥드로잉용", "description": "시간 경과에 따른 성형성 변화를 관리하는 비시효성 딥드로잉 계열. 보증 조건은 주문 규격을 확인한다.", "sources": [COLD_SOURCE]},
+    "SPHC": {"color": "#A48258", "family": "열연계 강판", "characteristics": "일반 가공용", "description": "일반 가공에 사용하는 열연계 강종. 산세·급유 등 현재 코일의 표면 처리 여부는 별도로 확인한다.", "sources": [HOT_GENERAL_SOURCE, HOT_SOURCE]},
+    "SPFH590": {"color": "#B4634E", "family": "자동차 구조용 열연강판", "characteristics": "고강도·성형성·용접성", "description": "자동차 구조 부품에 쓰이는 고강도 열연 계열. 구체적인 기계적 성질은 제품 규격·성적서로 확인한다.", "sources": [HOT_SOURCE]},
+    "DP590": {"color": "#2B527A", "family": "자동차용 고강도강", "characteristics": "DP 복합조직 계열", "description": "DP(Dual Phase) 계열의 고강도강. 냉연·도금 등 공급 형태와 세부 규격은 제품 성적서로 확인한다.", "sources": [AUTO_SOURCE]},
+    "SGCC": {"color": "#B9D6D9", "family": "용융아연도금강판", "characteristics": "일반용·내식성", "description": "아연 도금층으로 내식성을 확보하는 일반용 계열. 실제 도금량과 표면 처리 조건은 별도로 확인한다.", "sources": [GALV_SOURCE]},
+}
+
+
+def lot_material(lot, dataset):
+    links = dataset.metadata.get("lot_grade_links", {})
+    link = links.get(lot.lot_no, {}) if isinstance(links, dict) else {}
+    grade = lot.grade or link.get("grade", "")
+    product = MATERIAL_GRADES.get(grade.strip().upper())
+    return {
+        "lot_no": lot.lot_no, "grade": grade, "source_grade": lot.grade,
+        "grade_source": "source" if lot.grade else "linked" if grade else None,
+        "material_revision": link.get("revision", 0),
+        "product": {"grade": grade.strip().upper(), **product} if product else None,
+        "start": lot.start, "end": lot.end, "count": lot.count,
+    }
