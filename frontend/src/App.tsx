@@ -48,6 +48,10 @@ import { measurementName } from "./components/process-readouts";
 import { useCsvSimulation } from './useCsvSimulation';
 import LiveSimulationCharts from './LiveSimulationCharts';
 import PlaybackShortcuts from './PlaybackShortcuts';
+import { useModelPredictions } from './useModelPredictions';
+import LivePredictionsPanel from './LivePredictionsPanel';
+import { liveAttention, modelName } from './model-predictions';
+import type { LiveModel, ModelEvent } from './model-predictions';
 
 const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
@@ -192,6 +196,10 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [cpViewActive, setCpViewActive] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [analysisModel, setAnalysisModel] = useState<AnalysisModel>("zscore");
+  const [liveModel, setLiveModel] = useState<LiveModel>("randomforest");
+  const [selectedModelEvent, setSelectedModelEvent] = useState<ModelEvent | null>(null);
+  const [requestModelEvent, setRequestModelEvent] = useState<ModelEvent | null>(null);
+  const [modelGraphRange, setModelGraphRange] = useState<TimeRange | null>(null);
   const [runChoice, setRunChoice] = useState<{ context: string; id: string } | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
   const [, setBannerCandidateId] = useState<string | null>(null);
@@ -245,6 +253,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   } : null, [simulationLotsQuery.data]);
   const simulation = useCsvSimulation(simulationDatasetId, simulationRange);
   const simulationLot = simulationLots.find(item => String(item.lot_no) === simulation.frame?.lot_no);
+  const liveDetection = useModelPredictions(simulationDatasetId, simulation.frame, liveModel, !history && simulation.engaged, simulation.ended, simulation.runId);
+  const liveEvents = liveDetection.result?.events ?? [];
+  useEffect(() => { setSelectedModelEvent(null); setModelGraphRange(null); }, [simulationDatasetId, simulation.frame?.lot_no, liveModel]);
   const activeLot = history ? lot : simulationLot;
   const activeDatasetId = history ? datasetId : simulationDatasetId;
   const showLabels = sceneLabels.shown && (history || simulation.engaged);
@@ -294,11 +305,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     ?? pendingCandidates.find(candidate => candidate.id === selectedCandidateId)
     ?? (openedCandidate?.id === selectedCandidateId ? openedCandidate : undefined);
   const visibleCandidates = useMemo(() => history ? reachedCandidates(pendingInLot, reachedThrough) : [], [history, pendingInLot, reachedThrough]);
-  const alertChannelKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.channel_id))].join(",");
-  const alertZoneKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.zone_id))].join(",");
+  const alertChannelKey = guideStep ? "" : [...new Set(history ? visibleCandidates.map(candidate => candidate.channel_id) : liveEvents.filter(event => event.kind === "Z-score").flatMap(event => event.channel_ids))].join(",");
+  const alertZoneKey = guideStep ? "" : [...new Set(history ? visibleCandidates.map(candidate => candidate.zone_id) : liveEvents.map(event => event.zone_id))].join(",");
   const alertChannelIds = useMemo(() => alertChannelKey ? alertChannelKey.split(",") : [], [alertChannelKey]);
   const alertZoneIds = useMemo(() => alertZoneKey ? alertZoneKey.split(",") : [], [alertZoneKey]);
-  const zoneAttention = useMemo(() => guideStep ? {} : summarizeMeasurementAttention(visibleCandidates), [visibleCandidates, guideStep]);
+  const zoneAttention = useMemo(() => guideStep ? {} : history ? summarizeMeasurementAttention(visibleCandidates) : liveAttention(liveEvents), [history, visibleCandidates, liveDetection.result, guideStep]);
   const staticCursor = playback.engaged ? null : cursor;
   const frameQuery = useQuery({
     queryKey: ["frame", datasetId, lotNo, staticCursor], enabled: history && !!datasetId && !!lot && !!staticCursor,
@@ -417,7 +428,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       const target = event.target;
       if (!(target instanceof Element) || !root.contains(target) || editing || document.querySelector('dialog[open]')) return;
       // Reading, scrolling, editing and interacting with the current panel must not dismiss it.
-      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center, .zone-navigation, .scene-data-control, .playback-control, .pending-alert-banner')) return;
+      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center, .zone-navigation, .scene-data-control, .playback-control, .pending-alert-banner, .live-model-banner')) return;
       if (root.querySelector('.workspace-drawer:not([hidden]) [data-preserve-outside="true"]')) return;
       // The process guide stays open while the learner examines its related 3D process.
       if (guideIndex !== null && target.closest('canvas, [data-scene-ui], [data-channel-readout]')) return;
@@ -595,9 +606,25 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     simulation.pause(); playback.pause(); dismissTransientPanels(); setDataMode('history'); setHistorySearchOpen(true);
   }
 
+  function focusModelEvent(event: ModelEvent) {
+    simulation.pause(); setSelectedModelEvent(event);
+    const eventLot = simulationLots.find(item => item.lot_no === (event.lot_no ?? simulationLot?.lot_no));
+    const zoneChannels = channels.filter(item => zoneForChannel(item) === event.zone_id);
+    const ids = zoneChannels.map(item => item.id);
+    if (ids.length) { setVisibleIds(ids); setSelectedChannel(ids.find(id => id.startsWith('TC-')) ?? ids[0]); }
+    setSceneFocus(previous => ({ zoneId: event.zone_id, serial: (previous?.serial ?? 0) + 1 }));
+    setModelGraphRange({ start: timeIso(Math.max(timeMs(eventLot?.start ?? event.start), timeMs(event.start) - 60_000)),
+      end: timeIso(Math.min(timeMs(simulation.frame?.time ?? event.end), timeMs(eventLot?.end ?? event.end), timeMs(event.end) + 60_000)) });
+    setDrawer('channels'); setSection('channels');
+  }
+
+  function requestModelInspection(event: ModelEvent) {
+    focusModelEvent(event); setRequestModelEvent(event); setManualRequestOpen(true);
+  }
+
   function beginManualRequest() {
     if (!activeLot || !activeDatasetId || !channels.length) return;
-    playback.pause(); simulation.pause(); setSceneToolsOpen(false); setShowDiagnostics(false); setManualRequestOpen(true);
+    playback.pause(); simulation.pause(); setRequestModelEvent(null); setSceneToolsOpen(false); setShowDiagnostics(false); setManualRequestOpen(true);
   }
 
   function openRequestGraph(request: FieldRequest) {
@@ -618,7 +645,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     const next = toggle && drawer === name ? null : name;
     if (next === 'incident' && drawer !== 'incident') setIncidentOrigin(drawer ?? 'analysis');
     dismissTransientPanels();
-    if (name !== 'requests' && name !== 'channels') { simulation.pause(); setDataMode('history'); }
+    if (name !== 'requests' && name !== 'channels' && name !== 'models') { simulation.pause(); setDataMode('history'); }
     setDrawer(next);
     setSection(name === "channels" && next ? "channels" : "equipment");
   }
@@ -799,7 +826,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       <header className="workspace-topbar">
         <div className="breadcrumb"><button className="icon-button" onClick={() => { const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next); }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
-          <button aria-label="예측 모델 선택" data-hint="분석 모델 선택" title={analysisModel === "zscore" ? "분석 모델 · Z-score" : "추가 분석 꺼짐 · 미조치 알림 유지"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
+          <button aria-label="예측 모델 선택" data-hint="분석 모델 선택" title={history ? "과거 분석 · Z-score" : liveModel === "randomforest" ? "RandomForestClassifier · 구역 예측" : liveModel === "zscore" ? "도착한 값 · Z-score" : "모델 예측 꺼짐"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
           <button aria-label="설비 전체 화면" data-hint="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
           <button aria-label="채널 그래프 열기" data-hint="채널 그래프" title="채널 그래프 열고 닫기" className={drawer === "channels" ? "active" : ""} aria-expanded={drawer === "channels"} onClick={() => openDrawer("channels")}><Activity size={15} /><span>그래프</span></button>
           <button aria-label="과거 LOT 이상 후보 열기" data-hint="저장된 분석 보기 · 배지는 재생 중 발생한 미조치 수" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{visibleCandidates.length > 0 && <small>{visibleCandidates.length}</small>}</button>
@@ -848,6 +875,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <ErrorMessage error={lotsQuery.error} retry={() => void lotsQuery.refetch()} />
         <ErrorMessage error={channelsQuery.error} retry={() => void channelsQuery.refetch()} />
         {!datasetsQuery.isPending && datasets.length === 0 && !datasetsQuery.error && <div className="panel no-data-panel"><Database size={30} /><h2>등록된 데이터가 없습니다.</h2><p>서버에 CSV를 등록하면 LOT와 채널값을 여기에서 확인할 수 있습니다.</p><button className="subtle-button" onClick={() => void datasetsQuery.refetch()}><RefreshCw size={14} />등록 상태 다시 확인</button></div>}
+        {!history && !guideStep && liveEvents.length > 0 && <button className="live-model-banner" onClick={() => focusModelEvent(liveEvents.at(-1)!)}><AlertCircle size={20} /><span><strong>{liveEvents.at(-1)!.zone_id} · {modelName(liveEvents.at(-1)!.kind)} 이상 후보</strong><small>예측 구간 {liveDetection.result?.event_count ?? liveEvents.length}개 · 눌러서 도착한 값 확인</small></span><ArrowRight size={17} /></button>}
         {history && guideIndex === null && <PendingAttention candidates={visibleCandidates} count={visibleCandidates.length} error={pendingQuery.error} onRetry={() => void pendingQuery.refetch()} onSelect={candidate => focusCandidate(candidate)} />}
         <section className="panel equipment-panel" aria-labelledby="equipment-heading">
           <div className="panel-heading scene-toolbar">
@@ -889,6 +917,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 sceneFocus={sceneFocus} onInspectZoneAlert={groupId => {
                   const candidate = visibleCandidates.find(item => measurementGroupId(item) === groupId);
                   if (candidate) focusCandidate(candidate);
+                  else { const event = [...liveEvents].reverse().find(item => item.zone_id === groupId || groupId === "CP" && item.kind === "Z-score" && item.channel_ids.some(id => id.startsWith("CP-"))); if (event) focusModelEvent(event); }
                 }}
                 channels={channels} selectedChannel={inspectorOpen || editing || guideStep ? selectedChannel : ""} onSelectChannel={selectSceneChannel}
                 values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined}
@@ -955,7 +984,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
             onResolve={note => resolveCandidate(focusedCandidate, note)} onRange={incidentRange} onCursor={chooseTime} />}
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "channels"} title="채널 그래프와 앞뒤 기록" name="channels" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
-        {focusedCandidate && <div className="focused-candidate-actions"><span>선택한 후보 · {focusedCandidate.channel_id} · {dateTime(focusedCandidate.start, true)}</span><button className="primary-button compact" onClick={() => setRequestCandidate(focusedCandidate)}>현장 확인 요청</button></div>}
+        {!history && selectedModelEvent && <div className="live-focused-event"><strong>{selectedModelEvent.zone_id} · {modelName(selectedModelEvent.kind)} 이상 후보</strong><span>{dateTime(selectedModelEvent.start, true)} — {dateTime(selectedModelEvent.end, true)}</span><p>이 구역을 점검할 채널은 직접 고르면 됨. 모델이 고장 원인 채널을 찾았다는 뜻은 아님.</p><button className="text-button" onClick={() => requestModelInspection(selectedModelEvent)}>점검 요청 작성</button></div>}
+        {history && focusedCandidate && <div className="focused-candidate-actions"><span>선택한 후보 · {focusedCandidate.channel_id} · {dateTime(focusedCandidate.start, true)}</span><button className="primary-button compact" onClick={() => setRequestCandidate(focusedCandidate)}>현장 확인 요청</button></div>}
         <section className="panel channel-selection-panel" aria-labelledby="channel-heading" ref={chartTarget}>
           <div className="channel-controls-heading">
             <div><h2 id="channel-heading">표시할 채널</h2><span className="muted">{visibleIds.filter(id => channels.some(item => item.id === id)).length} / {channels.length}개 선택</span></div>
@@ -968,7 +998,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           </div>
           <div className="channel-chips">{channels.map(item => <button key={item.id} className={`channel-chip ${visibleIds.includes(item.id) ? "is-on" : ""} ${selectedChannel === item.id ? "is-focused" : ""}`} aria-pressed={visibleIds.includes(item.id)} aria-label={`${item.id} 그래프 ${visibleIds.includes(item.id) ? "숨기기" : "표시"}`} onClick={() => setVisibleIds(previous => previous.includes(item.id) ? previous.filter(id => id !== item.id) : [...previous, item.id])}><span>{visibleIds.includes(item.id) ? <Check size={11} /> : null}</span>{item.id}</button>)}</div>
         </section>
-        {!history ? <LiveSimulationCharts frames={simulation.frames} channels={displayedChannels} selectedChannel={selectedChannel} onSelectChannel={selectChannel} /> : lot && view ? <>
+        {!history ? <><LiveSimulationCharts frames={simulation.frames} channels={displayedChannels} selectedChannel={selectedChannel} onSelectChannel={selectChannel}
+          datasetId={simulationDatasetId} focus={modelGraphRange} focusLot={selectedModelEvent?.lot_no} onClearFocus={() => { setModelGraphRange(null); setSelectedModelEvent(null); }} />
+          <LivePredictionsPanel model={liveModel} {...liveDetection} selectedEvent={selectedModelEvent} onEvent={focusModelEvent} onRequest={requestModelInspection} onRetry={liveDetection.retry} /></> : lot && view ? <>
           <ErrorMessage error={seriesQuery.error} retry={() => void seriesQuery.refetch()} />
           <ChannelCharts channels={displayedChannels} series={seriesQuery.data?.series ?? []} view={view} fullRange={{ start: lot.start, end: lot.end }}
             selectedChannel={selectedChannel} selection={selection} cursor={frameTime}
@@ -990,8 +1022,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenRequest={openRequestGraph} onCreate={beginManualRequest} canCreate={!!activeLot && !!activeDatasetId && channels.length > 0} />
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "models"} title="분석 모델 선택" name="models" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
-          <ModelSelectionPanel selected={analysisModel} disabled={analysisRunning || editing || !!guideStep}
-            onSelect={setAnalysisModel} onOpenAnalysis={() => openDrawer("analysis", false)} />
+          <ModelSelectionPanel live={!history} selected={history ? analysisModel : liveModel} disabled={analysisRunning || editing || !!guideStep}
+            onSelect={model => history ? setAnalysisModel(model === "randomforest" ? "zscore" : model) : setLiveModel(model)} onOpenAnalysis={() => openDrawer("analysis", false)} />
+          {!history && <LivePredictionsPanel model={liveModel} {...liveDetection} selectedEvent={selectedModelEvent} onEvent={focusModelEvent} onRequest={requestModelInspection} onRetry={liveDetection.retry} />}
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "response"} title="알림 대응 가이드" name="response" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
           <ResponseGuide key={responseCandidate?.id ?? 'general'} candidate={responseCandidate} candidates={candidates} onOpenGraph={candidate => focusCandidate(candidate)} onRequest={setRequestCandidate} />
@@ -1017,12 +1050,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       }
       setMessage({ kind: "success", text: reused ? "이미 등록된 같은 파일을 열었습니다." : `${next.row_count.toLocaleString()}행을 등록했습니다. ${history ? 'LOT를 골라 재생해 보세요.' : '실시간 시연을 시작합니다.'}` });
     }} />}
-    {(requestCandidate || manualRequestOpen) && <RequestDialog key={requestCandidate?.id ?? 'manual'} candidate={requestCandidate}
-      manualContext={{ dataset_id: activeDatasetId, lot_no: activeLot?.lot_no ?? '', channel_id: selectedChannel,
-        start: history ? selection?.start ?? cursor ?? lot?.start ?? '' : simulation.frame?.time ?? '',
-        end: history ? selection?.end ?? cursor ?? lot?.start ?? '' : simulation.frame?.time ?? '' }} channels={channels} lots={history ? lots : simulationLots}
-      onClose={() => { setRequestCandidate(null); setManualRequestOpen(false); }} onSaved={(request, reused) => {
-      setRequestCandidate(null); setManualRequestOpen(false); void queryClient.invalidateQueries({ queryKey: ["field-requests"] });
+    {(requestCandidate || manualRequestOpen) && <RequestDialog key={requestCandidate?.id ?? requestModelEvent?.id ?? 'manual'} candidate={requestCandidate} modelContext={requestModelEvent}
+      manualContext={{ dataset_id: activeDatasetId, lot_no: requestModelEvent?.lot_no ?? activeLot?.lot_no ?? '', channel_id: selectedChannel,
+        start: history ? selection?.start ?? cursor ?? lot?.start ?? '' : requestModelEvent?.start ?? simulation.frame?.time ?? '',
+        end: history ? selection?.end ?? cursor ?? lot?.start ?? '' : requestModelEvent?.end ?? simulation.frame?.time ?? '' }} channels={requestModelEvent ? channels.filter(item => zoneForChannel(item) === requestModelEvent.zone_id) : channels} lots={history ? lots : simulationLots}
+      onClose={() => { setRequestCandidate(null); setRequestModelEvent(null); setManualRequestOpen(false); }} onSaved={(request, reused) => {
+      setRequestCandidate(null); setRequestModelEvent(null); setManualRequestOpen(false); void queryClient.invalidateQueries({ queryKey: ["field-requests"] });
       setMessage({ kind: "success", text: reused ? "이미 저장된 요청을 불러왔습니다." : "현장 확인 요청을 저장했습니다. 팀 알림에 반영됩니다." });
       openRequests(request.id);
     }} />}

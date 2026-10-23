@@ -5,9 +5,11 @@ import type { DetectionCandidate, FieldRequest, ManualRequestContext } from "../
 import type { Channel, Lot } from "../types";
 import { dateTime, numberText, timeMs } from "../time";
 import ThemedSelect from "./ThemedSelect";
+import type { ModelEvent } from "../model-predictions";
+import { modelName } from "../model-predictions";
 
-export default function RequestDialog({ candidate, manualContext, channels = [], lots = [], onClose, onSaved }: {
-  candidate?: DetectionCandidate | null; manualContext?: ManualRequestContext; channels?: Channel[]; lots?: Lot[];
+export default function RequestDialog({ candidate, manualContext, modelContext, channels = [], lots = [], onClose, onSaved }: {
+  candidate?: DetectionCandidate | null; manualContext?: ManualRequestContext; modelContext?: ModelEvent | null; channels?: Channel[]; lots?: Lot[];
   onClose: () => void; onSaved: (request: FieldRequest, reused: boolean) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -21,10 +23,11 @@ export default function RequestDialog({ candidate, manualContext, channels = [],
   const contextValid = !!candidate || !!(manualContext?.dataset_id && selectedLot && channels.some(item => item.id === channelId)
     && Number.isFinite(timeMs(start)) && Number.isFinite(timeMs(end)) && timeMs(start) <= timeMs(end)
     && timeMs(start) >= timeMs(selectedLot.start) && timeMs(end) <= timeMs(selectedLot.end));
-  const [observed, setObserved] = useState("");
-  const [conditions, setConditions] = useState("");
+  const [observed, setObserved] = useState(modelContext ? `${modelContext.zone_id}에서 ${modelName(modelContext.kind)}가 이상 후보로 분류함. 원인 채널은 아직 판단하지 않음.` : "");
+  const [conditions, setConditions] = useState(modelContext ? `CSV 시연 · 모델 ${modelContext.model_id} · 예측 구간 ${modelContext.start} ~ ${modelContext.end} · 선택한 채널은 점검 대상임.` : "");
   const [question, setQuestion] = useState("");
-  const message = `[관측한 변화]\n${observed.trim()}\n\n[함께 확인한 조건]\n${conditions.trim() || '미기록'}\n\n[점검할 내용]\n${question.trim()}`;
+  const modelSource = modelContext ? `[모델 예측]\n${modelName(modelContext.kind)} · ${modelContext.model_id}\nLOT ${modelContext.lot_no ?? lotNo} · ${modelContext.zone_id} · ${modelContext.start} ~ ${modelContext.end}\nCSV 시연에서 찾은 구역 후보임. 선택 채널은 점검 대상이며 원인 채널 판정은 아님.\n\n` : "";
+  const message = `${modelSource}[관측한 변화]\n${observed.trim()}\n\n[함께 확인한 조건]\n${conditions.trim() || '미기록'}\n\n[점검할 내용]\n${question.trim()}`;
   const valid = contextValid && !!observed.trim() && !!question.trim() && message.length <= 4000;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +52,8 @@ export default function RequestDialog({ candidate, manualContext, channels = [],
   return <dialog ref={dialog} className="request-dialog" aria-labelledby="request-heading" onCancel={event => { event.preventDefault(); if (!pending) onClose(); }}>
     <form onSubmit={submit}><header><div><span className="eyebrow">CAL01 / REQUEST</span><h2 id="request-heading">점검 요청 작성</h2></div><button type="button" className="icon-button" aria-label="요청 작성 닫기" onClick={onClose} disabled={pending}><X size={18} /></button></header>
       {candidate ? <div className="request-identity"><strong>LOT {candidate.lot_no} · {candidate.zone_id} · {candidate.channel_id}</strong><span>{dateTime(candidate.start, true)} — {dateTime(candidate.end, true)}</span><span>기준을 가장 크게 벗어난 값 {numberText(candidate.peak_value)} · Z {numberText(candidate.peak_z)}</span><small>이상 후보에 연결된 점검 요청 · 고장 확정 아님</small></div> : <div className="manual-request-context">
-        <strong>직접 작성 · 이상 후보 없이 요청 가능</strong>
+        <strong>{modelContext ? `${modelContext.zone_id} 모델 예측을 보고 점검 요청` : "직접 작성 · 이상 후보 없이 요청 가능"}</strong>
+        {modelContext && <small>점검할 채널은 직접 선택함. 이 채널이 이상 원인이라는 모델 판정은 아님.</small>}
         <ThemedSelect label="요청 LOT" value={lotNo} onChange={value => { setLotNo(value); const next = lots.find(item => String(item.lot_no) === value); setStart(next?.start.replace(' ', 'T') ?? ''); setEnd(next?.start.replace(' ', 'T') ?? ''); }} disabled={pending} options={lots.map(item => ({ value: String(item.lot_no), label: `${item.lot_no} · ${item.grade || '강종 미기록'}` }))} />
         <ThemedSelect label="점검할 채널" value={channelId} onChange={setChannelId} disabled={pending} options={channels.map(item => ({ value: item.id, label: `${item.id} · ${item.unit || '단위 미확인'}` }))} />
         <div className="request-period-presets"><button type="button" className="subtle-button" disabled={pending} onClick={() => { const time = manualContext && lotNo === manualContext.lot_no ? manualContext.start : selectedLot?.start ?? ''; setStart(time); setEnd(time); }}>선택 시각</button><button type="button" className="subtle-button" disabled={pending || !selectedLot} onClick={() => { if (selectedLot) { setStart(selectedLot.start); setEnd(selectedLot.end); } }}>LOT 전체</button></div>
