@@ -1,6 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeZoneId, summarizeZoneAttention, zoneViewAfterClick, placeAttentionBox } from '../src/components/zone-attention.ts'
+import { normalizeZoneId, summarizeZoneAttention, summarizeMeasurementAttention, measurementGroupId, zoneViewAfterClick, placeAttentionBox } from '../src/components/zone-attention.ts'
+
+test('CP-only candidates highlight the physical Z4 housing without alarming its TC/OP measurements', () => {
+  const candidates = [{ zone_id: 'Z4', channel_id: 'CP-Z4', acknowledged: false }, { zone_id: 'Z4M', channel_id: 'CP-Z4M', acknowledged: true }]
+  assert.deepEqual(summarizeZoneAttention(candidates), { Z4: { count: 2, unacknowledged: 1 } })
+  assert.deepEqual(summarizeMeasurementAttention(candidates), { CP: { count: 2, unacknowledged: 1 } })
+})
+
+test('TC/OP and CP counts, candidate routing and completion remain independent within Z4', () => {
+  const candidates = [
+    { zone_id: 'Z4', channel_id: 'TC-Z4', acknowledged: false },
+    { zone_id: 'Z4', channel_id: 'OP-Z4', acknowledged: true },
+    { zone_id: 'Z4', channel_id: 'CP-Z4', acknowledged: false },
+    { zone_id: 'Z4', channel_id: 'CP-Z4M', acknowledged: false, resolved: true },
+  ]
+  assert.deepEqual(summarizeMeasurementAttention(candidates), { Z4: { count: 2, unacknowledged: 1 }, CP: { count: 1, unacknowledged: 1 } })
+  assert.deepEqual(candidates.filter(row => measurementGroupId(row) === 'Z4').map(row => row.channel_id), ['TC-Z4', 'OP-Z4'])
+  const cpCompleted = candidates.map(row => row.channel_id.startsWith('CP-') ? { ...row, resolved: true } : row)
+  assert.deepEqual(summarizeMeasurementAttention(cpCompleted), { Z4: { count: 2, unacknowledged: 1 } })
+  const temperatureCompleted = candidates.map(row => !row.channel_id.startsWith('CP-') ? { ...row, resolved: true } : row)
+  assert.deepEqual(summarizeMeasurementAttention(temperatureCompleted), { CP: { count: 1, unacknowledged: 1 } })
+  assert.equal(summarizeZoneAttention(temperatureCompleted).Z4.count, 1)
+})
 
 test('acknowledging one candidate leaves other candidates in that zone needing attention', () => {
   const before = summarizeZoneAttention([

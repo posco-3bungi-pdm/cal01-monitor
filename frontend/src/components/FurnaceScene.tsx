@@ -43,10 +43,11 @@ export type FurnaceSceneProps = {
   theme: Theme
   alertChannelIds?: string[]
   alertZoneIds?: string[]
-  zoneAttention?: ZoneAttentionMap
+  zoneAttention?: ZoneAttentionMap // Measurement groups; CP is independent of the Z4 TC/OP group.
   motionPlaying?: boolean
   overlayOpen?: boolean
   overlaySide?: 'left' | 'right' | null
+  overlayWidth?: number
   appearance: FurnaceAppearance
   showLabels?: boolean
   visibleLabelIds?: string[]
@@ -61,9 +62,13 @@ export type FurnaceSceneProps = {
   onToggleZoneReadouts?: () => void
   cpReadoutsSelected?: boolean
   onToggleCPReadouts?: () => void
+  onCPViewChange?: (active: boolean) => void
   readoutsDisabled?: boolean
   onCloseViewChange?: (close: boolean) => void
   onPreviewZone?: (zoneId: string) => void
+  onPreviewLeave?: () => void
+  onInspectZoneAlert?: (zoneId: string) => void
+  sceneFocus?: { zoneId: string; channelId?: string; mode?: 'work' | 'full'; serial: number } | null
 }
 
 type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
@@ -82,19 +87,19 @@ function ModelMaterial({ weathered = false, attention = false, ...props }: {
     emissiveIntensity={props.emissiveIntensity} /> : <meshStandardMaterial {...props} />
 }
 
-function SceneViewport({ overlayOpen, overlaySide }: { overlayOpen: boolean; overlaySide?: 'left' | 'right' | null }) {
+function SceneViewport({ overlayOpen, overlaySide, overlayWidth }: { overlayOpen: boolean; overlaySide?: 'left' | 'right' | null; overlayWidth?: number }) {
   const { camera, size, invalidate } = useThree()
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
     if (overlayOpen) {
       const mobile = size.width <= 760
       camera.setViewOffset(size.width, size.height,
-        mobile ? 0 : size.width * (overlaySide === 'left' ? -0.25 : 0.3), mobile ? size.height * 0.3 : 0,
+        mobile ? 0 : overlaySide === 'left' ? -size.width * .25 : overlayWidth !== undefined ? overlayWidth / 2 : size.width * .3, mobile ? size.height * 0.3 : 0,
         size.width, size.height)
     } else camera.clearViewOffset()
     camera.updateProjectionMatrix()
     invalidate()
-  }, [camera, size.width, size.height, overlayOpen, overlaySide, invalidate])
+  }, [camera, size.width, size.height, overlayOpen, overlaySide, overlayWidth, invalidate])
   return null
 }
 type StripMotion = RefObject<number>
@@ -534,7 +539,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     if (props.motionPlaying || props.simulationActive) motion.current += Math.min(delta, 0.05) * 1.6
     if (controls.current && size.width && size.height) {
       controls.current.getTarget(proximityTarget)
-      const close = camera.position.distanceTo(proximityTarget) < overviewDistance * 0.72
+      const close = currentView.current === 'work' || camera.position.distanceTo(proximityTarget) < overviewDistance * 0.72
       if (close !== wasClose.current) { wasClose.current = close; props.onCloseViewChange?.(close) }
     }
   }, -1)
@@ -587,6 +592,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
           [cpPosition[0], cpPosition[1], cpPosition[2] - 0.15], 1.2, camera.fov, shiftX, shiftY)
         : workViewForViewport(size.width, size.height, zoneId, camera.fov, shiftX, shiftY)
     currentView.current = mode
+    props.onCPViewChange?.(Boolean(cpPosition))
     onZoneViewChange(mode === 'work' ? zoneId : '')
     workZone.current = zoneId
     workPart.current = part?.id ?? null
@@ -602,8 +608,10 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     void controls.current.setLookAt(...fit.position, ...fit.target, animate).catch(() => {})
   }
   const selectZone = (zoneId: string) => {
-    const mode = zoneViewAfterClick(currentView.current, workZone.current, zoneId)
-    const inZone = channels.filter(channel => zoneForChannel(channel) === zoneId)
+    if (!editing && (props.zoneAttention?.[zoneId]?.count ?? 0) > 0 && props.onInspectZoneAlert) { props.onInspectZoneAlert(zoneId); return }
+    if (zoneId === 'CP') { props.onToggleCPReadouts?.(); return }
+    const mode = workChannel.current ? 'work' : zoneViewAfterClick(currentView.current, workZone.current, zoneId)
+    const inZone = channels.filter(channel => !channel.id.startsWith('CP-') && zoneForChannel(channel) === zoneId)
     const match = inZone.find(channel => alertedChannels.has(channel.id)) ?? inZone[0]
     if (mode === 'full') props.onClearSelection?.()
     else if (match) onSelectChannel(match.id)
@@ -614,8 +622,13 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     if (!gesture?.allowClick()) return
     const zone = FURNACE_ZONES.reduce((previous, item) =>
       Math.abs(item.x - event.point.x) < Math.abs(previous.x - event.point.x) ? item : previous)
-    const channel = channels.find(item => zoneForChannel(item) === zone.id)
+    const channel = channels.find(item => !item.id.startsWith('CP-') && zoneForChannel(item) === zone.id)
     if (channel) onSelectChannel(channel.id)
+  }
+  const previewNearest = (event: ThreeEvent<PointerEvent>) => {
+    if (props.editing || event.buttons) return
+    const zone = FURNACE_ZONES.reduce((nearest, item) => Math.abs(item.x - event.point.x) < Math.abs(nearest.x - event.point.x) ? item : nearest)
+    props.onPreviewZone?.(zone.id)
   }
   useEffect(() => () => ribbonGeometry.dispose(), [ribbonGeometry])
   useEffect(() => {
@@ -626,11 +639,14 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   }, [viewCommand])
   useEffect(() => {
     if (currentView.current !== 'custom') setView(currentView.current, workZone.current, false, workPart.current, workChannel.current)
-  }, [size.width, size.height, props.overlayOpen, props.overlaySide])
+  }, [size.width, size.height, props.overlayOpen, props.overlaySide, props.overlayWidth])
+  useEffect(() => {
+    if (props.sceneFocus) setView(props.sceneFocus.mode ?? 'work', props.sceneFocus.zoneId.replace(/^(OUT)[12]$/, '$1'), !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null, props.sceneFocus.channelId ?? null)
+  }, [props.sceneFocus?.serial])
   const shadowRevision = useMemo(() => [placements, showInterior, props.simulationActive, props.selectedPartId],
     [placements, showInterior, props.simulationActive, props.selectedPartId])
   return <AppearanceContext.Provider value={{ appearance, theme }}>
-    <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} />
+    <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} cpPosition={positions.get('CP-Z4')} />
     <ChannelLabelProjection bridge={channelLabelBridge} occlude={!props.showZoneReadouts && appearance === 'realistic' && !showInterior}
       occlusionRevision={shadowRevision} process={Boolean(props.showZoneReadouts)} />
     <KeyboardNavigation controls={controls} host={host} disabled={editing} onMove={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
@@ -638,12 +654,9 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     <ShadowPolicy realistic={appearance === 'realistic'} moving={editing} revision={shadowRevision} />
     <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
       minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.025} smoothTime={0.3} draggingSmoothTime={0.12}
-      onControlStart={() => controls.current?.stop()} onControl={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
-    <group name="CAL01_ROOT" onPointerMove={event => {
-      if (props.editing || event.buttons) return
-      const zone = FURNACE_ZONES.reduce((nearest, item) => Math.abs(item.x - event.point.x) < Math.abs(nearest.x - event.point.x) ? item : nearest)
-      props.onPreviewZone?.(zone.id)
-    }} userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
+      onControlStart={() => controls.current?.stop()} onControl={() => { currentView.current = 'custom' }} />
+    <group name="CAL01_ROOT" onPointerMove={previewNearest} onPointerOver={previewNearest}
+      onPointerOut={() => props.onPreviewLeave?.()} userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
       <FrameAndWalkways />
       {FURNACE_ZONES.map((zone) => <ZoneHousing key={zone.id} zone={zone}
         selected={selectedZone === zone.id} interior={showInterior} theme={theme}
@@ -776,7 +789,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     cursor: 'pointer', background: props.theme === 'dark' ? '#1c2c34ed' : '#f7faf7f2',
     color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 13, borderRadius: 14,
     border: 0, boxShadow: '0 4px 18px #0002' }
-  return <div ref={host} tabIndex={0} data-cleaning-motion={simulationActive ? 'running' : 'stopped'} data-strip-motion={motionPlaying ? 'running' : 'stopped'} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, 위 화살표 또는 E 상승, 아래 화살표 또는 Q 하강, Shift 더 빠르게."
+  return <div ref={host} tabIndex={0} onPointerLeave={props.onPreviewLeave} data-cleaning-motion={simulationActive ? 'running' : 'stopped'} data-strip-motion={motionPlaying ? 'running' : 'stopped'} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, 위 화살표 또는 E 상승, 아래 화살표 또는 Q 하강, Shift 더 빠르게."
     style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, outlineOffset: -2,
       background, overflow: 'hidden' }}>
     <GestureContext.Provider value={gesture}>
@@ -793,7 +806,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
           }}>
           <color attach="background" args={[background]} />
           <fog attach="fog" args={[background, 65, 130]} />
-          <SceneViewport overlayOpen={Boolean(props.overlayOpen)} overlaySide={props.overlaySide} />
+          <SceneViewport overlayOpen={Boolean(props.overlayOpen)} overlaySide={props.overlaySide} overlayWidth={props.overlayWidth} />
           {props.showDiagnostics && <SceneDiagnostics target={diagnosticsTarget} continuous={continuous} />}
           <Suspense fallback={null}><Facility props={{ ...props, motionPlaying, simulationActive }} viewCommand={viewCommand}
             animateHeat={animateHeat} zoneLabelBridge={zoneLabelBridge} channelLabelBridge={channelLabelBridge} host={host}
@@ -805,19 +818,20 @@ function FurnaceScene(props: FurnaceSceneProps) {
     <ZoneLabels zones={FURNACE_ZONES} target={zoneLabelTarget} bridge={zoneLabelBridge}
       theme={props.theme} selectedZone={zoomedZone} alertZones={alertZones} attention={props.zoneAttention ?? {}} gesture={gesture}
       channels={props.channels} values={props.values} visibleIds={props.visibleLabelIds} measuredAt={props.measuredAt}
-      showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} cpSelected={props.cpReadoutsSelected} onToggleCP={props.onToggleCPReadouts} disabled={props.readoutsDisabled} onPreviewZone={props.onPreviewZone}
-      readoutZones={props.showZoneReadouts ? processReadoutGroups(props.channels, props.visibleLabelIds, zoomedZone).map(group => group.zone) : []} />
+      showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} cpSelected={props.cpReadoutsSelected} onToggleCP={props.onToggleCPReadouts} disabled={props.readoutsDisabled} onPreviewZone={props.onPreviewZone} onPreviewLeave={props.onPreviewLeave}
+      onInspectZoneAlert={props.onInspectZoneAlert}
+      readoutZones={props.showZoneReadouts ? processReadoutGroups(props.channels, props.visibleLabelIds, zoomedZone).map(group => group.id) : []} />
     {props.showZoneReadouts && <ProcessReadouts target={zoneLabelTarget} bridge={channelLabelBridge}
       channels={props.channels} visibleIds={props.visibleLabelIds} values={props.values} selected={props.selectedChannel}
       theme={props.theme} measuredAt={props.measuredAt ?? null} attention={props.zoneAttention ?? {}}
-      gesture={gesture} onSelect={props.onSelectChannel} onPreviewZone={props.onPreviewZone} focusedZone={zoomedZone} />}
+      gesture={gesture} onSelect={id => { props.onSelectChannel(id); setViewCommand(previous => ({ mode: 'work', serial: previous.serial + 1 })) }} onPreviewZone={props.onPreviewZone} onPreviewLeave={props.onPreviewLeave} onInspectZoneAlert={props.onInspectZoneAlert} focusedZone={zoomedZone} positions={labelPositions} />}
     <ChannelLabels target={zoneLabelTarget} bridge={channelLabelBridge} channels={labelChannels}
       positions={labelPositions} values={props.values} selected={props.selectedChannel} theme={props.theme}
       measuredAt={props.measuredAt ?? null} gesture={gesture} onSelect={props.onSelectChannel} />
-    <div data-scene-ui className="scene-view-controls" style={{ position: 'absolute', top: 120, right: 14, display: 'flex', gap: 5, zIndex: 22 }}>
-      <button type="button" style={buttonStyle} onClick={() => setViewCommand(previous => ({ mode: 'work', serial: previous.serial + 1 }))}>
+    <div data-scene-ui className="scene-view-controls" style={{ position: 'absolute', top: 140, right: 14, display: 'flex', gap: 5, zIndex: 22 }}>
+      <button type="button" style={buttonStyle} data-hint="선택한 구역을 정면에서 보기" onClick={() => setViewCommand(previous => ({ mode: 'work', serial: previous.serial + 1 }))}>
         <Focus size={16} />작업 보기</button>
-      <button type="button" style={buttonStyle} onClick={() => setViewCommand(previous => ({ mode: 'full', serial: previous.serial + 1 }))}>
+      <button type="button" style={buttonStyle} data-hint="입측·출측 코일과 공정 전체 보기" onClick={() => { props.onClearSelection?.(); setViewCommand(previous => ({ mode: 'full', serial: previous.serial + 1 })) }}>
         <Maximize2 size={16} />전체 보기</button>
     </div>
     {props.showDiagnostics && <div ref={setDiagnosticsTarget} data-scene-diagnostics="true" role="status"

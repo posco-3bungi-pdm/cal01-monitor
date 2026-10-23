@@ -35,7 +35,7 @@ export default function FieldRequestsPanel({ user, selectedRequestId, focusRevis
       await api<{ request: FieldRequest }>(`/api/field-requests/${encodeURIComponent(request.id)}/transition`, { method: "POST", body: JSON.stringify({ action, revision: request.revision, result: drafts[request.id] ?? "" }) });
       setConflicts(previous => ({ ...previous, [request.id]: false }));
       if (action === 'complete') setDrafts(previous => { const next = { ...previous }; delete next[request.id]; return next; });
-      await queryClient.invalidateQueries({ queryKey: ["field-requests"] });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["field-requests"] }), queryClient.invalidateQueries({ queryKey: ["detection-pending"] }), queryClient.invalidateQueries({ queryKey: ["detection-candidates"] })]);
     } catch (error) {
       setErrors(previous => ({ ...previous, [request.id]: error instanceof Error ? error.message : "상태를 저장하지 못했습니다." }));
       if (error instanceof ApiError && error.status === 409) setConflicts(previous => ({ ...previous, [request.id]: true }));

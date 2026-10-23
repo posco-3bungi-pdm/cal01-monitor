@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { emptyInspection, inspectionState } from './components/inspection-state';
 import type { FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -16,7 +17,9 @@ import ChannelCharts from "./components/ChannelCharts";
 import RecordsPanel from "./components/RecordsPanel";
 import { GUIDE_STEPS } from "./guide-data";
 import DetectionPanel from "./components/DetectionPanel";
-import EquipmentAlert from "./components/EquipmentAlert";
+import PendingAttention from "./components/PendingAttention";
+import IncidentDetails from "./components/IncidentDetails";
+import { outstandingCandidates, candidatesInLot, advanceReplayAttention, reachedCandidates } from "./components/attention-state";
 import RequestDialog from "./components/RequestDialog";
 import TeamNotifications from "./components/TeamNotifications";
 import FieldRequestsPanel from "./components/FieldRequestsPanel";
@@ -28,7 +31,8 @@ import { PART_CATALOG } from "./components/part-catalog";
 import ModelSelectionPanel from "./components/ModelSelectionPanel";
 import type { AnalysisModel } from "./components/ModelSelectionPanel";
 import ThemedSelect from "./components/ThemedSelect";
-import { summarizeZoneAttention } from "./components/zone-attention";
+import { measurementGroupId, summarizeMeasurementAttention } from "./components/zone-attention";
+import CPInfo from './components/CPInfo';
 import ProcessGuide from "./components/ProcessGuide";
 import ResponseGuide from "./components/ResponseGuide";
 import { sceneChannelIds, toggleSceneLabelGroup } from "./components/scene-label-groups";
@@ -44,7 +48,7 @@ import { measurementName } from "./components/process-readouts";
 const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
 type Message = { kind: "success" | "error" | "info"; text: string };
-type DrawerName = "channels" | "analysis" | "requests" | "models" | "response" | null;
+type DrawerName = "channels" | "analysis" | "requests" | "models" | "response" | "incident" | null;
 type Appearance = "hologram" | "realistic";
 type GuideContext = {
   datasetId: string; lotNo: string; selectedChannel: string; visibleIds: string[];
@@ -129,11 +133,17 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const fieldTeam = /field|현장/i.test(user.team);
   const [section, setSection] = useState<"equipment" | "channels">("equipment");
   const [drawer, setDrawer] = useState<DrawerName>(null);
+  const [incidentOrigin, setIncidentOrigin] = useState<Exclude<DrawerName, null | 'incident'>>('analysis');
+  const [drawerWidths, setDrawerWidths] = useState<Record<string, number>>({});
+  const reportDrawerWidth = useCallback((name: string, width: number) => {
+    setDrawerWidths(previous => previous[name] === width ? previous : { ...previous, [name]: width });
+  }, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dataMode, setDataMode] = useState<'history' | 'live'>('history');
   const history = dataMode === 'history';
   const [historySearchOpen, setHistorySearchOpen] = useState(false);
   const [sceneClose, setSceneClose] = useState(false);
+  const [replayAttention, setReplayAttention] = useState({ context: '', through: Number.NaN });
   const [datasetId, setDatasetId] = useState("");
   const [lotNo, setLotNo] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("TC-Z3");
@@ -151,20 +161,36 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [logoutPending, setLogoutPending] = useState(false);
   const [guideIndex, setGuideIndex] = useState<number | null>(null);
   const [motionPlaying, setMotionPlaying] = useState(false);
-  const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [previewZone, setPreviewZone] = useState<string | null>(null);
+  const [inspection, inspect] = useReducer(inspectionState, emptyInspection);
+  const inspectorOpen = inspection.pinned, previewZone = inspection.preview;
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keepReadingPreview = useCallback(() => {
+    if (previewTimer.current !== null) clearTimeout(previewTimer.current);
+    previewTimer.current = null;
+  }, []);
+  const resetReadingInspection = useCallback(() => { keepReadingPreview(); inspect({ type: 'clear' }); }, [keepReadingPreview]);
+  const closeReadingInspection = useCallback(() => { keepReadingPreview(); inspect({ type: 'dismiss' }); }, [keepReadingPreview]);
+  const leaveReadingPreview = useCallback(() => {
+    keepReadingPreview();
+    // Allow the pointer to cross the small gap into the reading panel.
+    previewTimer.current = setTimeout(() => { previewTimer.current = null; inspect({ type: 'leave' }); }, 180);
+  }, [keepReadingPreview]);
+  useEffect(() => () => keepReadingPreview(), [keepReadingPreview]);
   const [importOpen, setImportOpen] = useState(false);
   const [sceneLabels, setSceneLabels] = useState<SceneLabelState>({ group: 'all', shown: true });
   const showLabels = history && sceneLabels.shown;
   const [sceneToolsOpen, setSceneToolsOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [temperatureColors, setTemperatureColors] = useState(false);
-  const [alertExpanded, setAlertExpanded] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [openedCandidate, setOpenedCandidate] = useState<DetectionCandidate | null>(null);
+  const [sceneFocus, setSceneFocus] = useState<{ zoneId: string; channelId?: string; mode?: 'work' | 'full'; serial: number } | null>(null);
+  const [cpViewActive, setCpViewActive] = useState(false);
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
   const [analysisModel, setAnalysisModel] = useState<AnalysisModel>("zscore");
   const [runChoice, setRunChoice] = useState<{ context: string; id: string } | null>(null);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
-  const [bannerCandidateId, setBannerCandidateId] = useState<string | null>(null);
+  const [, setBannerCandidateId] = useState<string | null>(null);
   const [pendingFocus, setPendingFocus] = useState<DetectionCandidate | null>(null);
   const [analysisRunning, setAnalysisRunning] = useState(false);
   const [analysisError, setAnalysisError] = useState<unknown>(null);
@@ -224,18 +250,27 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     refetchInterval: 5000,
   });
   const candidates = candidatesQuery.data?.candidates ?? [];
-  const focusedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId);
-  const alertCandidate = candidates.find(candidate => candidate.id === bannerCandidateId)
-    ?? focusedCandidate ?? candidates.find(candidate => !candidate.acknowledged) ?? candidates[0];
-  const visibleCandidates = useMemo(() => !history || analysisModel === "none" ? [] : playback.engaged
-    ? candidates.filter(candidate => playback.frame && timeMs(candidate.start) <= playback.position && timeMs(candidate.end) >= playback.position)
-    : candidates, [history, analysisModel, candidates, playback.engaged, playback.position, playback.frame]);
+  const pendingQuery = useQuery({ queryKey: ["detection-pending"], queryFn: ({ signal }) => api<{ candidates: DetectionCandidate[]; count: number; truncated: boolean }>("/api/detection/pending", { signal }), refetchInterval: 5000 });
+  const pendingCandidates = useMemo(() => outstandingCandidates(pendingQuery.data?.candidates ?? candidates), [pendingQuery.data, candidates]);
+  const pendingInLot = useMemo(() => candidatesInLot(pendingCandidates, datasetId, lotNo), [pendingCandidates, datasetId, lotNo]);
+  // A LOT switch renders once before its cursor-reset effect. Do not expose
+  // the next LOT's future events using the previous LOT's clock.
+  const replayNow = history && lot ? timeMs(firstLotKey.current === analysisContext && cursor ? cursor : lot.start) : Number.NaN;
+  const reachedThrough = advanceReplayAttention(replayAttention, analysisContext, replayNow).through;
+  useEffect(() => {
+    if (Number.isFinite(replayNow) && guideIndex === null) {
+      setReplayAttention(previous => advanceReplayAttention(previous, analysisContext, replayNow));
+    }
+  }, [analysisContext, replayNow, guideIndex]);
+  const focusedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId)
+    ?? pendingCandidates.find(candidate => candidate.id === selectedCandidateId)
+    ?? (openedCandidate?.id === selectedCandidateId ? openedCandidate : undefined);
+  const visibleCandidates = useMemo(() => history ? reachedCandidates(pendingInLot, reachedThrough) : [], [history, pendingInLot, reachedThrough]);
   const alertChannelKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.channel_id))].join(",");
   const alertZoneKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.zone_id))].join(",");
   const alertChannelIds = useMemo(() => alertChannelKey ? alertChannelKey.split(",") : [], [alertChannelKey]);
   const alertZoneIds = useMemo(() => alertZoneKey ? alertZoneKey.split(",") : [], [alertZoneKey]);
-  const zoneAttention = useMemo(() => guideStep ? {} : summarizeZoneAttention(visibleCandidates), [visibleCandidates, guideStep]);
-  const replayAlert = !history || analysisModel === "none" ? undefined : playback.engaged ? visibleCandidates[0] : alertCandidate;
+  const zoneAttention = useMemo(() => guideStep ? {} : summarizeMeasurementAttention(visibleCandidates), [visibleCandidates, guideStep]);
   const staticCursor = playback.engaged ? null : cursor;
   const frameQuery = useQuery({
     queryKey: ["frame", datasetId, lotNo, staticCursor], enabled: history && !!datasetId && !!lot && !!staticCursor,
@@ -265,10 +300,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const groupedInspector = inspectionChannels.length > 1;
   const previewSceneZone = useCallback((zoneId: string) => {
     // Hover only previews readings. It never changes the camera, graph selection, or a draft.
-    if (!history || editing || guideIndex !== null || drawer || sidebarOpen || sceneToolsOpen || selectedPartId
+    if (inspectorOpen || !history || editing || guideIndex !== null || drawer || sidebarOpen || sceneToolsOpen || selectedPartId
       || importOpen || historySearchOpen || requestCandidate || manualRequestOpen) return;
-    setPreviewZone(previous => previous === zoneId ? previous : zoneId);
-  }, [history, editing, guideIndex, drawer, sidebarOpen, sceneToolsOpen, selectedPartId, importOpen, historySearchOpen, requestCandidate, manualRequestOpen]);
+    keepReadingPreview();
+    inspect({ type: 'enter', zone: zoneId });
+  }, [history, editing, guideIndex, drawer, sidebarOpen, sceneToolsOpen, selectedPartId, importOpen, historySearchOpen, requestCandidate, manualRequestOpen, inspectorOpen, selectedChannel, keepReadingPreview]);
   const frameTime = playback.engaged ? cursor : frameQuery.data?.anchor_time ?? cursor;
   const measuredAt = !history ? null : playback.engaged ? playback.frame?.time ?? null : frameQuery.data?.channels[0]?.measured_at ?? null;
   const placements = draftPlacements ?? layoutQuery.data?.placements ?? [];
@@ -291,7 +327,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       setSelectedCandidateId(null);
       setBannerCandidateId(null);
       setAnalysisError(null);
-      setInspectorOpen(false); setPreviewZone(null);
+      resetReadingInspection();
       setSelectedPartId(null);
     }
   }, [datasetId, lot]);
@@ -332,7 +368,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       else if (sidebarOpen) setSidebarOpen(false);
       else if (drawer) setDrawer(null);
       else if (sceneToolsOpen) { setSceneToolsOpen(false); setShowDiagnostics(false); }
-      else { setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); }
+      else { closeReadingInspection(); setSelectedPartId(null); }
     };
     window.addEventListener("keydown", closeOverlay);
     return () => window.removeEventListener("keydown", closeOverlay);
@@ -350,12 +386,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       const target = event.target;
       if (!(target instanceof Element) || !root.contains(target) || editing || document.querySelector('dialog[open]')) return;
       // Reading, scrolling, editing and interacting with the current panel must not dismiss it.
-      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center, .zone-navigation, .scene-data-control')) return;
+      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center, .zone-navigation, .scene-data-control, .pending-alert-banner')) return;
       if (root.querySelector('.workspace-drawer:not([hidden]) [data-preserve-outside="true"]')) return;
       // The process guide stays open while the learner examines its related 3D process.
       if (guideIndex !== null && target.closest('canvas, [data-scene-ui], [data-channel-readout]')) return;
       if (guideIndex !== null) closeGuide(false);
-      setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
+      setDrawer(null); setSidebarOpen(false); resetReadingInspection(); setSelectedPartId(null);
       setSceneToolsOpen(false);
       setShowDiagnostics(false);
     };
@@ -372,6 +408,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   function focusCandidate(candidate: DetectionCandidate, scroll = true) {
     if (guideIndex !== null) { setMessage({ kind: "info", text: "가이드를 종료한 뒤 실제 분석 후보를 열어 주세요." }); return; }
     if (editing) { setMessage({ kind: "info", text: "표시점 편집을 저장하거나 취소한 뒤 후보를 열어 주세요." }); return; }
+    if (candidate.id !== selectedCandidateId && workspaceRoot.current?.querySelector('[data-preserve-outside="true"]')) { setMessage({ kind: "info", text: "작성 중인 내용을 저장하거나 취소한 뒤 다른 후보를 여십시오." }); return; }
+    setOpenedCandidate(candidate);
     playback.clear();
     if (!lot || candidate.dataset_id !== datasetId || String(candidate.lot_no) !== lotNo) {
       setRunChoice({ context: `${candidate.dataset_id}:${candidate.lot_no}`, id: candidate.run_id });
@@ -388,23 +426,27 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     const padding = Math.max(30_000, (to - from) * 0.3);
     setView({ start: timeIso(Math.max(timeMs(lot.start), from - padding)), end: timeIso(Math.min(timeMs(lot.end), to + padding)) });
     setCursor(candidate.peak_at);
-    if (scroll) goToSection("channels");
+    if (scroll) {
+      setVisibleIds([candidate.channel_id]);
+      setSceneFocus(previous => ({ zoneId: candidate.zone_id, channelId: candidate.channel_id.startsWith('CP-') ? 'CP-Z4' : undefined, serial: (previous?.serial ?? 0) + 1 }));
+      openDrawer('incident', false);
+    }
   }
 
   const selectSceneChannel = useCallback((id: string, keepSettings = false) => {
     selectChannel(id);
-    setPreviewZone(null); setInspectorOpen(true);
+    keepReadingPreview(); inspect({ type: 'pin' });
     setSelectedPartId(null);
-    setDrawer(null); setSidebarOpen(false); setAlertExpanded(false);
+    setDrawer(null); setSidebarOpen(false);
     if (!keepSettings) setSceneToolsOpen(false);
     setShowDiagnostics(false);
-  }, [selectChannel]);
+  }, [selectChannel, keepReadingPreview]);
   const clearSceneSelection = useCallback(() => {
-    setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null);
-  }, []);
+    resetReadingInspection(); setSelectedPartId(null);
+  }, [resetReadingInspection]);
   const selectPart = useCallback((id: string, keepSettings = false) => {
-    setSelectedPartId(id); setInspectorOpen(false); setPreviewZone(null); setDrawer(null); setSidebarOpen(false); setAlertExpanded(false); if (!keepSettings) setSceneToolsOpen(false); setShowDiagnostics(false);
-  }, []);
+    setSelectedPartId(id); resetReadingInspection(); setDrawer(null); setSidebarOpen(false); if (!keepSettings) setSceneToolsOpen(false); setShowDiagnostics(false);
+  }, [resetReadingInspection]);
 
   function chooseTime(time: string) {
     playback.clear();
@@ -449,10 +491,29 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     setBannerCandidateId(candidate.id); setAcknowledging(candidate.id);
     try {
       await api(`/api/detection/candidates/${encodeURIComponent(candidate.id)}/acknowledge`, { method: "POST" });
-      await queryClient.invalidateQueries({ queryKey: ["detection-candidates"] });
-      setMessage({ kind: "success", text: "후보를 확인했습니다. 움직이는 강조만 멈추며 고장이나 해결 여부를 확정하지 않습니다." });
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ["detection-candidates"] }), queryClient.invalidateQueries({ queryKey: ["detection-pending"] })]);
+      setMessage({ kind: "success", text: "읽음 표시를 저장했습니다. 미조치 알림과 구역 강조는 조치 완료 전까지 유지합니다." });
     } catch (error) { setMessage({ kind: "error", text: error instanceof Error ? error.message : "확인 상태를 저장하지 못했습니다." }); }
     finally { setAcknowledging(null); }
+  }
+
+  async function resolveCandidate(candidate: DetectionCandidate, note: string) {
+    if (resolving) return;
+    setResolving(true);
+    try {
+      const result = await api<{ candidate: DetectionCandidate }>(`/api/detection/candidates/${encodeURIComponent(candidate.id)}/resolve`, { method: 'POST', body: JSON.stringify({ note }) });
+      setOpenedCandidate(result.candidate);
+      queryClient.setQueriesData<{ candidates: DetectionCandidate[] }>({ queryKey: ['detection-candidates'] }, previous => previous ? { ...previous, candidates: previous.candidates.map(item => item.id === candidate.id ? result.candidate : item) } : previous);
+      await Promise.all([queryClient.invalidateQueries({ queryKey: ['detection-pending'] }), queryClient.invalidateQueries({ queryKey: ['detection-candidates'] })]);
+      setMessage({ kind: 'success', text: '조치 기록을 저장했습니다. 완료 기록은 저장된 분석에서 다시 볼 수 있습니다.' });
+    } finally { setResolving(false); }
+  }
+
+  function incidentRange(mode: 'candidate' | 'context' | 'lot') {
+    if (!focusedCandidate || !lot) return;
+    if (mode === 'lot') { setView({ start: lot.start, end: lot.end }); return; }
+    const padding = mode === 'context' ? 300_000 : 30_000;
+    setView({ start: timeIso(Math.max(timeMs(lot.start), timeMs(focusedCandidate.start) - padding)), end: timeIso(Math.min(timeMs(lot.end), timeMs(focusedCandidate.end) + padding)) });
   }
 
   function openRequests(requestId?: string) {
@@ -463,7 +524,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   function dismissTransientPanels(keepSettings = false) {
     if (guideIndex !== null) closeGuide(false);
-    setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
+    setDrawer(null); setSidebarOpen(false); resetReadingInspection(); setSelectedPartId(null);
     if (!keepSettings) setSceneToolsOpen(false);
     setShowDiagnostics(false);
   }
@@ -478,9 +539,15 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   }
 
   function toggleCPInspector() {
-    const close = cpInspector;
+    const close = cpViewActive;
     dismissTransientPanels();
-    if (!close) selectSceneChannel('CP-Z4M');
+    setCpViewActive(!close);
+    if (close) {
+      setSceneFocus(previous => ({ zoneId: 'Z4', mode: 'full', serial: (previous?.serial ?? 0) + 1 }));
+    } else {
+      selectSceneChannel('CP-Z4');
+      setSceneFocus(previous => ({ zoneId: 'Z4', channelId: 'CP-Z4', serial: (previous?.serial ?? 0) + 1 }));
+    }
   }
 
   function changeDataMode(next: 'history' | 'live') {
@@ -513,6 +580,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
 
   function openDrawer(name: Exclude<DrawerName, null>, toggle = true) {
     const next = toggle && drawer === name ? null : name;
+    if (next === 'incident' && drawer !== 'incident') setIncidentOrigin(drawer ?? 'analysis');
     dismissTransientPanels();
     if (name !== 'requests') setDataMode('history');
     setDrawer(next);
@@ -520,7 +588,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   }
 
   function openResponseGuide(candidate?: DetectionCandidate) {
-    setResponseCandidate(candidate ?? focusedCandidate ?? replayAlert ?? null);
+    setResponseCandidate(candidate ?? focusedCandidate ?? visibleCandidates[0] ?? null);
     openDrawer("response", false);
   }
 
@@ -534,7 +602,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     };
     setGuideIndex(0);
     setDrawer(null);
-    setSidebarOpen(false); setInspectorOpen(false); setPreviewZone(null); setSelectedPartId(null); setAlertExpanded(false);
+    setSidebarOpen(false); resetReadingInspection(); setSelectedPartId(null);
     setSceneToolsOpen(false);
     setShowDiagnostics(false);
     setSection("equipment");
@@ -647,10 +715,18 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     else { dismissTransientPanels(); setSection("equipment"); }
   }
 
+  useEffect(() => {
+    const root = workspaceRoot.current, source = root?.querySelector<HTMLElement>('.scene-data-control');
+    if (!root || !source) return;
+    const update = () => root.style.setProperty('--source-card-bottom', `${source.getBoundingClientRect().bottom - root.getBoundingClientRect().top}px`);
+    const observer = new ResizeObserver(update); observer.observe(source); update();
+    return () => observer.disconnect();
+  }, [history, lot?.lot_no, lot?.grade]);
+
   const fatalAuth = [datasetsQuery.error, channelsQuery.error, lotsQuery.error, frameQuery.error, seriesQuery.error].some(error => error instanceof ApiError && error.status === 401);
   if (fatalAuth) return <div className="session-expired"><ShieldCheck size={36} /><h1>다시 로그인해 주세요.</h1><p>로그인이 만료됐습니다. 저장된 자료는 서버에 남아 있습니다.</p><button className="primary-button" onClick={() => { queryClient.clear(); onLogout(); }}>로그인 화면으로<ArrowRight size={16} /></button></div>;
 
-  return <div ref={workspaceRoot} data-scene-close={sceneClose} className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${guideStep ? "has-guide" : ""} ${history && analysisModel === "zscore" && alertCandidate && guideIndex === null ? "has-candidate" : ""}`}>
+  return <div ref={workspaceRoot} data-scene-close={sceneClose} className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${guideStep ? "has-guide" : ""} ${history && analysisModel === "zscore" && visibleCandidates.length > 0 && guideIndex === null ? "has-candidate" : ""}`}>
     <aside className="sidebar" aria-label="작업 메뉴" hidden={!sidebarOpen} onKeyDown={event => { if (event.key === "Escape") setSidebarOpen(false); }}>
       <div className="sidebar-brand"><Brand compact /><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
       <div className="sidebar-section-label">작업 화면</div>
@@ -684,11 +760,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       <header className="workspace-topbar">
         <div className="breadcrumb"><button className="icon-button" onClick={() => { const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next); }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
-          <button aria-label="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
-          <button aria-label="채널 그래프 열기" title="채널 그래프 열고 닫기" className={drawer === "channels" ? "active" : ""} aria-expanded={drawer === "channels"} onClick={() => openDrawer("channels")}><Activity size={15} /><span>그래프</span></button>
-          <button aria-label="예측 모델 선택" title={analysisModel === "zscore" ? "분석 모델 · Z-score" : "이상 후보 표시 꺼짐"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
-          <button aria-label="과거 LOT 이상 후보 열기" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{candidates.length > 0 && <small>{candidates.length}</small>}</button>
-          <button aria-label="팀 확인 요청함 열기" aria-expanded={drawer === "requests"} className={drawer === "requests" ? "active" : ""} onClick={() => openDrawer("requests")}><ClipboardList size={15} /><span>요청함</span></button>
+          <button aria-label="예측 모델 선택" data-hint="분석 모델 선택" title={analysisModel === "zscore" ? "분석 모델 · Z-score" : "추가 분석 꺼짐 · 미조치 알림 유지"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
+          <button aria-label="설비 전체 화면" data-hint="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
+          <button aria-label="채널 그래프 열기" data-hint="채널 그래프" title="채널 그래프 열고 닫기" className={drawer === "channels" ? "active" : ""} aria-expanded={drawer === "channels"} onClick={() => openDrawer("channels")}><Activity size={15} /><span>그래프</span></button>
+          <button aria-label="과거 LOT 이상 후보 열기" data-hint="저장된 분석 보기 · 배지는 재생 중 발생한 미조치 수" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{visibleCandidates.length > 0 && <small>{visibleCandidates.length}</small>}</button>
+          <button aria-label="팀 확인 요청함 열기" data-hint="팀 점검 요청" aria-expanded={drawer === "requests"} className={drawer === "requests" ? "active" : ""} onClick={() => openDrawer("requests")}><ClipboardList size={15} /><span>요청함</span></button>
         </nav>
         <div className="topbar-right"><FullscreenButton onError={text => setMessage({ kind: "error", text })} /><TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label="공정 읽기 열고 닫기" title="공정 읽기" className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>공정 읽기</span></button><ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} /></div>
       </header>
@@ -716,23 +792,18 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <ErrorMessage error={lotsQuery.error} retry={() => void lotsQuery.refetch()} />
         <ErrorMessage error={channelsQuery.error} retry={() => void channelsQuery.refetch()} />
         {!datasetsQuery.isPending && datasets.length === 0 && !datasetsQuery.error && <div className="panel no-data-panel"><Database size={30} /><h2>등록된 데이터가 없습니다.</h2><p>서버에 CSV를 등록하면 LOT와 채널값을 여기에서 확인할 수 있습니다.</p><button className="subtle-button" onClick={() => void datasetsQuery.refetch()}><RefreshCw size={14} />등록 상태 다시 확인</button></div>}
-        {replayAlert && guideIndex === null && <button className={`scene-alert-chip ${alertExpanded ? 'is-expanded' : ''}`} aria-label="현재 이상 후보 알림 열고 닫기" aria-expanded={alertExpanded} onClick={() => { const next = !alertExpanded; dismissTransientPanels(); setAlertExpanded(next); }}><AlertCircle size={18} /><span>{playback.engaged ? replayAlert.channel_id : `${candidates.length}개`} · 이상 후보</span><ChevronDown size={15} /></button>}
-        {replayAlert && guideIndex === null && alertExpanded && <><button className="scene-alert-close icon-button" aria-label="이상 후보 알림 접기" onClick={() => setAlertExpanded(false)}><X size={17} /></button><EquipmentAlert alert={{
-          id: replayAlert.id, equipment: "CAL01", zone: replayAlert.zone_id, channel: replayAlert.channel_id,
-          value: replayAlert.peak_value, unit: channels.find(item => item.id === replayAlert.channel_id)?.unit ?? "단위 미확인",
-          time: replayAlert.peak_at, reason: `과거 LOT ${lotNo} · |Z| > 3으로 찾은 후보`, severity: "candidate", acknowledged: replayAlert.acknowledged,
-        }} pending={acknowledging === replayAlert.id} onAcknowledge={() => void acknowledgeCandidate(replayAlert)} onFocus={() => focusCandidate(replayAlert)} onGuide={() => openResponseGuide(replayAlert)} /></>}
+        {history && guideIndex === null && <PendingAttention candidates={visibleCandidates} count={visibleCandidates.length} error={pendingQuery.error} onRetry={() => void pendingQuery.refetch()} onSelect={candidate => focusCandidate(candidate)} />}
         <section className="panel equipment-panel" aria-labelledby="equipment-heading">
           <div className="panel-heading scene-toolbar">
             <h2 id="equipment-heading" className="visually-hidden">연속 소둔로 CAL01</h2>
             <div className="segmented-control appearance-control" role="group" aria-label="설비 표현 방식">
-              <button aria-label="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
-              <button aria-label="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
+              <button aria-label="홀로그램 표현" data-hint="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
+              <button aria-label="금속 설비 표현" data-hint="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
             </div>
-            <button className="icon-button" aria-label="채널 측정값 표시" title="공정 위 전체 계측값 표시·숨기기" disabled={!history} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
+            <button className="icon-button" aria-label="채널 측정값 표시" data-hint="공정 계측 표시·숨기기" title="공정 위 전체 계측값 표시·숨기기" disabled={!history} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
             <div className="temperature-control"><button className="subtle-button temperature-toggle" aria-label="존 온도를 색으로 표시" aria-describedby="temperature-display-help" disabled={!history} aria-pressed={history && temperatureColors} onClick={() => sceneAction(() => setTemperatureColors(value => !value))}><Thermometer size={20} /><span>온도 색상</span></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip">TC 관측값 색상 · 설명용<br />실제 강판 표면온도·경보 등급 아님</span></div>
             <div className="scene-tools">
-              <button className="scene-tools-trigger icon-button" aria-label="화면 설정" title="화면 설정" aria-expanded={sceneToolsOpen} onClick={() => { const next = !sceneToolsOpen; dismissTransientPanels(); setSceneToolsOpen(next); }}><Settings2 size={21} /></button>
+              <button className="scene-tools-trigger icon-button" aria-label="화면 설정" data-hint="화면 설정" title="화면 설정" aria-expanded={sceneToolsOpen} onClick={() => { const next = !sceneToolsOpen; dismissTransientPanels(); setSceneToolsOpen(next); }}><Settings2 size={21} /></button>
               {sceneToolsOpen && <div className="scene-tools-menu" role="region" aria-label="화면 설정 항목">
                 <div className="scene-settings-heading"><strong>화면 설정</strong><button className="icon-button" aria-label="화면 설정 닫기" onClick={() => { setSceneToolsOpen(false); setShowDiagnostics(false); }}><X size={16} /></button></div>
                 <span className="settings-section-label">계측창 표시 · 같은 항목을 다시 누르면 숨김</span>
@@ -759,6 +830,10 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <div className="equipment-body">
             <div className="equipment-stage">
               {channels.length ? <Suspense fallback={<div className="scene-placeholder"><LoaderCircle className="spin" size={24} /><span>3D 설비를 불러오는 중</span></div>}><FurnaceScene
+                sceneFocus={sceneFocus} onInspectZoneAlert={groupId => {
+                  const candidate = visibleCandidates.find(item => measurementGroupId(item) === groupId);
+                  if (candidate) focusCandidate(candidate);
+                }}
                 channels={channels} selectedChannel={inspectorOpen || editing || guideStep ? selectedChannel : ""} onSelectChannel={selectSceneChannel}
                 values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined}
                 editing={editing} showInterior={showInterior} appearance={appearance} theme={theme}
@@ -767,16 +842,20 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 simulationActive={sceneMovement.cleaning}
                 overlayOpen={drawer !== null || sidebarOpen || importOpen || historySearchOpen || requestCandidate !== null || manualRequestOpen || guideStep !== null}
                 overlaySide={drawer ? "right" : guideStep || sidebarOpen ? "left" : null}
+                overlayWidth={drawer ? drawerWidths[drawer] : undefined}
                 showLabels={editing || !!guideStep} visibleLabelIds={editing || guideStep ? visibleIds : sceneLabelIds} showDiagnostics={showDiagnostics && sceneToolsOpen}
-                showZoneReadouts={showLabels && !editing && !guideStep} onPreviewZone={previewSceneZone} readoutsDisabled={!history} onCloseViewChange={setSceneClose}
-                cpReadoutsSelected={cpInspector} onToggleCPReadouts={toggleCPInspector}
+                showZoneReadouts={showLabels && !editing && !guideStep} onPreviewZone={previewSceneZone} onPreviewLeave={leaveReadingPreview} readoutsDisabled={!history} onCloseViewChange={setSceneClose}
+                cpReadoutsSelected={cpViewActive} onToggleCPReadouts={toggleCPInspector} onCPViewChange={setCpViewActive}
                 onToggleZoneReadouts={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}
                 measuredAt={measuredAt} temperatureColors={history && temperatureColors} onClearSelection={clearSceneSelection}
                 selectedPartId={selectedPartId} onSelectPart={selectPart}
               /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
             </div>
-            {showInspector && <aside className="channel-inspector" aria-label="선택한 채널 정보" data-preview-zone={previewZone ?? undefined}>
-              <div className="inspector-heading"><h3>{cpInspector ? 'CP 추가 계측' : groupedInspector ? `${inspectionChannel ? zoneForChannel(inspectionChannel) : ''} 계측` : inspectionId}</h3><span className="zone-badge">{inspectionChannel?.zone || "—"}</span><button className="icon-button" aria-label="채널 정보 닫기" onClick={() => { setInspectorOpen(false); setPreviewZone(null); }}><X size={18} /></button></div>
+            {showInspector && <aside className="channel-inspector" aria-label="선택한 채널 정보" data-preview-zone={previewZone ?? undefined} data-pinned={inspectorOpen}
+              onPointerEnter={keepReadingPreview} onPointerLeave={leaveReadingPreview} onFocus={keepReadingPreview}
+              onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) leaveReadingPreview(); }}>
+              <div className="inspector-heading"><h3>{cpInspector ? 'CP 계측' : groupedInspector ? `${inspectionChannel ? zoneForChannel(inspectionChannel) : ''} 계측` : inspectionId}</h3><span className="zone-badge">{inspectionChannel?.zone || "—"}</span><button className="icon-button" aria-label="채널 정보 닫기" onClick={closeReadingInspection}><X size={18} /></button></div>
+              {cpInspector && <CPInfo />}
               {groupedInspector ? <div className="cp-readings">{inspectionChannels.map(item => {
                 const id = item.id, observed = observationFor(id);
                 return <section key={id} className="cp-reading" aria-label={`${id} 관측값`}><h4>{cpInspector ? id : measurementName(id)}</h4><div className="main-reading"><ReadingValue channelId={id} value={observed?.value} unit={item.unit} /></div><small>{observed?.measured_at ? clockTime(observed.measured_at, true) : '관측값 없음'}</small></section>;
@@ -786,7 +865,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               <ErrorMessage error={frameQuery.error} retry={() => void frameQuery.refetch()} />
               <div className="inspector-actions">
                 <button className="inspector-graph-button" onClick={() => { selectChannel(inspectionId); if (groupedInspector) setVisibleIds(inspectionChannels.map(item => item.id)); goToSection("channels"); }} disabled={!lot}>{cpInspector ? 'CP 두 채널 그래프' : groupedInspector ? '구역 그래프 보기' : '그래프 보기'}<ArrowRight size={16} /></button>
-                <details className="channel-help"><summary>설명</summary><div><p>{inspectionChannel?.label ?? "설비의 표시점을 눌러 주세요."}</p>{inspectionId.startsWith('CP-') && <p>CP의 물리 단위는 미확인이다. 회색 e^-10은 10의 -10승을 곱하는 지수 표기이며 측정 단위가 아니다.</p>}{inspectionId === "CP-Z4" && <p>Z4의 CP 채널 표시 위치입니다. 실제 설치 좌표나 특정 가스 분석계·프로브와의 연결은 제공 자료로 확인되지 않았습니다.</p>}<p>값 아래 시각은 실제 기록 시각입니다. 위에서 고른 시각과 다를 수 있습니다.</p><p>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정", replay_record: "마지막 기록 표시 · 최대 30초", replay_gap: "최근 30초 안에 기록 없음 · 재생 표시를 비움" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</p></div></details>
+                <details className="channel-help"><summary>설명</summary><div><p>{inspectionChannel?.label ?? "설비의 표시점을 눌러 주세요."}</p>{inspectionId.startsWith('CP-') && <p>CP-Z4는 무차원이다. CP-Z4M의 회색 e⁻¹⁰은 10의 -10승을 곱하는 배율이며 별도 측정 단위가 아니다.</p>}{inspectionId === "CP-Z4" && <p>Z4의 CP 채널 표시 위치입니다. 실제 설치 좌표나 특정 가스 분석계·프로브와의 연결은 제공 자료로 확인되지 않았습니다.</p>}<p>값 아래 시각은 실제 기록 시각입니다. 위에서 고른 시각과 다를 수 있습니다.</p><p>{frameQuery.isFetching ? "불러오는 중" : frameValue ? ({ observed: "관측값 있음", missing: "관측값 없음", stale: "선택한 시각보다 오래된 값", time_threshold_unset: "관측 간격 기준 미설정", replay_record: "마지막 기록 표시 · 최대 30초", replay_gap: "최근 30초 안에 기록 없음 · 재생 표시를 비움" }[frameValue.quality_status] ?? "상태 확인 필요") : "아직 불러오지 않음"}</p></div></details>
               </div>
             </aside>}
             {selectedPart && <aside className="part-inspector" aria-label="선택한 부품 정보">
@@ -800,8 +879,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <ErrorMessage error={layoutQuery.error} retry={() => void layoutQuery.refetch()} />
           {editing && <div className="editing-instructions"><Move3D size={18} /><span>채널을 고르고 화살표로 옮긴 뒤 <strong>위치 저장</strong>을 누르세요.</span></div>}
         </section>
-        <WorkspaceDrawer open={drawer === "analysis"} title="과거 LOT의 이상 후보" name="analysis" onClose={() => setDrawer(null)}>
-        {analysisModel === "none" && <div className="analysis-rule"><p>이상 후보 표시를 껐습니다. 아래는 이전에 저장한 Z-score 분석입니다.</p><button className="text-button" onClick={() => setAnalysisModel("zscore")}>Z-score 표시 켜기</button></div>}
+        <WorkspaceDrawer open={drawer === "analysis"} title="과거 LOT의 이상 후보" name="analysis" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
+        {analysisModel === "none" && <div className="analysis-rule"><p>추가 분석을 껐습니다. 저장된 Z-score 분석과 미조치 알림은 계속 확인할 수 있습니다.</p><button className="text-button" onClick={() => setAnalysisModel("zscore")}>Z-score 분석 켜기</button></div>}
         <div className="analysis-channel-choice"><span>분석할 채널</span><div className="segmented-control"><button onClick={() => setChannelGroup("all")}>전체</button><button onClick={() => setChannelGroup("TC")}>TC</button><button onClick={() => setChannelGroup("OP")}>OP</button><button onClick={() => setChannelGroup("selected")}>선택한 채널만</button></div><p>{displayedChannels.map(item => item.id).join(" · ") || "선택한 채널 없음"}</p></div>
         {lot && <DetectionPanel runs={runs} run={chosenRun} candidates={candidates} selectedId={focusedCandidate?.id ?? null}
           selectedChannels={displayedChannels.map(item => item.id)} loading={runsQuery.isPending || (!!chosenRunId && candidatesQuery.isPending)} running={analysisRunning}
@@ -811,7 +890,15 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           onGuide={openResponseGuide}
           onAcknowledge={candidate => void acknowledgeCandidate(candidate)} acknowledging={acknowledging} />}
         </WorkspaceDrawer>
-        <WorkspaceDrawer open={drawer === "channels"} title="채널 그래프와 앞뒤 기록" name="channels" onClose={() => setDrawer(null)}>
+        <WorkspaceDrawer open={drawer === 'incident'} title="구역 이상 상세" name="incident" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth} onBack={() => openDrawer(incidentOrigin, false)}>
+          {focusedCandidate && view && <IncidentDetails key={focusedCandidate.id} candidate={focusedCandidate}
+            zoneCandidates={visibleCandidates.filter(item => measurementGroupId(item) === measurementGroupId(focusedCandidate))} channel={channels.find(item => item.id === focusedCandidate.channel_id)}
+            data={seriesQuery.data?.series.find(item => item.channel_id === focusedCandidate.channel_id)} view={view} loading={seriesQuery.isFetching} error={seriesQuery.error}
+            pending={resolving || acknowledging !== null} onSelect={item => focusCandidate(item)} onRead={() => void acknowledgeCandidate(focusedCandidate)}
+            onGuide={() => openResponseGuide(focusedCandidate)} onRequest={() => setRequestCandidate(focusedCandidate)} onOpenRequest={openRequests}
+            onResolve={note => resolveCandidate(focusedCandidate, note)} onRange={incidentRange} onCursor={chooseTime} />}
+        </WorkspaceDrawer>
+        <WorkspaceDrawer open={drawer === "channels"} title="채널 그래프와 앞뒤 기록" name="channels" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
         {focusedCandidate && <div className="focused-candidate-actions"><span>선택한 후보 · {focusedCandidate.channel_id} · {dateTime(focusedCandidate.start, true)}</span><button className="primary-button compact" onClick={() => setRequestCandidate(focusedCandidate)}>현장 확인 요청</button></div>}
         <section className="panel channel-selection-panel" aria-labelledby="channel-heading" ref={chartTarget}>
           <div className="channel-controls-heading">
@@ -843,14 +930,14 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <RecordsPanel datasetId={datasetId} view={view} />
         </> : lotsQuery.isFetching || datasetsQuery.isPending ? <div className="panel data-loading"><LoaderCircle size={20} className="spin" />관측 자료를 불러오는 중</div> : null}
         </WorkspaceDrawer>
-        <WorkspaceDrawer open={drawer === "requests"} title="팀 확인 요청" name="requests" onClose={() => setDrawer(null)}>
+        <WorkspaceDrawer open={drawer === "requests"} title="팀 확인 요청" name="requests" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
           <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenRequest={openRequestGraph} onCreate={beginManualRequest} canCreate={!!lot && !!datasetId && channels.length > 0} />
         </WorkspaceDrawer>
-        <WorkspaceDrawer open={drawer === "models"} title="분석 모델 선택" name="models" onClose={() => setDrawer(null)}>
+        <WorkspaceDrawer open={drawer === "models"} title="분석 모델 선택" name="models" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
           <ModelSelectionPanel selected={analysisModel} disabled={analysisRunning || editing || !!guideStep}
             onSelect={setAnalysisModel} onOpenAnalysis={() => openDrawer("analysis", false)} />
         </WorkspaceDrawer>
-        <WorkspaceDrawer open={drawer === "response"} title="알림 대응 가이드" name="response" onClose={() => setDrawer(null)}>
+        <WorkspaceDrawer open={drawer === "response"} title="알림 대응 가이드" name="response" onClose={() => setDrawer(null)} onWidthChange={reportDrawerWidth}>
           <ResponseGuide key={responseCandidate?.id ?? 'general'} candidate={responseCandidate} candidates={candidates} onOpenGraph={candidate => focusCandidate(candidate)} onRequest={setRequestCandidate} />
         </WorkspaceDrawer>
         <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>{history ? '과거 기록 · 원자료 시각 기준' : '실시간 · 측정 데이터 연결 전'}</span></footer>

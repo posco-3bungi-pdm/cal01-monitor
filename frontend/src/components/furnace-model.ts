@@ -181,7 +181,7 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
 }
 
 export const OVERVIEW_CAMERA = {
-  position: [14, 16, 42] as Position3,
+  position: [0, 8.5, 42] as Position3,
   target: [0, 6, 0] as Position3,
 }
 
@@ -208,8 +208,8 @@ function fitBounds(width: number, height: number, fov: number, shiftX: number, s
 }
 
 export function overviewForViewport(width: number, height: number, fov = 40, shiftX = 0, shiftY = 0) {
-  return fitBounds(width, height, fov, shiftX, shiftY, OVERVIEW_CAMERA.target, [14, 10, 42],
-    [[-19.2, -0.1, -5], [19.2, 12.6, 3.4]])
+  return fitBounds(width, height, fov, shiftX, shiftY, OVERVIEW_CAMERA.target, [0, 2.5, 42],
+    [[-20.5, -0.1, -5], [20.5, 12.8, 3.4]], 36)
 }
 
 export function workViewForViewport(width: number, height: number, zoneId = 'Z3', fov = 40, shiftX = 0, shiftY = 0) {

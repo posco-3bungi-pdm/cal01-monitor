@@ -1,0 +1,10 @@
+.cp-info { margin: 10px 0; font-size: 12px; line-height: 1.65; }
+.cp-info > summary { display: flex; align-items: center; gap: 5px; width: fit-content; color: var(--accent); cursor: pointer; list-style: none; }
+.cp-info > summary::-webkit-details-marker { display: none; }
+.cp-info > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.cp-info > div { padding: 12px; margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-alt); color: var(--text); }
+.cp-info p { margin: 8px 0; }
+.cp-info dl { margin: 10px 0; }
+.cp-info dt { font-weight: 600; }
+.cp-info dd { margin: 2px 0 8px; color: var(--muted); }
+.cp-info a { color: var(--accent); text-decoration: underline; }

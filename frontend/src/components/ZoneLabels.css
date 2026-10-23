@@ -106,5 +106,8 @@
 .zone-navigation .zone-cp-button,
 .zone-navigation.has-readouts .zone-cp-button { min-width: 43px; height: 34px; padding: 5px 9px; font-size: 13px; }
 .zone-navigation .zone-cp-button { align-items: center; }
+.zone-navigation button.zone-cp-button.is-alert { background: #542526; color: #ffe8e4; border-color: #f17368; }
+.zone-navigation[data-theme="light"] button.zone-cp-button.is-alert { background: #ffe7e2; color: #91281f; border-color: #d84c40; }
+.zone-navigation button.zone-cp-button.is-alert[aria-pressed="true"] { outline: 2px solid #ffb6a5; }
 .zone-navigation.has-readouts .zone-navigation-hint { text-align: center; }
 .zone-navigation-legend { display: none; }

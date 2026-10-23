@@ -31,14 +31,20 @@ export function numberText(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   if (value !== 0 && Math.abs(value) < 0.01) {
     const [coefficient, exponent] = value.toExponential(3).split("e");
-    return `${coefficient}e^${Number(exponent)}`;
+    return `${coefficient}e${superscript(String(Number(exponent)))}`;
   }
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+export function superscript(value: string) {
+  const glyphs: Record<string, string> = { '-': '⁻', '+': '⁺', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' }
+  return [...value].map(char => glyphs[char] ?? char).join('')
 }
 
 export function readingParts(channelId: string, value: number | null | undefined) {
   const text = numberText(value)
   if (channelId !== 'CP-Z4M' || value == null || !Number.isFinite(value)) return { value: text, exponent: null }
-  const [coefficient, exponent] = text.split('e^')
-  return { value: coefficient, exponent: exponent === undefined ? value === 0 ? 'e^-10' : null : `e^${exponent}` }
+  if (value === 0) return { value: '0', exponent: 'e⁻¹⁰' }
+  const [coefficient, exponent] = value.toExponential(3).split('e')
+  return { value: coefficient, exponent: `e${superscript(String(Number(exponent)))}` }
 }
