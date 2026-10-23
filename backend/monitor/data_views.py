@@ -2,7 +2,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core import signing
-from django.db.models import Q
+from django.db.models import Max, Min, Q, Sum
 from rest_framework.decorators import api_view, parser_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser
@@ -66,9 +66,17 @@ def import_dataset(request):
 @api_view(["GET"])
 def playback_frames(request):
     dataset = selected_dataset(request)
-    lot = selected_lot(request, dataset)
-    start = recorded_time(request.query_params.get("start", lot.start), "start")
-    end = recorded_time(request.query_params.get("end", lot.end), "end")
+    if "lot" in request.query_params:
+        lot = selected_lot(request, dataset)
+        lot_no, scope_start, scope_end, scope_count = lot.lot_no, lot.start, lot.end, lot.count
+    else:
+        bounds = dataset.lots.aggregate(start=Min("start"), end=Max("end"), count=Sum("count"))
+        if not bounds["start"] or not bounds["end"] or not bounds["count"]:
+            raise ValidationError({"dataset": "재생할 관측값이 없습니다."})
+        lot_no = None
+        scope_start, scope_end, scope_count = bounds["start"], bounds["end"], bounds["count"]
+    start = recorded_time(request.query_params.get("start", scope_start), "start")
+    end = recorded_time(request.query_params.get("end", scope_end), "end")
     if start > end:
         raise ValidationError({"end": "끝 시각은 시작 시각 이후여야 합니다."})
     try:
@@ -77,10 +85,12 @@ def playback_frames(request):
         raise ValidationError({"limit": "1~2000 사이 정수로 입력해 주세요."}) from exc
     if not 1 <= limit <= 2000:
         raise ValidationError({"limit": "1~2000 사이 정수로 입력해 주세요."})
-    context = {"dataset": str(dataset.id), "lot": lot.lot_no, "start": start, "end": end}
+    context = {"dataset": str(dataset.id), "lot": lot_no, "start": start, "end": end}
     rows = MeasurementFrame.objects.filter(
-        dataset=dataset, lot_no=lot.lot_no, recorded_at__gte=start, recorded_at__lte=end,
+        dataset=dataset, recorded_at__gte=start, recorded_at__lte=end,
     )
+    if lot_no is not None:
+        rows = rows.filter(lot_no=lot_no)
     cursor = request.query_params.get("cursor")
     if cursor:
         try:
@@ -98,7 +108,7 @@ def playback_frames(request):
             raise ValidationError({"cursor": "재생 위치가 만료되었거나 데이터·LOT·기간이 다릅니다. 다시 시작해 주세요."}) from exc
         rows = rows.filter(Q(recorded_at__gt=after_time) | Q(recorded_at=after_time, source_row__gt=after_row))
     page = list(rows.order_by("recorded_at", "source_row").values(
-        "source_row", "source_record_id", "recorded_at", "recorded_at_raw", "values", "annotations",
+        "source_row", "source_record_id", "lot_no", "grade", "recorded_at", "recorded_at_raw", "values", "annotations",
     )[:limit + 1])
     has_more = len(page) > limit
     page = page[:limit]
@@ -111,12 +121,13 @@ def playback_frames(request):
     gap = number_or_none(dataset.metadata.get("plot_max_gap_seconds"))
     stale = number_or_none(dataset.metadata.get("stale_after_seconds"))
     return Response({
-        **TIME_BASIS, "dataset_id": str(dataset.id), "lot_no": lot.lot_no,
-        "start": start, "end": end, "lot_start": lot.start, "lot_end": lot.end,
-        "lot_count": lot.count, "plot_max_gap_seconds": gap if gap and gap > 0 else 60,
+        **TIME_BASIS, "dataset_id": str(dataset.id), "lot_no": lot_no,
+        "start": start, "end": end, "lot_start": scope_start, "lot_end": scope_end,
+        "lot_count": scope_count, "plot_max_gap_seconds": gap if gap and gap > 0 else 60,
         "stale_after_seconds": stale if stale and stale > 0 else None,
         "frames": [{
             "source_row": row["source_row"], "source_record_id": row["source_record_id"],
+            "lot_no": row["lot_no"], "grade": row["grade"],
             "time": row["recorded_at"], "recorded_at_raw": row["recorded_at_raw"],
             "values": row["values"], "annotations": row["annotations"],
         } for row in page],

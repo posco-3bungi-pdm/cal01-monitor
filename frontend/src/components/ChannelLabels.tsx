@@ -121,6 +121,7 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
     camera.getWorldPosition(origin)
     const visibleAnchors: LabelAnchor[] = []
     for (const [id, { node, position, offset, selected }] of bridge.current.entries) {
+      if (!node.isConnected) continue
       worldPoint.set(...position)
       point.copy(worldPoint).applyMatrix4(matrix)
       const x = (point.x + 1) * size.width / 2
@@ -153,7 +154,8 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
     for (const anchor of visibleAnchors) {
       const target = placements.get(anchor.id)
       if (target) {
-        const { node } = bridge.current.entries.get(anchor.id)!
+        const node = bridge.current.entries.get(anchor.id)?.node
+        if (!node?.isConnected) continue
         node.style.visibility = 'visible'
         if (process) {
           const next = followAnchoredReadout(processDisplay.current.get(anchor.id), anchor.x, anchor.y, target, delta, reducedMotion.matches)
@@ -163,25 +165,27 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
           processTargets.current.set(anchor.id, { x: anchor.x, y: anchor.y, box: target })
           processDisplay.current.set(anchor.id, { x: anchor.x, y: anchor.y, box })
           node.style.transform = `translate3d(${box.x.toFixed(2)}px,${box.y.toFixed(2)}px,0)`
-          const button = node.querySelector('button')!
+          const button = node.querySelector('button')
+          if (!button) continue
           button.style.left = '0px'; button.style.top = '0px'
           const edgeX = anchor.x < box.x + box.width / 2 ? box.x : box.x + box.width
           const edgeY = Math.max(box.y + 16, Math.min(box.y + box.height - 16, anchor.y))
           const leader = bridge.current.leaders.get(anchor.id)
           if (leader) {
-            leader.querySelector('polyline')!.setAttribute('points', `${anchor.x},${anchor.y} ${edgeX + (edgeX === box.x ? -14 : 14)},${edgeY} ${edgeX},${edgeY}`)
-            const circle = leader.querySelector('circle')!
-            circle.setAttribute('cx', String(anchor.x)); circle.setAttribute('cy', String(anchor.y))
+            leader.querySelector('polyline')?.setAttribute('points', `${anchor.x},${anchor.y} ${edgeX + (edgeX === box.x ? -14 : 14)},${edgeY} ${edgeX},${edgeY}`)
+            const circle = leader.querySelector('circle')
+            circle?.setAttribute('cx', String(anchor.x)); circle?.setAttribute('cy', String(anchor.y))
           }
           continue
         }
         const box = target
         node.style.transform = `translate3d(${anchor.x.toFixed(2)}px,${anchor.y.toFixed(2)}px,0)`
         const dx = box.x - anchor.x, dy = box.y - anchor.y
-        const button = node.querySelector('button')!
+        const button = node.querySelector('button')
+        if (!button) continue
         button.style.left = `${dx}px`
         button.style.top = `${dy}px`
-        node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + (process ? PROCESS_READOUT_WIDTH : READOUT_WIDTH) : dx},${dy + 28}`)
+        node.querySelector('polyline')?.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + (process ? PROCESS_READOUT_WIDTH : READOUT_WIDTH) : dx},${dy + 28}`)
       } else if (process) {
         const leader = bridge.current.leaders.get(anchor.id)
         if (leader) leader.style.display = 'none'

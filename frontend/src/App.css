@@ -1006,3 +1006,13 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
   .immersive .workspace-drawer.drawer-incident,
   .immersive:has(.zone-navigation.has-readouts) .workspace-drawer.drawer-incident { bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px); }
 }
+
+/* CSV arrival simulation shares the existing scene controls. */
+.simulation-source-heading,.simulation-chart-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.simulation-source-heading strong{display:flex;align-items:center;gap:8px}
+.simulation-dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.simulation-dot.running{background:#a8ed65;box-shadow:0 0 10px #a8ed6570}
+.live-source-status .themed-select{width:100%}
+.simulation-control progress{width:100%;height:6px;accent-color:var(--accent)}
+.simulation-trends>p{font-size:12px;line-height:1.6;margin:12px 0}
+.simulation-chart-heading{margin:14px 0}
