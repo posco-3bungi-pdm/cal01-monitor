@@ -13,7 +13,7 @@ import {
   workViewForViewport, partViewForViewport, housingPanels, COIL_RADIUS, COIL_CENTRE_Y,
 } from './furnace-model'
 import type { FurnaceZone, Position3 } from './furnace-model'
-import { HeatHaze, HeatHazeLayer, HologramMaterial, HologramThemeContext, IndustrialMaterial, SteelSurfaceMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
+import { HeatHaze, HeatHazeLayer, HologramMaterial, HologramThemeContext, PartFocusContext, IndustrialMaterial, SteelSurfaceMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
 import ProcessEquipment from './ProcessEquipment'
 import HeatingEquipment from './HeatingEquipment'
 import { PART_CATALOG } from './part-catalog'
@@ -643,9 +643,13 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   useEffect(() => {
     if (props.sceneFocus) setView(props.sceneFocus.mode ?? 'work', props.sceneFocus.zoneId.replace(/^(OUT)[12]$/, '$1'), !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null, props.sceneFocus.channelId ?? null)
   }, [props.sceneFocus?.serial])
+  useEffect(() => {
+    const part = PART_CATALOG.find(item => item.id === props.selectedPartId)
+    if (part) setView('work', part.zoneId, !window.matchMedia('(prefers-reduced-motion: reduce)').matches, part.id, null)
+  }, [props.selectedPartId])
   const shadowRevision = useMemo(() => [placements, showInterior, props.simulationActive, props.selectedPartId],
     [placements, showInterior, props.simulationActive, props.selectedPartId])
-  return <AppearanceContext.Provider value={{ appearance, theme }}><HologramThemeContext.Provider value={theme}>
+  return <AppearanceContext.Provider value={{ appearance, theme }}><HologramThemeContext.Provider value={theme}><PartFocusContext.Provider value={Boolean(props.selectedPartId)}>
     <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} cpPosition={positions.get('CP-Z4')} />
     <ChannelLabelProjection bridge={channelLabelBridge} occlude={!props.showZoneReadouts && appearance === 'realistic' && !showInterior}
       occlusionRevision={shadowRevision} process={Boolean(props.showZoneReadouts)} />
@@ -709,7 +713,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
           <meshBasicMaterial color={theme === 'dark' ? '#3cc9e2' : '#397b8c'} transparent opacity={0.3} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>)}
       </group>}
-  </HologramThemeContext.Provider></AppearanceContext.Provider>
+  </PartFocusContext.Provider></HologramThemeContext.Provider></AppearanceContext.Provider>
 }
 
 class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {

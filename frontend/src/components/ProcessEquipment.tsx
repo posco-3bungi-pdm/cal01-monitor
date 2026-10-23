@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { HologramMaterial, IndustrialMaterial, type FurnaceAppearance } from './furnace-appearance'
+import { HologramMaterial, IndustrialMaterial, PartSelectionContext, type FurnaceAppearance } from './furnace-appearance'
 import { PART_CATALOG } from './part-catalog'
 
 type Position = [number, number, number]
@@ -249,18 +249,20 @@ export default function ProcessEquipment({
       appearance={appearance} radius={0.035} color="#778e90" />
     <Pipe points={[[-2.42, 2.14, 3.2], [-2.42, 2.14, 4.0], [-2.62, 2.14, 4.0]]}
       appearance={appearance} radius={0.05} />
-    {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => <group key={part.id} name={`PART_${part.id}`} position={part.position}
-      userData={{ partCode: part.partCode, representativePosition: true }}
-      onClick={event => { event.stopPropagation(); onSelectPart?.(part.id) }}>
-      {part.id === 'INS-006' && <Analyzer appearance={appearance} selected={selectedPartId === part.id} />}
-      {part.id === 'SEL-006' && <ShaftSeal appearance={appearance} selected={selectedPartId === part.id} />}
-      {part.id === 'SEL-009' && <ORing appearance={appearance} selected={selectedPartId === part.id} />}
-      {part.id === 'HTR-006' && <Probe appearance={appearance} oxygen={false} />}
-      {part.id === 'HTR-008' && <Probe appearance={appearance} oxygen />}
-      {selectedPartId === part.id && <mesh raycast={() => {}}>
-        <sphereGeometry args={[part.id === 'INS-006' ? 1.38 : 0.52, 24, 16]} />
-        <meshBasicMaterial color="#b4f286" wireframe transparent opacity={0.1} depthWrite={false} />
-      </mesh>}
-    </group>)}
+    {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => {
+      const selected = selectedPartId === part.id
+      const partAppearance = selected ? 'hologram' : appearance
+      return <PartSelectionContext.Provider key={part.id} value={selected}>
+        <group name={`PART_${part.id}`} position={part.position}
+          userData={{ partCode: part.partCode, representativePosition: true, selected }}
+          onClick={event => { event.stopPropagation(); onSelectPart?.(part.id) }}>
+          {part.id === 'INS-006' && <Analyzer appearance={partAppearance} selected={selected} />}
+          {part.id === 'SEL-006' && <ShaftSeal appearance={partAppearance} selected={selected} />}
+          {part.id === 'SEL-009' && <ORing appearance={partAppearance} selected={selected} />}
+          {part.id === 'HTR-006' && <Probe appearance={partAppearance} oxygen={false} />}
+          {part.id === 'HTR-008' && <Probe appearance={partAppearance} oxygen />}
+        </group>
+      </PartSelectionContext.Provider>
+    })}
   </group>
 }

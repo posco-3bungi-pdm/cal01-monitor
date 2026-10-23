@@ -38,10 +38,9 @@ function Instances({ geometry, entries, color, appearance, selected = false, rou
     mesh.current.computeBoundingSphere()
   }, [entries])
   return <instancedMesh ref={mesh} args={[geometry, undefined, entries.length]}>
-    {appearance === 'hologram'
-      ? <HologramMaterial color={selected ? '#c9f5ff' : '#54c6df'} opacity={selected ? 0.75 : 0.48} />
-      : <meshStandardMaterial color={color} roughness={roughness} metalness={roughness > 0.9 ? 0 : 0.6}
-        emissive={selected ? '#a8d577' : '#000000'} emissiveIntensity={selected ? 0.12 : 0} />}
+    {appearance === 'hologram' || selected
+      ? <HologramMaterial color="#54c6df" opacity={0.48} selected={selected} />
+      : <meshStandardMaterial color={color} roughness={roughness} metalness={roughness > 0.9 ? 0 : 0.6} />}
   </instancedMesh>
 }
 
@@ -121,18 +120,18 @@ function HeatingEquipment({ showInterior, appearance, selectedPartId, onSelectPa
         selected={selectedPartId === 'HEAT-AIR'} {...common} />
       <Instances geometry={resources.cylinder} entries={machinery.fanShell} color="#5d7178"
         selected={selectedPartId === 'HEAT-AIR'} {...common} />
-      <Instances geometry={resources.cylinder} entries={machinery.motor} color="#46585f" {...common} />
-      <Instances geometry={resources.cylinder} entries={machinery.fanIntake} color="#253c43" {...common} />
-      <Instances geometry={resources.box} entries={machinery.fanFeet} color="#58696f" {...common} />
-      <Instances geometry={resources.box} entries={machinery.fanGrille} color="#a1aca8" {...common} />
+      <Instances geometry={resources.cylinder} entries={machinery.motor} color="#46585f" selected={selectedPartId === 'HEAT-AIR'} {...common} />
+      <Instances geometry={resources.cylinder} entries={machinery.fanIntake} color="#253c43" selected={selectedPartId === 'HEAT-AIR'} {...common} />
+      <Instances geometry={resources.box} entries={machinery.fanFeet} color="#58696f" selected={selectedPartId === 'HEAT-AIR'} {...common} />
+      <Instances geometry={resources.box} entries={machinery.fanGrille} color="#a1aca8" selected={selectedPartId === 'HEAT-AIR'} {...common} />
     </group>
     <group name="HEAT-RECUP" userData={{ illustrative: true }} onClick={pick('HEAT-RECUP')}>
       <Instances geometry={resources.cylinder} entries={plumbing.exhaust} color="#8b827a"
         selected={selectedPartId === 'HEAT-RECUP'} {...common} />
       <Instances geometry={resources.box} entries={machinery.exchangerShell} color="#899294"
         selected={selectedPartId === 'HEAT-RECUP'} {...common} />
-      <Instances geometry={resources.box} entries={machinery.exchangerFeet} color="#59676b" {...common} />
-      <Instances geometry={resources.box} entries={machinery.exchangerRibs} color="#4f6268" {...common} />
+      <Instances geometry={resources.box} entries={machinery.exchangerFeet} color="#59676b" selected={selectedPartId === 'HEAT-RECUP'} {...common} />
+      <Instances geometry={resources.box} entries={machinery.exchangerRibs} color="#4f6268" selected={selectedPartId === 'HEAT-RECUP'} {...common} />
     </group>
     <group name="HEAT-LINING" visible={internalVisible} userData={{ illustrative: true }}
       onClick={pick('HEAT-LINING')}>
