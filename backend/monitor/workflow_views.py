@@ -149,6 +149,9 @@ def field_requests(request):
         channel_id = candidate.channel_id if candidate else manual["channel_id"]
         item = FieldRequest.objects.create(**context, requested_by=request.user,
             title=f"{lot_no} · {channel_id} 점검 요청", message=message)
+        if candidate and candidate.resolved:
+            candidate.resolved = False
+            candidate.save(update_fields=["resolved"])
         FieldRequestHistory.objects.create(
             request=item, revision=1, action="create", from_status="", to_status=item.status, actor=request.user,
         )
@@ -211,6 +214,11 @@ def transition(request, request_id):
         item.revision += 1
         setattr(item, timestamp_field, timezone.now())
         item.save()
+        if action == "close" and item.candidate_id:
+            from .candidate_actions import record_resolution
+
+            candidate = AnomalyCandidate.objects.select_for_update().get(pk=item.candidate_id)
+            record_resolution(candidate, request.user, item.result, item)
         FieldRequestHistory.objects.create(
             request=item, revision=item.revision, action=action,
             from_status=before, to_status=after, actor=request.user, result=result,

@@ -1,6 +1,7 @@
 import uuid
 
 from django.db import transaction
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import api_view
@@ -13,6 +14,13 @@ from .detection_models import AnomalyCandidate, CandidatePoint, DetectionRun
 from .models import Dataset, LotSummary, MeasurementFrame
 from .views import selected_dataset, selected_lot
 from .workflow_views import require_team
+from .workflow_models import FieldRequest
+from .candidate_actions import record_resolution
+
+
+def candidate_queryset():
+    return AnomalyCandidate.objects.select_related("run", "acknowledged_by", "resolved_by").prefetch_related(
+        Prefetch("field_requests", queryset=FieldRequest.objects.exclude(status="closed").only("id", "candidate_id", "status"), to_attr="active_requests"))
 
 
 def run_result(run):
@@ -25,16 +33,23 @@ def run_result(run):
 
 def candidate_result(candidate):
     run = candidate.run
+    active = getattr(candidate, "active_requests", None)
+    active = active[0] if active else None if active is not None else candidate.field_requests.exclude(status="closed").first()
     return {
         "id": str(candidate.id), "run_id": str(run.id), "dataset_id": str(run.dataset_id),
         "lot_no": run.lot_no, "mode": run.mode, "channel_id": candidate.channel_id,
         "zone_id": candidate.zone_id, "start": candidate.start, "end": candidate.end,
         "peak_at": candidate.peak_at, "peak_value": candidate.peak_value, "peak_z": candidate.peak_z,
         "point_count": candidate.point_count, "end_reason": candidate.end_reason,
-        "baseline": run.stats[candidate.channel_id],
+        "baseline": run.stats.get(candidate.channel_id, {"count": 0, "mean": None, "std": None, "lower": None, "upper": None, "status": "insufficient_samples"}),
         "acknowledged": candidate.acknowledged,
         "acknowledged_by": candidate.acknowledged_by.username if candidate.acknowledged_by_id else None,
         "acknowledged_at": candidate.acknowledged_at,
+        "resolved": candidate.resolved,
+        "resolved_at": candidate.resolved_at,
+        "resolved_by": candidate.resolved_by.username if candidate.resolved_by_id else None,
+        "resolution_note": candidate.resolution_note,
+        "open_request": {"id": str(active.id), "status": active.status} if active else None,
         "time_basis": "source_recorded_clock", "source_timezone": None,
         "status": "statistical_candidate",
     }
@@ -43,7 +58,7 @@ def candidate_result(candidate):
 def run_candidates(run):
     return [
         candidate_result(candidate)
-        for candidate in run.candidates.select_related("run", "acknowledged_by").order_by("start", "channel_id")
+        for candidate in candidate_queryset().filter(run=run).order_by("start", "channel_id")
     ]
 
 
@@ -154,8 +169,36 @@ def candidates(request):
             raise ValidationError({"run": "분석 기록을 확인해 주세요."})
         get_object_or_404(DetectionRun, pk=selected_run, dataset=dataset, lot_no=lot.lot_no)
         items = items.filter(run_id=selected_run)
-    items = items.select_related("run", "acknowledged_by").order_by("start", "channel_id")
+    items = candidate_queryset().filter(pk__in=items.values("pk")).order_by("start", "channel_id")
     return Response({"candidates": [candidate_result(candidate) for candidate in items]})
+
+
+@api_view(["GET"])
+def pending_candidates(request):
+    require_team(request.user)
+    items = candidate_queryset().filter(resolved=False, run__dataset__status="ready").order_by("acknowledged", "-run__created_at", "start", "id")
+    count = items.count()
+    return Response({"candidates": [candidate_result(item) for item in items[:500]], "count": count, "truncated": count > 500})
+
+
+@api_view(["POST"])
+def resolve(request, candidate_id):
+    require_team(request.user)
+    note = request.data.get("note") if isinstance(request.data, dict) else None
+    if not isinstance(note, str) or not note.strip() or len(note) > 4000:
+        raise ValidationError({"note": "실제로 확인·조치한 내용을 1~4000자로 기록하십시오."})
+    note = note.strip()
+    with transaction.atomic():
+        candidate = get_object_or_404(AnomalyCandidate.objects.select_for_update(), pk=candidate_id)
+        active = candidate.field_requests.exclude(status="closed").first()
+        if active:
+            return Response({"detail": "진행 중인 점검 요청의 결과 확인까지 완료하십시오.", "request_id": str(active.id)}, status=409)
+        if candidate.resolved:
+            if candidate.resolution_note != note:
+                return Response({"detail": "이미 조치 완료된 후보입니다. 저장된 기록을 확인하십시오."}, status=409)
+        else:
+            record_resolution(candidate, request.user, note)
+        return Response({"candidate": candidate_result(candidate)})
 
 
 @api_view(["POST"])
