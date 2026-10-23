@@ -3,7 +3,7 @@ services:
     name: cal01-monitor
     runtime: docker
     repo: https://github.com/posco-3bungi-pdm/cal01-monitor
-    branch: feat/28-team-server-namelesspark
+    branch: fix/32-team-server-ui-namelesspark
     region: singapore
     plan: 0.5c-512mb
     numInstances: 1
