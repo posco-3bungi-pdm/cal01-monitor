@@ -139,6 +139,7 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
   const vertices: number[] = []
   const indices: number[] = []
   const travelDistances: number[] = []
+  const surfaceUv: number[] = []
   let distance = 0
   const halfWidth = STRIP_HALF_WIDTH
   const halfThickness = STRIP_HALF_THICKNESS
@@ -151,6 +152,7 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
     for (const side of [-1, 1]) {
       for (const z of [-halfWidth, halfWidth]) {
         travelDistances.push(distance)
+        surfaceUv.push(distance, z > 0 ? 1 : 0)
         vertices.push(
           point.x + normal.x * halfThickness * side,
           point.y + normal.y * halfThickness * side,
@@ -174,6 +176,8 @@ export function createStripGeometry(points: THREE.Vector2[]): THREE.BufferGeomet
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
   geometry.setAttribute('stripDistance', new THREE.Float32BufferAttribute(travelDistances, 1))
+  for (let index = 0; index < surfaceUv.length; index += 2) surfaceUv[index] /= Math.max(distance, 1)
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(surfaceUv, 2))
   geometry.setIndex(indices)
   geometry.computeVertexNormals()
   geometry.computeBoundingSphere()
