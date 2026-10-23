@@ -80,8 +80,11 @@ else {
       if (url.host !== "settings" || !["index.html", "settings.js", "settings.css"].includes(name)) return new Response("Not found", { status: 404 });
       return net.fetch(pathToFileURL(path.join(__dirname, "settings", name)).href);
     });
-    session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
-    session.defaultSession.setPermissionCheckHandler(() => false);
+    const allowFullscreen = (contents, permission, details) => permission === "fullscreen"
+      && window && !window.isDestroyed() && contents === window.webContents
+      && allowed(contents.getURL()) && details.isMainFrame === true && allowed(details.requestingUrl);
+    session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => callback(!!allowFullscreen(contents, permission, details)));
+    session.defaultSession.setPermissionCheckHandler((contents, permission, origin, details) => !!allowFullscreen(contents, permission, details) && origin === server);
     session.defaultSession.on("will-download", event => event.preventDefault());
     ipcMain.handle("connection:read", event => {
       if (!trustedSettings(event)) throw new Error("설정 창에서만 사용할 수 있어요.");
