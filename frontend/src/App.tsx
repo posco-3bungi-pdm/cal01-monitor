@@ -342,7 +342,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const dirty = editing && draftPlacements !== null && JSON.stringify(draftPlacements) !== JSON.stringify(layoutQuery.data?.placements);
 
   useEffect(() => {
-    if (datasets.length && !datasets.some(item => item.id === datasetId)) setDatasetId(datasets[0].id);
+    if (datasets.length && !datasets.some(item => item.id === datasetId)) setDatasetId(datasets.find(item => !/sim_|시뮬레이션|simulation/i.test(item.name))?.id ?? datasets[0].id);
   }, [datasets, datasetId]);
   useEffect(() => {
     if (lots.length && !lots.some(item => String(item.lot_no) === lotNo)) setLotNo(String(lots[0].lot_no));
