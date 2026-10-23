@@ -35,3 +35,10 @@ export function numberText(value: number | null | undefined): string {
   }
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }
+
+export function readingParts(channelId: string, value: number | null | undefined) {
+  const text = numberText(value)
+  if (channelId !== 'CP-Z4M' || value == null || !Number.isFinite(value)) return { value: text, exponent: null }
+  const [coefficient, exponent] = text.split('e^')
+  return { value: coefficient, exponent: exponent === undefined ? value === 0 ? 'e^-10' : null : `e^${exponent}` }
+}

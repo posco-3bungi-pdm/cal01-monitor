@@ -25,7 +25,7 @@ export default function HistorySearchDialog({ datasets, datasetId, onClose, onSe
     {query.isPending && <p role="status">기록을 불러오는 중</p>}
     {query.error && <p role="alert">{query.error instanceof Error ? query.error.message : '기록을 불러오지 못했습니다.'}</p>}
     <div className="history-search-results">{lots.map(lot => <button key={lot.lot_no} onClick={() => onSelect(source, String(lot.lot_no))}>
-      <strong>{lot.lot_no}</strong><span>{lot.grade || '강종 미기록'}</span><small>{dateTime(lot.start)} ~ {dateTime(lot.end)}</small>
+      <strong>{lot.lot_no}</strong><span className="grade-label">{lot.product && <i style={{ backgroundColor: lot.product.color }} aria-hidden="true" />}{lot.grade || '강종 미기록'}</span><small>{dateTime(lot.start)} ~ {dateTime(lot.end)}</small>
     </button>)}{!query.isPending && !query.error && lots.length === 0 && <p>일치하는 기록 없음</p>}</div>
   </dialog>
 }

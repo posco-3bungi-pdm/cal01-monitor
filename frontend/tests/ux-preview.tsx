@@ -1,13 +1,20 @@
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from '../src/App'
-import type { Channel } from '../src/types'
+import type { Channel, Lot, MaterialGrade } from '../src/types'
+import materialReference from './material-fixtures.json'
 import type { DetectionCandidate, FieldRequest } from '../src/review-types'
 import '../src/App.css'
 
 // This fixture uses the real application UI, with every API request intercepted here.
 // No records or notifications are sent to the CAL01 server. Direct requests exist only in this tab's memory.
 const start = '2026-10-01T08:00:00', end = '2026-10-01T09:00:00'
+const materialGrades: MaterialGrade[] = materialReference.grades
+const exampleLots: Lot[] = [
+  { lot_no: 'EXAMPLE01', grade: '', source_grade: '', grade_source: null, material_revision: 0, product: null, start, end, count: 120 },
+  { lot_no: 'EXAMPLE02', grade: 'SPCC', source_grade: 'SPCC', grade_source: 'source', material_revision: 0, product: materialGrades.find(item => item.grade === 'SPCC'), start, end, count: 120 },
+  { lot_no: 'EXAMPLE03', grade: 'DP590', source_grade: 'DP590', grade_source: 'source', material_revision: 0, product: materialGrades.find(item => item.grade === 'DP590'), start, end, count: 120 },
+]
 const user = { username: 'ux-example', display_name: '예시 담당자', team: 'field', is_admin: false, can_edit_layout: false }
 const ids = ['CLN-IN', ...Array.from({ length: 9 }, (_, i) => `TC-Z${i + 1}`), ...Array.from({ length: 8 }, (_, i) => `OP-Z${i + 1}`), 'CP-Z4', 'CP-Z4M', 'TC-OUT1', 'TC-OUT2']
 const channels: Channel[] = ids.map(id => ({ id, label: id, zone: id === 'CLN-IN' ? 'CLN' : id.split('-')[1].replace('M', ''), unit: id.startsWith('OP-') ? '%' : id.startsWith('CP-') ? null : '°C', kind: id.startsWith('OP-') ? 'output' : id.startsWith('CP-') ? 'process' : 'temperature' }))
@@ -20,6 +27,14 @@ const run = { id: candidate.run_id, dataset_id: candidate.dataset_id, lot_no: ca
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href)
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  if (url.pathname === '/api/lot-grade-link' && init?.method === 'PATCH') {
+    const payload = JSON.parse(String(init.body))
+    const lot = exampleLots.find(item => item.lot_no === url.searchParams.get('lot'))
+    if (!lot || lot.source_grade || payload.revision !== lot.material_revision) return reply({ detail: '예시 연결 조건을 확인하십시오.' }, 409)
+    lot.grade = payload.grade; lot.product = materialGrades.find(item => item.grade === payload.grade) ?? null
+    lot.grade_source = payload.grade ? 'linked' : null; lot.material_revision = (lot.material_revision ?? 0) + 1
+    return reply({ lot })
+  }
   if (url.pathname === '/api/field-requests' && init?.method === 'POST') {
     const payload = JSON.parse(String(init.body))
     if (payload.candidate_id || payload.dataset_id !== 'example-data') return reply({ detail: '이 미리보기에서는 직접 작성 예시만 탭 안에 표시합니다.' }, 409)
@@ -32,7 +47,8 @@ window.fetch = async (input, init) => {
     case '/api/me': return reply({ user })
     case '/api/csrf': return reply({ csrfToken: 'example-not-a-real-token' })
     case '/api/datasets': return reply({ datasets: [{ id: 'example-data', name: '예시 데이터 · 사용성 확인 전용', row_count: 120, status: 'ready' }] })
-    case '/api/lots': return reply({ lots: [{ lot_no: 'EXAMPLE01', grade: '예시 강종', start, end, count: 120 }] })
+    case '/api/lots': return reply({ lots: exampleLots })
+    case '/api/material-grades': return reply({ grades: materialGrades })
     case '/api/channels': return reply({ channels })
     case '/api/equipment/layout': return reply({ model_version: 'example', revision: 1, placements: [] })
     case '/api/current-frame': return reply({ anchor_time: url.searchParams.get('at') ?? start, channels: channels.map(channel => ({ channel_id: channel.id, value: values[channel.id], measured_at: url.searchParams.get('at') ?? start, quality_status: 'observed' })) })

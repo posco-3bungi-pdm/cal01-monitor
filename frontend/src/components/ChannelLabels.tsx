@@ -5,11 +5,12 @@ import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 import type { Channel, Theme } from '../types'
 import type { Position3 } from './furnace-model'
-import { numberText } from '../time'
+import ReadingValue from './ReadingValue'
 import type { SceneGesture } from './scene-input'
 import { anchorOccluded, labelOccluders } from './scene-occlusion'
 import { layoutReadouts, READOUT_WIDTH, READOUT_HEIGHT } from './scene-label-layout'
-import type { LabelAnchor } from './scene-label-layout'
+import type { LabelAnchor, LabelRect } from './scene-label-layout'
+import { PROCESS_READOUT_WIDTH, PROCESS_READOUT_HEIGHT } from './process-readouts'
 
 type LabelEntry = { node: HTMLDivElement; position: Position3; offset: [number, number]; selected: boolean }
 export type ChannelLabelBridge = RefObject<{ entries: Map<string, LabelEntry>; revision: number; invalidate?: () => void; status?: HTMLDivElement | null }>
@@ -63,7 +64,7 @@ export function ChannelLabels({ target, bridge, channels, positions, values, sel
         <strong style={{ fontSize: 13, fontFamily: 'ui-monospace,monospace' }}>{channel.id}</strong>
         <div style={{ fontSize: 16, lineHeight: 1.5, fontVariantNumeric: 'tabular-nums' }}>
           {value == null || !Number.isFinite(value) ? '기록 없음'
-            : `${numberText(value)}${channel.unit ? ` ${channel.unit}` : ''}`}
+            : <ReadingValue channelId={channel.id} value={value} unit={channel.unit} />}
         </div>
         <span style={{ fontSize: 11, opacity: 0.75 }}>{measuredAt?.replace('T', ' ').slice(11, 19) || '기록 시각 없음'}</span>
       </button>
@@ -75,8 +76,8 @@ export function ChannelLabels({ target, bridge, channels, positions, values, sel
   </>, target)
 }
 
-export function ChannelLabelProjection({ bridge, occlude, occlusionRevision }: {
-  bridge: ChannelLabelBridge; occlude: boolean; occlusionRevision: unknown
+export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, process = false }: {
+  bridge: ChannelLabelBridge; occlude: boolean; occlusionRevision: unknown; process?: boolean
 }) {
   const { camera, size, scene, invalidate } = useThree()
   const point = useMemo(() => new THREE.Vector3(), [])
@@ -95,7 +96,7 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision }: {
   useLayoutEffect(() => {
     lastRevision.current = -1
     invalidate()
-  }, [occlude, occlusionRevision, invalidate])
+  }, [occlude, occlusionRevision, process, invalidate])
   useFrame(() => {
     camera.updateMatrixWorld()
     matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
@@ -117,7 +118,23 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision }: {
       node.style.visibility = 'hidden'
       if (visible) visibleAnchors.push({ id, x, y, dx: offset[0], dy: offset[1], selected })
     }
-    const placements = layoutReadouts(visibleAnchors, size.width, size.height)
+    const exclusions: LabelRect[] = []
+    if (process) {
+      const node = bridge.current.entries.values().next().value?.node
+      const host = node?.parentElement?.parentElement
+      const root = node?.closest('.immersive')
+      if (host && root) {
+        const bounds = host.getBoundingClientRect()
+        for (const panel of root.querySelectorAll<HTMLElement>('.scene-data-control, .scene-view-controls, .channel-inspector, .scene-tools, .equipment-alert, .scene-alert-chip')) {
+          const rect = panel.getBoundingClientRect()
+          if (rect.width && rect.height) exclusions.push({ x: rect.left - bounds.left - 8, y: rect.top - bounds.top - 8, width: rect.width + 16, height: rect.height + 16 })
+        }
+      }
+    }
+    const placements = layoutReadouts(visibleAnchors, size.width, size.height, process ? {
+      boxWidth: PROCESS_READOUT_WIDTH, boxHeight: PROCESS_READOUT_HEIGHT,
+      top: 90, bottom: 164, exclusions,
+    } : undefined)
     for (const anchor of visibleAnchors) {
       const box = placements.get(anchor.id)
       if (box) {
@@ -128,7 +145,7 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision }: {
         const button = node.querySelector('button')!
         button.style.left = `${dx}px`
         button.style.top = `${dy}px`
-        node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + READOUT_WIDTH : dx},${dy + 28}`)
+        node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + (process ? PROCESS_READOUT_WIDTH : READOUT_WIDTH) : dx},${dy + 28}`)
       }
     }
     if (bridge.current.status) {

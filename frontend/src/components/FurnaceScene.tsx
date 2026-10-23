@@ -28,6 +28,8 @@ import { zoneViewAfterClick } from './zone-attention'
 import type { ZoneAttentionMap } from './zone-attention'
 import type { ChannelLabelBridge } from './ChannelLabels'
 import { CpChannelProbe } from './CpChannelProbe'
+import { ProcessReadouts } from './ProcessReadouts'
+import { processReadoutGroups } from './process-readouts'
 
 export type FurnaceSceneProps = {
   channels: Channel[]
@@ -57,8 +59,11 @@ export type FurnaceSceneProps = {
   onSelectPart?: (partId: string) => void
   showZoneReadouts?: boolean
   onToggleZoneReadouts?: () => void
+  cpReadoutsSelected?: boolean
+  onToggleCPReadouts?: () => void
   readoutsDisabled?: boolean
   onCloseViewChange?: (close: boolean) => void
+  onPreviewZone?: (zoneId: string) => void
 }
 
 type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
@@ -626,15 +631,19 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     [placements, showInterior, props.simulationActive, props.selectedPartId])
   return <AppearanceContext.Provider value={{ appearance, theme }}>
     <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} />
-    <ChannelLabelProjection bridge={channelLabelBridge} occlude={appearance === 'realistic' && !showInterior}
-      occlusionRevision={shadowRevision} />
+    <ChannelLabelProjection bridge={channelLabelBridge} occlude={!props.showZoneReadouts && appearance === 'realistic' && !showInterior}
+      occlusionRevision={shadowRevision} process={Boolean(props.showZoneReadouts)} />
     <KeyboardNavigation controls={controls} host={host} disabled={editing} onMove={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
     <Lighting theme={theme} realistic={appearance === 'realistic'} />
     <ShadowPolicy realistic={appearance === 'realistic'} moving={editing} revision={shadowRevision} />
     <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
       minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.025} smoothTime={0.3} draggingSmoothTime={0.12}
       onControlStart={() => controls.current?.stop()} onControl={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
-    <group name="CAL01_ROOT" userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
+    <group name="CAL01_ROOT" onPointerMove={event => {
+      if (props.editing || event.buttons) return
+      const zone = FURNACE_ZONES.reduce((nearest, item) => Math.abs(item.x - event.point.x) < Math.abs(nearest.x - event.point.x) ? item : nearest)
+      props.onPreviewZone?.(zone.id)
+    }} userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
       <FrameAndWalkways />
       {FURNACE_ZONES.map((zone) => <ZoneHousing key={zone.id} zone={zone}
         selected={selectedZone === zone.id} interior={showInterior} theme={theme}
@@ -717,7 +726,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     ...(props.alertZoneIds ?? []).map(id => id === 'OUT1' || id === 'OUT2' ? 'OUT' : id),
     ...props.channels.filter(channel => alertChannels.has(channel.id)).map(zoneForChannel),
   ])
-  const labelChannels = props.showLabels === false ? [] : props.channels.filter(channel =>
+  const labelChannels = props.showLabels === false || props.showZoneReadouts ? [] : props.channels.filter(channel =>
     !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))
   const labelPositions = useMemo(() => new Map(defaultPlacements(props.channels).map(fallback => {
     const saved = props.placements.find(item => item.channel_id === fallback.channel_id)
@@ -796,11 +805,16 @@ function FurnaceScene(props: FurnaceSceneProps) {
     <ZoneLabels zones={FURNACE_ZONES} target={zoneLabelTarget} bridge={zoneLabelBridge}
       theme={props.theme} selectedZone={zoomedZone} alertZones={alertZones} attention={props.zoneAttention ?? {}} gesture={gesture}
       channels={props.channels} values={props.values} visibleIds={props.visibleLabelIds} measuredAt={props.measuredAt}
-      showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} disabled={props.readoutsDisabled} />
+      showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} cpSelected={props.cpReadoutsSelected} onToggleCP={props.onToggleCPReadouts} disabled={props.readoutsDisabled} onPreviewZone={props.onPreviewZone}
+      readoutZones={props.showZoneReadouts ? processReadoutGroups(props.channels, props.visibleLabelIds, zoomedZone).map(group => group.zone) : []} />
+    {props.showZoneReadouts && <ProcessReadouts target={zoneLabelTarget} bridge={channelLabelBridge}
+      channels={props.channels} visibleIds={props.visibleLabelIds} values={props.values} selected={props.selectedChannel}
+      theme={props.theme} measuredAt={props.measuredAt ?? null} attention={props.zoneAttention ?? {}}
+      gesture={gesture} onSelect={props.onSelectChannel} onPreviewZone={props.onPreviewZone} focusedZone={zoomedZone} />}
     <ChannelLabels target={zoneLabelTarget} bridge={channelLabelBridge} channels={labelChannels}
       positions={labelPositions} values={props.values} selected={props.selectedChannel} theme={props.theme}
       measuredAt={props.measuredAt ?? null} gesture={gesture} onSelect={props.onSelectChannel} />
-    <div data-scene-ui style={{ position: 'absolute', top: 174, right: 14, display: 'flex', gap: 5, zIndex: 22 }}>
+    <div data-scene-ui className="scene-view-controls" style={{ position: 'absolute', top: 120, right: 14, display: 'flex', gap: 5, zIndex: 22 }}>
       <button type="button" style={buttonStyle} onClick={() => setViewCommand(previous => ({ mode: 'work', serial: previous.serial + 1 }))}>
         <Focus size={16} />작업 보기</button>
       <button type="button" style={buttonStyle} onClick={() => setViewCommand(previous => ({ mode: 'full', serial: previous.serial + 1 }))}>
