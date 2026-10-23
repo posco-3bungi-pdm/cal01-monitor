@@ -4,6 +4,7 @@ from . import auth_views, context_views, data_views, detection_views, views, wor
 
 urlpatterns = [
     path("health", auth_views.health),
+    path("ready", auth_views.ready),
     path("csrf", auth_views.csrf),
     path("login", auth_views.login_view),
     path("logout", auth_views.logout_view),

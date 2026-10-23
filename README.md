@@ -34,3 +34,5 @@ flowchart TB
 | [09 Windows 앱과 감지](docs/09-windows-and-detection.md) | exe 실행, Z-score 기준, 현장 요청 흐름 |
 
 제품 이름은 CAL01 Monitor, 저장소는 `posco-3bungi-pdm/cal01-monitor`임. 비공개로 시작함. 원본 CSV, 비밀번호, API 키, 실행 DB는 Git에 올리지 않음.
+
+팀 공용 배포와 기존 DB 이전, exe 서버 연결은 [공용 서버 안내](docs/11-team-server.md)를 따른다.

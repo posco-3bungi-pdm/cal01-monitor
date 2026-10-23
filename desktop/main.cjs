@@ -2,10 +2,10 @@ const { app, BrowserWindow, Menu, ipcMain, protocol, net, session } = require("e
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
-const { normalizeServerUrl } = require("./server-url.cjs");
+const { normalizeServerUrl, resolveInitialServer } = require("./server-url.cjs");
 
 const SETTINGS_URL = "cal01-app://settings/index.html";
-const DEFAULT_SERVER = "http://127.0.0.1:9017";
+const DEFAULT_SERVER = resolveInitialServer(null, require("./package.json").cal01DefaultServer);
 protocol.registerSchemesAsPrivileged([{ scheme: "cal01-app", privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 app.enableSandbox();
 let window;
@@ -100,7 +100,7 @@ else {
       ] },
       { label: "화면", submenu: [{ role: "resetZoom", label: "기본 크기" }, { role: "zoomIn", label: "확대" }, { role: "zoomOut", label: "축소" }, { role: "togglefullscreen", label: "전체 화면" }] },
     ]));
-    try { server = normalizeServerUrl(JSON.parse(await fs.readFile(settingsPath(), "utf8")).server); } catch { server = DEFAULT_SERVER; }
+    try { server = resolveInitialServer(JSON.parse(await fs.readFile(settingsPath(), "utf8")).server, DEFAULT_SERVER); } catch { server = DEFAULT_SERVER; }
     try { await connect(server); }
     catch { lastError = "서버가 아직 연결되지 않았어요. 이 PC의 서버를 실행하거나 팀 서버 주소를 입력해 주세요."; showConnection(); }
   });

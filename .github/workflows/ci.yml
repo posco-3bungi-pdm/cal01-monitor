@@ -39,6 +39,7 @@ jobs:
       - run: pip install -r backend/requirements.txt
       - run: python backend/manage.py makemigrations --check --dry-run
       - run: python backend/manage.py test monitor --noinput
+      - run: python -m unittest discover -s scripts -p 'test_*.py' -v
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -55,7 +56,60 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: node --experimental-strip-types --test tests/*.test.ts
       - run: pnpm build
+  deployment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: cal01_deploy_ci
+          POSTGRES_USER: cal01_deploy_ci
+          POSTGRES_PASSWORD: ci-only-deployment-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cal01_deploy_ci -d cal01_deploy_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the same image used by the team server
+        run: docker build --tag cal01-monitor:ci .
+      - name: Configure an isolated deployment database
+        run: |
+          cat > "$RUNNER_TEMP/cal01-ci.env" <<'EOF'
+          CAL01_DEPLOYMENT=cloud
+          DJANGO_SECRET_KEY=ci-only-deployment-secret-never-used-outside-tests
+          DJANGO_ALLOWED_HOSTS=cal01.example.invalid
+          PGDATABASE=cal01_deploy_ci
+          PGUSER=cal01_deploy_ci
+          PGPASSWORD=ci-only-deployment-password
+          PGHOST=127.0.0.1
+          PGPORT=5432
+          PORT=18080
+          EOF
+          docker run --rm --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci python manage.py migrate --noinput
+      - name: Verify HTTPS application settings and private APIs
+        run: |
+          docker run --detach --name cal01-deploy-ci --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --max-time 15 --header 'Host: cal01.example.invalid' http://127.0.0.1:18080/api/ready; then break; fi
+            sleep 1
+          done
+          curl --fail --max-time 15 --header 'Host: cal01.example.invalid' http://127.0.0.1:18080/api/ready
+          curl --fail --max-time 15 --header 'Host: cal01.example.invalid' http://127.0.0.1:18080/ --output "$RUNNER_TEMP/cal01-index.html"
+          grep -q '/assets/' "$RUNNER_TEMP/cal01-index.html"
+          code=$(curl --silent --max-time 15 --output /dev/null --write-out '%{http_code}' --header 'Host: cal01.example.invalid' http://127.0.0.1:18080/api/datasets)
+          test "$code" = 403 -o "$code" = 401
+          curl --fail --silent --max-time 15 --dump-header "$RUNNER_TEMP/cal01-headers" --header 'Host: cal01.example.invalid' http://127.0.0.1:18080/api/csrf --output /dev/null
+          grep -i '^Set-Cookie:.*Secure' "$RUNNER_TEMP/cal01-headers"
+      - name: Deployment logs
+        if: always()
+        run: docker logs cal01-deploy-ci || true
   desktop:
     runs-on: windows-latest
     defaults:

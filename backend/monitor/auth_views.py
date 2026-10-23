@@ -4,6 +4,7 @@ import json
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.core.cache import cache
+from django.db import DatabaseError, InterfaceError, connection
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
@@ -32,12 +33,27 @@ def health(request):
     return JsonResponse({"service": "cal01-monitor", "version": "0.1.0"})
 
 
+@require_GET
+def ready(request):
+    available = False
+    try:
+        if (settings.CAL01_FRONTEND_ROOT / "index.html").is_file():
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                available = cursor.fetchone() == (1,)
+    except (DatabaseError, InterfaceError, OSError):
+        pass
+    response = JsonResponse({"service": "cal01-monitor", "ready": available}, status=200 if available else 503)
+    response["Cache-Control"] = "no-store"
+    return response
+
+
 def failure_keys(request, username):
-    address = request.META.get("REMOTE_ADDR", "unknown")
-    return [
-        "login-user-" + hashlib.sha256(username.lower().encode()).hexdigest(),
-        "login-address-" + hashlib.sha256(address.encode()).hexdigest(),
-    ]
+    keys = ["login-user-" + hashlib.sha256(username.lower().encode()).hexdigest()]
+    if settings.LOGIN_LIMIT_REMOTE_ADDRESS:
+        address = request.META.get("REMOTE_ADDR", "unknown")
+        keys.append("login-address-" + hashlib.sha256(address.encode()).hexdigest())
+    return keys
 
 
 @require_POST
