@@ -5,6 +5,9 @@ import type { FurnaceZone } from './furnace-model'
 
 export type FurnaceAppearance = 'hologram' | 'realistic'
 export const HologramThemeContext = createContext<'light' | 'dark'>('dark')
+// A selection changes only the existing part surfaces, never the plant geometry.
+export const PartSelectionContext = createContext(false)
+export const PartFocusContext = createContext(false)
 
 const finiteValue = (value: number | null | undefined): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -154,6 +157,7 @@ const HOLOGRAM_FRAGMENT = /* glsl */`
   uniform vec3 uColor;
   uniform float uOpacity;
   uniform float uEmphasis;
+  uniform float uSelection;
   varying vec2 vPanelUv;
   varying vec3 vViewNormal;
   varying vec3 vViewDirection;
@@ -169,38 +173,50 @@ const HOLOGRAM_FRAGMENT = /* glsl */`
     float sectionLine = (1.0 - smoothstep(0.3, 0.85, min(sectionDistance.x, sectionDistance.y))) * curved * hasUv;
     float rim = pow(1.0 - abs(dot(viewNormal, normalize(vViewDirection))), 8.0);
     float contour = max(border, sectionLine * 0.28);
-    float frontBack = gl_FrontFacing ? 1.0 : 0.28;
+    float frontBack = gl_FrontFacing ? 1.0 : mix(0.28, 0.42, uSelection);
     float depthFade = 0.62 + 0.38 * exp(-length(vViewDirection) * 0.018);
-    float fill = mix(0.018, 0.18, uEmphasis);
-    float alpha = uOpacity * (fill + contour * mix(1.30, 1.65, uEmphasis) + rim * 0.11) * frontBack * depthFade;
+    float fill = mix(mix(0.018, 0.50, uSelection), 0.18, uEmphasis);
+    float edgeStrength = mix(1.30, 1.65, max(uEmphasis, uSelection));
+    float alpha = uOpacity * (fill + contour * edgeStrength + rim * mix(0.11, 0.40, uSelection)) * frontBack * depthFade;
     gl_FragColor = vec4(uColor, clamp(alpha, 0.0, 0.92));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
 `
 
-export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis = false }: {
+export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis = false, selected = false }: {
   color?: THREE.ColorRepresentation
   opacity?: number
   emphasis?: boolean
+  selected?: boolean
 }) {
   const { invalidate } = useThree()
   const theme = useContext(HologramThemeContext)
-  const palette = theme === 'light' ? (emphasis ? '#c83c32' : '#07596b') : color
+  const selectedPart = useContext(PartSelectionContext)
+  const partFocus = useContext(PartFocusContext)
+  // A red warning always wins over cyan selection. No bloom or second draw pass.
+  const selection = !emphasis && (selected || selectedPart)
+  const palette = theme === 'light'
+    ? (emphasis ? '#c83c32' : selection ? '#006c82' : '#07596b')
+    : selection ? '#75efff' : color
+  const surfaceOpacity = selection ? Math.max(opacity, 0.95) : partFocus && !emphasis ? opacity * 0.22 : opacity
   const uniforms = useMemo(() => ({
     uColor: { value: new THREE.Color(palette) },
-    uOpacity: { value: THREE.MathUtils.clamp(opacity, 0, 1) },
+    uOpacity: { value: THREE.MathUtils.clamp(surfaceOpacity, 0, 1) },
     uEmphasis: { value: emphasis ? 1 : 0 },
+    uSelection: { value: selection ? 1 : 0 },
   }), [])
   useEffect(() => {
     uniforms.uColor.value.set(palette)
-    uniforms.uOpacity.value = THREE.MathUtils.clamp(opacity, 0, 1)
+    uniforms.uOpacity.value = THREE.MathUtils.clamp(surfaceOpacity, 0, 1)
     uniforms.uEmphasis.value = emphasis ? 1 : 0
+    uniforms.uSelection.value = selection ? 1 : 0
     invalidate()
-  }, [palette, opacity, emphasis, uniforms, invalidate])
+  }, [palette, surfaceOpacity, emphasis, selection, uniforms, invalidate])
   return <shaderMaterial vertexShader={HOLOGRAM_VERTEX} fragmentShader={HOLOGRAM_FRAGMENT}
     uniforms={uniforms} transparent depthWrite={false} depthTest
-    side={THREE.DoubleSide} forceSinglePass toneMapped={false} />
+    side={THREE.DoubleSide} forceSinglePass toneMapped={false}
+    blending={selection && theme === 'dark' ? THREE.AdditiveBlending : THREE.NormalBlending} />
 }
 
 const HazeBuffer = createContext<{ texture: THREE.Texture; viewport: THREE.Vector2 } | null>(null)
