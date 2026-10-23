@@ -1,0 +1,240 @@
+{
+ "zone": "Z4",
+ "zone_sensors": [
+  "TC-Z4",
+  "OP-Z4",
+  "CP-Z4"
+ ],
+ "feature_order": [
+  "TC-Z4",
+  "TC-Z4__DIFF",
+  "TC-Z4__MIN",
+  "TC-Z4__MAX",
+  "TC-Z4__STD",
+  "OP-Z4",
+  "OP-Z4__DIFF",
+  "OP-Z4__MIN",
+  "OP-Z4__MAX",
+  "OP-Z4__STD",
+  "CP-Z4",
+  "CP-Z4__DIFF",
+  "CP-Z4__MIN",
+  "CP-Z4__MAX",
+  "CP-Z4__STD",
+  "TC-Z3__CHG5",
+  "TC-Z4__CHG5",
+  "TC-Z5__CHG5",
+  "TC-Z6__CHG5",
+  "COMMON__OTHERS",
+  "TC-Z4__DEV10",
+  "TC-Z4__STD10",
+  "OP-Z4__DEV10",
+  "OP-Z4__STD10",
+  "CP-Z4__DEV10",
+  "CP-Z4__STD10",
+  "TC-Z4__ZPAST",
+  "TC-Z4__ZPAST_EDGE",
+  "OP-Z4__ZPAST",
+  "OP-Z4__ZPAST_EDGE",
+  "CP-Z4__ZPAST",
+  "CP-Z4__ZPAST_EDGE",
+  "OP-Z3__CHG5",
+  "OP-Z4__CHG5",
+  "OP-Z5__CHG5",
+  "OP-Z6__CHG5",
+  "COMMON__OP_OTHERS",
+  "FURNACE__OTHERS",
+  "CONTROL__SAME5"
+ ],
+ "features": [
+  {
+   "name": "TC-Z4",
+   "rule": "1분 평균 현재값 (cal01_base의 센서 컬럼)"
+  },
+  {
+   "name": "TC-Z4__DIFF",
+   "rule": "바로 앞 1분 값과의 차이"
+  },
+  {
+   "name": "TC-Z4__MIN",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "TC-Z4__MAX",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "TC-Z4__STD",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "OP-Z4",
+   "rule": "1분 평균 현재값 (cal01_base의 센서 컬럼)"
+  },
+  {
+   "name": "OP-Z4__DIFF",
+   "rule": "바로 앞 1분 값과의 차이"
+  },
+  {
+   "name": "OP-Z4__MIN",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "OP-Z4__MAX",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "OP-Z4__STD",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "CP-Z4",
+   "rule": "1분 평균 현재값 (cal01_base의 센서 컬럼)"
+  },
+  {
+   "name": "CP-Z4__DIFF",
+   "rule": "바로 앞 1분 값과의 차이"
+  },
+  {
+   "name": "CP-Z4__MIN",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "CP-Z4__MAX",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "CP-Z4__STD",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "TC-Z3__CHG5",
+   "rule": "Z3 ~ Z6 온도의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "TC-Z4__CHG5",
+   "rule": "Z3 ~ Z6 온도의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "TC-Z5__CHG5",
+   "rule": "Z3 ~ Z6 온도의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "TC-Z6__CHG5",
+   "rule": "Z3 ~ Z6 온도의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "COMMON__OTHERS",
+   "rule": "내 구역 말고 Z3 ~ Z6 온도 중 최근 5분 안에 지난 값 |Z| > 3이었던 수 (0 ~ 3)"
+  },
+  {
+   "name": "TC-Z4__DEV10",
+   "rule": "직전 10분 평균과의 차이"
+  },
+  {
+   "name": "TC-Z4__STD10",
+   "rule": "직전 10분 표준편차"
+  },
+  {
+   "name": "OP-Z4__DEV10",
+   "rule": "직전 10분 평균과의 차이"
+  },
+  {
+   "name": "OP-Z4__STD10",
+   "rule": "직전 10분 표준편차"
+  },
+  {
+   "name": "CP-Z4__DEV10",
+   "rule": "직전 10분 평균과의 차이"
+  },
+  {
+   "name": "CP-Z4__STD10",
+   "rule": "직전 10분 표준편차"
+  },
+  {
+   "name": "TC-Z4__ZPAST",
+   "rule": "|현재값 - 지난 평균| / 지난 표준편차. 지난 평균과 표준편차는 같은 LOT에서 현재 분 이전까지의 expanding(min_periods=30), ddof=0. 앞 30분은 0"
+  },
+  {
+   "name": "TC-Z4__ZPAST_EDGE",
+   "rule": "1분 최대, 최소 중 지난 평균에서 더 먼 쪽과 지난 평균의 차이를 지난 표준편차로 나눈 값"
+  },
+  {
+   "name": "OP-Z4__ZPAST",
+   "rule": "|현재값 - 지난 평균| / 지난 표준편차. 지난 평균과 표준편차는 같은 LOT에서 현재 분 이전까지의 expanding(min_periods=30), ddof=0. 앞 30분은 0"
+  },
+  {
+   "name": "OP-Z4__ZPAST_EDGE",
+   "rule": "1분 최대, 최소 중 지난 평균에서 더 먼 쪽과 지난 평균의 차이를 지난 표준편차로 나눈 값"
+  },
+  {
+   "name": "CP-Z4__ZPAST",
+   "rule": "|현재값 - 지난 평균| / 지난 표준편차. 지난 평균과 표준편차는 같은 LOT에서 현재 분 이전까지의 expanding(min_periods=30), ddof=0. 앞 30분은 0"
+  },
+  {
+   "name": "CP-Z4__ZPAST_EDGE",
+   "rule": "1분 최대, 최소 중 지난 평균에서 더 먼 쪽과 지난 평균의 차이를 지난 표준편차로 나눈 값"
+  },
+  {
+   "name": "OP-Z3__CHG5",
+   "rule": "Z3 ~ Z6 출력의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "OP-Z4__CHG5",
+   "rule": "Z3 ~ Z6 출력의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "OP-Z5__CHG5",
+   "rule": "Z3 ~ Z6 출력의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "OP-Z6__CHG5",
+   "rule": "Z3 ~ Z6 출력의 5분 전 값 대비 변화 (앞 5분은 0)"
+  },
+  {
+   "name": "COMMON__OP_OTHERS",
+   "rule": "내 구역 말고 Z3 ~ Z6 출력 중 최근 5분 안에 지난 값 |Z| > 3이었던 수"
+  },
+  {
+   "name": "FURNACE__OTHERS",
+   "rule": "Z1 ~ Z8 중 내 구역 말고 최근 5분 안에 센서 하나라도 지난 값 |Z| > 3이었던 구역 수"
+  },
+  {
+   "name": "CONTROL__SAME5",
+   "rule": "최근 5분 동안 내 구역 TC와 OP의 1분 변화가 같은 부호인 비율"
+  }
+ ],
+ "context": {
+  "scope": "모든 계산은 같은 LOT 안에서 현재 분 이전까지의 값만 씀 (미래 값 없음)",
+  "unit": "1분 (cal01_base_v4 이상의 1분 묶음)",
+  "min_periods": 30,
+  "ddof": 0,
+  "z_threshold": 3,
+  "window_5": 5,
+  "window_10": 10,
+  "common_sensors": [
+   "TC-Z3",
+   "TC-Z4",
+   "TC-Z5",
+   "TC-Z6"
+  ],
+  "common_ops": [
+   "OP-Z3",
+   "OP-Z4",
+   "OP-Z5",
+   "OP-Z6"
+  ],
+  "furnace_zones": [
+   "Z1",
+   "Z2",
+   "Z3",
+   "Z4",
+   "Z5",
+   "Z6",
+   "Z7",
+   "Z8"
+  ],
+  "drop_rows": "입력에 빈 값이 있는 행(LOT 앞부분)은 03과 같이 뺌",
+  "source_notebook": "notebooks/sayletskin/03_model_f1.ipynb 6번 셀"
+ }
+}

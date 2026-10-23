@@ -119,3 +119,35 @@ Claude에 요청하는 일은 세 가지임: 선택 구간에서 달라진 값 �
 결과는 `AI 설명 초안`으로 저장함. 사람이 확인 후 팀 판단이나 요청에 채택함. AI는 감지 기준 변경, 고장 확정, 설비 제어, 학습 제외, 작업 완료를 자동 수행하지 않음. 기록 안의 지시문은 분석할 자료로만 취급함.
 
 API가 지연되거나 키가 없어도 감지·알림·현장 요청은 계속 동작해야 함. 타임아웃 후 실패 상태를 표시하고 사용자가 재시도함. 출처 ID가 없거나 현재 선택 구간과 다른 출처를 가리키는 응답은 채택 전에 걸러냄. AI 채택 전후 내용과 작성자를 남김. [Anthropic 공식 Python SDK](https://github.com/anthropics/anthropic-sdk-python)
+
+## 8. 저장된 모델과 registry
+
+모델링 저장소(pdm-project)의 `05_save_models` 노트북이 만든 모델을 `models/`에 둠. 모델 하나는 구역 하나만 예측함. 입력이 그 구역 센서와 공통 컬럼이기 때문임.
+
+```
+models/
+  registry.json                      # 모델 ID → 경로, 구역, 라벨 버전, 입력 태그, 상태, 근거
+  v6/
+    zscore.json                      # 규칙형 Z-score 설정 (지난 값, min_periods 30, |Z| > 3, ddof 0)
+    final/<구역>/
+      rf-all14-<날짜>.joblib         # RandomForest, 14 LOT 전체. 배포용 (status: active)
+      rf-fold13-<날짜>.joblib        # RandomForest, LOT 1 ~ 13. 재현 확인용 (status: check_only)
+      iso-all14-<날짜>.joblib        # IsolationForest, 14 LOT 전체. 검토 후보 표시용
+      features.json                  # 입력 컬럼 순서와 계산 규칙. 서버는 이 규칙대로 입력을 만들어야 함
+      config.json                    # 스위치, 파라미터, 학습 LOT, 데이터 해시, 재현 결과
+      metrics.json                   # 03 시간순 걷기 결과 (F1, 정밀도, 재현율, 헛경보)
+      fold13_expected.json           # fold13 모델의 LOT 133 예측 (입력 계산이 맞는지 확인할 때 씀)
+```
+
+| 규칙 | 내용 |
+| --- | --- |
+| 이름 | `cal01-<라벨버전>-<입력태그>-<구역>-<모델>-<학습범위>-<날짜>`. 입력 태그 `final` = `common_roll10_zpast_opcommon_furnace_control` |
+| 구역별 선택 | registry에서 그 구역의 `status: active` 중 라벨 버전이 가장 높은 것. 없는 구역은 Z-score만 씀 |
+| 근거 단계 | `evidence` 칸. Z3 ~ Z6은 "팀 라벨 있음", Z-score는 "규칙형". 화면에 함께 보여 줌 |
+| 교체 | 새 모델은 새 ID로 더하고 이전 것은 `retired`로 바꿈. 파일은 지우지 않음 |
+| 가져오기 | `python scripts/import_models.py --from ../pdm-project/models`. 이미 있는 ID는 건너뜀 |
+| 입력 계산 확인 | `fold13_expected.json`의 분 단위 예측과 서버 계산 결과가 같아야 함. 다르면 `features.json`의 규칙과 어긋난 것 |
+| 버전 | joblib은 저장한 sklearn 버전(registry의 `sklearn`)과 같은 버전으로 열어야 함 |
+
+입력 계산은 모두 같은 LOT 안의 지난 값만 씀. 지난 값 \|Z\|는 LOT 시작 30분 뒤부터 값이 생기고, 5분과 10분 창을 씀. 모델 점수는 "팀 라벨과 3σ 후보를 재현한 정도"이지 고장 탐지 성능이 아님 (6절과 같은 기준).
+
