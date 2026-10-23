@@ -69,3 +69,42 @@
   .immersive .equipment-alert { bottom: 222px; }
 }
 @media (prefers-reduced-motion: reduce) { .zone-attention-pulse { animation: none; } }
+
+/* Compact bottom controls leave the process drawing clear. */
+.zone-navigation, .immersive.has-drawer .zone-navigation {
+  bottom: var(--process-dock-bottom, 90px); padding: 6px 8px 5px; border-radius: 15px;
+}
+.zone-navigation-row { gap: 4px; padding: 1px 1px 3px; }
+.zone-nav-name { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.zone-navigation .zone-nav-count { min-width: 14px; height: 14px; padding: 0 2px; font-size: 9px; }
+.zone-navigation button.zone-nav-button { min-width: 37px; min-height: 32px; padding: 5px 8px; border-radius: 8px; font-size: 12px; }
+.zone-navigation .zone-readout-toggle { width: 30px; border-radius: 8px; }
+.zone-navigation .zone-cp-button { min-width: 42px; padding: 5px 7px; border-radius: 8px; font-size: 12px; }
+.zone-navigation .zone-cp-button[aria-pressed="true"] { outline: 1px solid #d4b6f3; background: #3e3554; }
+.zone-navigation[data-theme="light"] .zone-cp-button[aria-pressed="true"] { background: #e4dbef; }
+.zone-navigation.has-readouts { display: grid; grid-template-columns: auto auto; gap: 2px 12px; }
+.zone-navigation.has-readouts .zone-navigation-row { grid-column: 1 / -1; }
+.zone-navigation.has-readouts .zone-nav-button { min-width: 64px; gap: 3px; }
+.zone-navigation.has-readouts .zone-cp-button { min-width: 115px; }
+.zone-navigation-hint, .zone-navigation-legend { font-size: 10px; line-height: 1.3; padding-top: 0; color: #9caeb5; }
+.zone-navigation.has-readouts .zone-navigation-hint { text-align: left; }
+.zone-navigation-legend { text-align: right; align-self: center; }
+.zone-navigation[data-theme="light"] .zone-navigation-legend { color: #5b7179; }
+.zone-reading-value { display: inline-flex; align-items: baseline; gap: 3px; }
+.zone-navigation .zone-reading-value .reading-exponent { color: #a4b2c0; font-size: 9px; font-weight: 400; }
+.zone-navigation[data-theme="light"] .zone-reading-value .reading-exponent { color: #637382; }
+@media (max-width: 600px) {
+  .zone-navigation.has-readouts { display: block; }
+  .zone-navigation.has-readouts .zone-navigation-hint { text-align: center; }
+  .zone-navigation-legend { display: none; }
+}
+
+/* Values belong above the process; the dock is only for navigation. */
+.zone-navigation.has-readouts { display: block; }
+.zone-navigation button.zone-nav-button,
+.zone-navigation.has-readouts button.zone-nav-button,
+.zone-navigation .zone-cp-button,
+.zone-navigation.has-readouts .zone-cp-button { min-width: 43px; height: 34px; padding: 5px 9px; font-size: 13px; }
+.zone-navigation .zone-cp-button { align-items: center; }
+.zone-navigation.has-readouts .zone-navigation-hint { text-align: center; }
+.zone-navigation-legend { display: none; }

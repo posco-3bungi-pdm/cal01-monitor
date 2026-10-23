@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { processReadoutGroups, PROCESS_READOUT_WIDTH, PROCESS_READOUT_HEIGHT } from '../src/components/process-readouts.ts'
+import { FURNACE_ZONES, workViewForViewport } from '../src/components/furnace-model.ts'
 import { layoutReadouts } from '../src/components/scene-label-layout.ts'
 
 const ids = ['CLN-IN', ...Array.from({ length: 9 }, (_, index) => `TC-Z${index + 1}`),
@@ -22,6 +23,14 @@ test('zoomed cards show only neighbouring process sections while retaining both 
   assert.deepEqual(processReadoutGroups(channels, undefined, 'Z4').map(group => group.id), ['Z3', 'Z4', 'Z5', 'CP'])
   assert.deepEqual(processReadoutGroups(channels, undefined, 'CLN').map(group => group.id), ['CLN', 'Z1'])
   assert.deepEqual(processReadoutGroups(channels, undefined, 'OUT').map(group => group.id), ['Z9', 'OUT'])
+})
+
+test('every process selection keeps a contextual distance, including short entry and outlet housings', () => {
+  for (const zone of FURNACE_ZONES) {
+    const fit = workViewForViewport(1280, 720, zone.id)
+    assert.ok(fit.distance >= 26, `${zone.id} is too close`)
+    assert.equal(fit.position[0], fit.target[0])
+  }
 })
 
 test('large process readings avoid the inspector and remain non-overlapping', () => {
