@@ -10,6 +10,10 @@ backups/
 *.sqlite*
 *.db
 *.log
+*.dump
+server-config.json
+team-accounts.json
+.railway/
 
 # Development artifacts
 node_modules/
