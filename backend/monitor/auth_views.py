@@ -10,6 +10,8 @@ from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
+from config.restored_database import RestoredDatabaseRequired, require_restored_database
+
 
 def user_details(user):
     groups = set(user.groups.values_list("name", flat=True))
@@ -41,8 +43,10 @@ def ready(request):
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
                 available = cursor.fetchone() == (1,)
-    except (DatabaseError, InterfaceError, OSError):
-        pass
+            if available and settings.CAL01_REQUIRE_RESTORED_DB:
+                require_restored_database()
+    except (DatabaseError, InterfaceError, OSError, RestoredDatabaseRequired):
+        available = False
     response = JsonResponse({"service": "cal01-monitor", "ready": available}, status=200 if available else 503)
     response["Cache-Control"] = "no-store"
     return response

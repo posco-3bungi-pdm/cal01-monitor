@@ -51,8 +51,12 @@ def main():
     from django.core.wsgi import get_wsgi_application
     from waitress import serve
 
+    from config.restored_database import require_restored_database
+
     options = server_options(settings)
     application = get_wsgi_application()
+    if settings.CAL01_REQUIRE_RESTORED_DB:
+        require_restored_database()
     serve(application, **options)
 
 

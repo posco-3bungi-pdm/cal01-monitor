@@ -84,7 +84,10 @@ jobs:
           cat > "$RUNNER_TEMP/cal01-ci.env" <<'EOF'
           CAL01_DEPLOYMENT=cloud
           DJANGO_SECRET_KEY=ci-only-deployment-secret-never-used-outside-tests
-          DJANGO_ALLOWED_HOSTS=cal01.example.invalid
+          RENDER_EXTERNAL_HOSTNAME=cal01.example.invalid
+          CAL01_REQUIRE_RESTORED_DB=1
+          CAL01_EXPECTED_DATASET_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          PGCONNECT_TIMEOUT=3
           PGDATABASE=cal01_deploy_ci
           PGUSER=cal01_deploy_ci
           PGPASSWORD=ci-only-deployment-password
@@ -92,7 +95,14 @@ jobs:
           PGPORT=5432
           PORT=18080
           EOF
+          if docker run --rm --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci python manage.py prepare_deployment; then
+            echo 'An empty database must not pass the restore check.'
+            exit 1
+          fi
+          # Bootstrap synthetic fixtures in this disposable CI database only.
           docker run --rm --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci python manage.py migrate --noinput
+          docker run --rm --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci python manage.py shell -c "from django.contrib.auth import get_user_model; from monitor.models import Dataset; get_user_model().objects.create_user('ci-restored-user'); Dataset.objects.create(name='CI fixture', sha256='a'*64, source_name='synthetic.csv', status='ready', row_count=1)"
+          docker run --rm --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci python manage.py prepare_deployment
       - name: Verify HTTPS application settings and private APIs
         run: |
           docker run --detach --name cal01-deploy-ci --network host --env-file "$RUNNER_TEMP/cal01-ci.env" cal01-monitor:ci

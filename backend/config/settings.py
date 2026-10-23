@@ -29,6 +29,8 @@ if CLOUD_DEPLOYMENT:
     if DEBUG or os.environ.get("CAL01_LOCAL_HTTP") == "1" or os.environ.get("CAL01_TRUST_LOCAL_PROXY") == "1":
         raise ImproperlyConfigured("Cloud hosting requires DEBUG off, secure cookies, and no arbitrary proxy-header trust.")
     ALLOWED_HOSTS = [host.strip().lower() for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if host.strip()]
+    if render_hostname := os.environ.get("RENDER_EXTERNAL_HOSTNAME", "").strip().lower():
+        ALLOWED_HOSTS.append(render_hostname)
     if RAILWAY_DEPLOYMENT:
         if public_domain := os.environ.get("RAILWAY_PUBLIC_DOMAIN", "").strip().lower():
             ALLOWED_HOSTS.append(public_domain)
@@ -164,6 +166,13 @@ LOGIN_FAILURE_WINDOW = 15 * 60
 # or trust an unverified X-Real-IP supplied through another ingress. The per-user
 # limit remains active; run one application replica while this cache is local.
 LOGIN_LIMIT_REMOTE_ADDRESS = not CLOUD_DEPLOYMENT
+restore_required = os.environ.get("CAL01_REQUIRE_RESTORED_DB", "0")
+if restore_required not in {"0", "1"}:
+    raise ImproperlyConfigured("CAL01_REQUIRE_RESTORED_DB must be 0 or 1.")
+CAL01_REQUIRE_RESTORED_DB = restore_required == "1"
+CAL01_EXPECTED_DATASET_SHA256 = os.environ.get("CAL01_EXPECTED_DATASET_SHA256", "").strip().lower()
+if CAL01_EXPECTED_DATASET_SHA256 and not re.fullmatch(r"[0-9a-f]{64}", CAL01_EXPECTED_DATASET_SHA256):
+    raise ImproperlyConfigured("CAL01_EXPECTED_DATASET_SHA256 must be a SHA-256 hex digest.")
 CAL01_MODEL_VERSION = "cal01-concept-v1"
 CAL01_UPLOAD_MAX_BYTES = 512 * 1024 * 1024
 CAL01_UPLOAD_MAX_ROWS = 500_000

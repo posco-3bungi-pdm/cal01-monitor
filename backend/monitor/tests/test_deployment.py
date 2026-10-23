@@ -61,6 +61,30 @@ class DeploymentSettingsTests(SimpleTestCase):
         self.assertEqual(options["listen"], "0.0.0.0:10000")
         self.assertEqual(options["url_scheme"], "https")
 
+    def test_render_hostname_is_added_to_manual_hosts_and_https_origins(self):
+        settings = isolated_settings(
+            CAL01_DEPLOYMENT="cloud", RENDER_EXTERNAL_HOSTNAME=" CAL01-Team.onrender.com ",
+            DJANGO_ALLOWED_HOSTS="review.example.com,cal01-team.onrender.com",
+        )
+        self.assertEqual(settings.ALLOWED_HOSTS, ["review.example.com", "cal01-team.onrender.com"])
+        self.assertEqual(settings.CSRF_TRUSTED_ORIGINS, ["https://review.example.com", "https://cal01-team.onrender.com"])
+        settings = isolated_settings(CAL01_DEPLOYMENT="cloud", RENDER_EXTERNAL_HOSTNAME="cal01-team.onrender.com")
+        self.assertEqual(settings.ALLOWED_HOSTS, ["cal01-team.onrender.com"])
+        for hostname in ["*", ".onrender.com", "https://cal01-team.onrender.com", "team.onrender.com:443", "bad_host.onrender.com"]:
+            with self.subTest(hostname=hostname), self.assertRaises(ImproperlyConfigured):
+                isolated_settings(CAL01_DEPLOYMENT="cloud", RENDER_EXTERNAL_HOSTNAME=hostname)
+
+    def test_restore_gate_is_opt_in_and_digest_is_validated(self):
+        settings = isolated_settings()
+        self.assertFalse(settings.CAL01_REQUIRE_RESTORED_DB)
+        self.assertEqual(settings.CAL01_EXPECTED_DATASET_SHA256, "")
+        settings = isolated_settings(CAL01_REQUIRE_RESTORED_DB="1", CAL01_EXPECTED_DATASET_SHA256="A" * 64)
+        self.assertTrue(settings.CAL01_REQUIRE_RESTORED_DB)
+        self.assertEqual(settings.CAL01_EXPECTED_DATASET_SHA256, "a" * 64)
+        for option in [{"CAL01_REQUIRE_RESTORED_DB": "true"}, {"CAL01_EXPECTED_DATASET_SHA256": "not-a-sha"}]:
+            with self.subTest(option=option), self.assertRaises(ImproperlyConfigured):
+                isolated_settings(**option)
+
     def test_cloud_connection_timeout_is_bounded_and_configurable(self):
         self.assertEqual(self.railway_settings(PGCONNECT_TIMEOUT="7").DATABASES["default"]["OPTIONS"]["connect_timeout"], 7)
         for value in ["0", "-1", "61", "infinite"]:
