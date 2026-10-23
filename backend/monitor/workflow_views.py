@@ -12,6 +12,9 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from .detection_models import AnomalyCandidate
+from .channels import CHANNEL_BY_ID
+from .models import Dataset, LotSummary
+from .series import recorded_time
 from .notifications import notification_result, publish_request_notification, user_summary
 from .workflow_models import FieldRequest, FieldRequestHistory, FieldRequestSubmission, Notification
 
@@ -36,13 +39,8 @@ def request_queryset():
 
 
 def request_result(item):
-    candidate = item.candidate
-    run = candidate.run
     return {
-        "id": str(item.id), "candidate_id": str(item.candidate_id),
-        "run_id": str(run.id), "dataset_id": str(run.dataset_id), "lot_no": run.lot_no,
-        "channel_id": candidate.channel_id, "zone_id": candidate.zone_id,
-        "start": candidate.start, "end": candidate.end,
+        "id": str(item.id), **item.source_context(),
         "title": item.title, "message": item.message,
         "status": item.status, "revision": item.revision,
         "requested_by": user_summary(item.requested_by),
@@ -68,6 +66,24 @@ def _text(data, name, maximum):
     return value.strip()
 
 
+def manual_request_context(data):
+    try:
+        dataset_id = uuid.UUID(str(data.get("dataset_id", "")))
+    except (ValueError, TypeError, AttributeError):
+        raise ValidationError({"dataset_id": "사용할 데이터 묶음을 선택해 주세요."})
+    dataset = get_object_or_404(Dataset, pk=dataset_id, status=Dataset.Status.READY)
+    lot_no = _text(data, "lot_no", 40)
+    lot = get_object_or_404(LotSummary, dataset=dataset, lot_no=lot_no)
+    channel_id = _text(data, "channel_id", 40)
+    if channel_id not in CHANNEL_BY_ID:
+        raise ValidationError({"channel_id": "등록된 채널을 선택해 주세요."})
+    start, end = recorded_time(data.get("start"), "start"), recorded_time(data.get("end"), "end")
+    if start > end or start < recorded_time(lot.start) or end > recorded_time(lot.end):
+        raise ValidationError({"end": "선택한 LOT 안에서 시작·끝 시각을 순서대로 지정해 주세요."})
+    return {"dataset": dataset, "lot_no": lot_no, "channel_id": channel_id,
+            "zone_id": CHANNEL_BY_ID[channel_id]["zone"], "start": start, "end": end}
+
+
 @api_view(["GET", "POST"])
 def field_requests(request):
     require_team(request.user)
@@ -84,12 +100,22 @@ def field_requests(request):
         raise ValidationError("요청 내용을 확인해 주세요.")
     message = _text(request.data, "message", 4000)
     key = _text(request.data, "idempotency_key", 128)
-    try:
-        candidate_id = uuid.UUID(str(request.data.get("candidate_id", "")))
-    except (ValueError, TypeError, AttributeError):
-        raise ValidationError({"candidate_id": "이상 후보를 선택해 주세요."})
+    candidate_id = None
+    manual = None
+    if request.data.get("candidate_id"):
+        if any(name in request.data for name in ["dataset_id", "lot_no", "channel_id", "start", "end"]):
+            raise ValidationError("이상 후보 연결 요청과 직접 작성 요청의 구간을 함께 보낼 수 없습니다.")
+        try:
+            candidate_id = uuid.UUID(str(request.data["candidate_id"]))
+        except (ValueError, TypeError, AttributeError):
+            raise ValidationError({"candidate_id": "이상 후보를 선택해 주세요."})
+        payload = {"candidate_id": str(candidate_id), "message": message}
+    else:
+        manual = manual_request_context(request.data)
+        payload = {**{name: value for name, value in manual.items() if name != "dataset"},
+                   "dataset_id": str(manual["dataset"].id), "message": message}
     fingerprint = hashlib.sha256(json.dumps(
-        {"candidate_id": str(candidate_id), "message": message},
+        payload,
         ensure_ascii=False, sort_keys=True,
     ).encode()).hexdigest()
 
@@ -102,22 +128,27 @@ def field_requests(request):
                 return Response({"detail": "같은 요청 키로 다른 내용을 보낼 수 없습니다."}, status=409)
             item = request_queryset().get(pk=receipt.request_id)
             return Response({"request": request_result(item), "reused": True})
-        # All creators lock the candidate before checking its one open request.
-        candidate = get_object_or_404(
-            AnomalyCandidate.objects.select_for_update(of=("self",), no_key=True).select_related("run"),
-            pk=candidate_id,
-        )
-        existing = request_queryset().filter(candidate=candidate).exclude(status=FieldRequest.Status.CLOSED).first()
+        candidate = None
+        if candidate_id:
+            # All creators lock the candidate before checking its one open request.
+            candidate = get_object_or_404(
+                AnomalyCandidate.objects.select_for_update(of=("self",), no_key=True).select_related("run"),
+                pk=candidate_id,
+            )
+            matches = request_queryset().filter(candidate=candidate)
+        else:
+            matches = request_queryset().filter(candidate__isnull=True, requested_by=request.user, message=message, **manual)
+        existing = matches.exclude(status=FieldRequest.Status.CLOSED).first()
         if existing:
             return Response({
-                "detail": "이 이상 후보는 이미 현장 확인을 요청했습니다.",
+                "detail": "같은 대상·내용의 진행 중인 점검 요청이 있습니다.",
                 "request": request_result(existing),
             }, status=409)
-        item = FieldRequest.objects.create(
-            candidate=candidate, requested_by=request.user,
-            title=f"{candidate.run.lot_no} · {candidate.channel_id} 현장 확인",
-            message=message,
-        )
+        context = {"candidate": candidate} if candidate else manual
+        lot_no = candidate.run.lot_no if candidate else manual["lot_no"]
+        channel_id = candidate.channel_id if candidate else manual["channel_id"]
+        item = FieldRequest.objects.create(**context, requested_by=request.user,
+            title=f"{lot_no} · {channel_id} 점검 요청", message=message)
         FieldRequestHistory.objects.create(
             request=item, revision=1, action="create", from_status="", to_status=item.status, actor=request.user,
         )
@@ -213,7 +244,7 @@ def notifications(request):
     queryset = Notification.objects.filter(id__gt=after)
     if not is_admin(request.user):
         queryset = queryset.filter(Q(recipient_team="all") | Q(recipient_team__in=groups))
-    page = list(queryset.select_related("candidate__run", "actor").order_by("id")[:limit + 1])
+    page = list(queryset.select_related("candidate__run", "request__candidate__run", "actor").order_by("id")[:limit + 1])
     visible = page[:limit]
     return Response({
         "notifications": [notification_result(item) for item in visible],

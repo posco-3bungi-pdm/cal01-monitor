@@ -68,10 +68,11 @@ def publish_request_notification(field_request, actor, action):
         "closed": "모니터링 확인 완료",
     }
     candidate = field_request.candidate
+    context = field_request.source_context()
     return _publish(
         event_key=f"request:{field_request.id}:{field_request.revision}:{action}",
         kind=f"request_{action}",
-        title=f"{candidate.run.lot_no} · {candidate.channel_id} {labels[action]}",
+        title=f"{context['lot_no']} · {context['channel_id']} {labels[action]}",
         actor=actor, candidate=candidate, request=field_request,
     )
 
@@ -79,18 +80,19 @@ def publish_request_notification(field_request, actor, action):
 def notification_result(notification):
     candidate = notification.candidate
     run = candidate.run if candidate else None
+    context = notification.request.source_context() if notification.request_id else {}
     return {
         "id": notification.id,
         "kind": notification.kind,
         "candidate_id": str(notification.candidate_id) if notification.candidate_id else None,
         "request_id": str(notification.request_id) if notification.request_id else None,
-        "dataset_id": str(run.dataset_id) if run else None,
+        "dataset_id": str(run.dataset_id) if run else context.get("dataset_id"),
         "run_id": str(run.id) if run else None,
-        "lot_no": run.lot_no if run else None,
-        "channel_id": candidate.channel_id if candidate else None,
-        "zone_id": candidate.zone_id if candidate else None,
-        "start": candidate.start if candidate else None,
-        "end": candidate.end if candidate else None,
+        "lot_no": run.lot_no if run else context.get("lot_no"),
+        "channel_id": candidate.channel_id if candidate else context.get("channel_id"),
+        "zone_id": candidate.zone_id if candidate else context.get("zone_id"),
+        "start": candidate.start if candidate else context.get("start"),
+        "end": candidate.end if candidate else context.get("end"),
         "title": notification.title,
         "actor": user_summary(notification.actor),
         "created_at": notification.created_at,

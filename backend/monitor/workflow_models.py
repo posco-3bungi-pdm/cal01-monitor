@@ -12,7 +12,13 @@ class FieldRequest(models.Model):
         CLOSED = "closed", "모니터링 확인 완료"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    candidate = models.ForeignKey("monitor.AnomalyCandidate", on_delete=models.PROTECT, related_name="field_requests")
+    candidate = models.ForeignKey("monitor.AnomalyCandidate", on_delete=models.PROTECT, related_name="field_requests", null=True, blank=True)
+    dataset = models.ForeignKey("monitor.Dataset", on_delete=models.PROTECT, related_name="manual_field_requests", null=True, blank=True)
+    lot_no = models.CharField(max_length=40, blank=True)
+    channel_id = models.CharField(max_length=40, blank=True)
+    zone_id = models.CharField(max_length=40, blank=True)
+    start = models.CharField(max_length=26, blank=True)
+    end = models.CharField(max_length=26, blank=True)
     title = models.CharField(max_length=200)
     message = models.TextField()
     requested_by = models.ForeignKey(
@@ -31,8 +37,32 @@ class FieldRequest(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
 
+    def source_context(self):
+        if self.candidate_id:
+            candidate = self.candidate
+            run = candidate.run
+            return {
+                "source": "candidate", "candidate_id": str(candidate.id), "run_id": str(run.id),
+                "dataset_id": str(run.dataset_id), "lot_no": run.lot_no,
+                "channel_id": candidate.channel_id, "zone_id": candidate.zone_id,
+                "start": candidate.start, "end": candidate.end,
+            }
+        return {
+            "source": "manual", "candidate_id": None, "run_id": None,
+            "dataset_id": str(self.dataset_id), "lot_no": self.lot_no,
+            "channel_id": self.channel_id, "zone_id": self.zone_id,
+            "start": self.start, "end": self.end,
+        }
+
     class Meta:
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(candidate__isnull=False, dataset__isnull=True) | (
+                    models.Q(candidate__isnull=True, dataset__isnull=False)
+                    & ~models.Q(lot_no="") & ~models.Q(channel_id="") & ~models.Q(zone_id="")
+                    & ~models.Q(start="") & ~models.Q(end="")
+                ), name="request_has_one_source_context",
+            ),
             models.UniqueConstraint(
                 fields=["candidate"], condition=models.Q(status__in=["requested", "accepted", "completed"]),
                 name="candidate_one_open_request",
