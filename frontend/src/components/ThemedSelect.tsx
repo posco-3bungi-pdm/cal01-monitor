@@ -164,7 +164,7 @@ export default function ThemedSelect({ label, value, onChange, options, disabled
           onPointerMove={() => setActive(index)} onClick={() => choose(index)}>
           <span>{option.color && <i className="grade-color-dot" style={{ backgroundColor: option.color }} aria-hidden="true" />}{option.label}</span>{option.value === value && <Check size={15} aria-hidden="true" />}
         </div>)}
-      </div>, document.body,
+      </div>, trigger.current?.closest('dialog') ?? document.body,
     )}
   </>
 }

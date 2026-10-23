@@ -1,50 +1,47 @@
-import { BrainCircuit, Check, EyeOff, Sigma } from "lucide-react";
-import "./ModelSelectionPanel.css";
+import { BrainCircuit, Check, EyeOff, Sigma } from 'lucide-react';
+import './ModelSelectionPanel.css';
 
-export type AnalysisModel = "zscore" | "none";
+export type AnalysisModel = 'zscore' | 'none';
+type ModelChoice = AnalysisModel | 'randomforest';
 
-export default function ModelSelectionPanel({ selected, disabled, onSelect, onOpenAnalysis }: {
-  selected: AnalysisModel;
-  disabled: boolean;
-  onSelect: (model: AnalysisModel) => void;
-  onOpenAnalysis: () => void;
+export default function ModelSelectionPanel({ selected, disabled, live = false, onSelect, onOpenAnalysis }: {
+  selected: ModelChoice; disabled: boolean; live?: boolean;
+  onSelect: (model: ModelChoice) => void; onOpenAnalysis: () => void;
 }) {
+  const choices: ModelChoice[] = live ? ['randomforest', 'zscore', 'none'] : ['zscore', 'none'];
   return <div className="model-selection">
-    <p>이상 후보를 확인할 분석 기준을 선택하십시오.</p>
+    <p>{live ? 'CSV에서 도착한 값으로 끝난 1분을 예측함.' : '과거 LOT에 저장된 이상 후보를 확인함.'}</p>
     <div className="model-options" role="radiogroup" aria-label="사용할 분석 모델" onKeyDown={event => {
-      if (disabled || !["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+      if (disabled || !['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
       event.preventDefault();
-      const next = event.key === "Home" ? "zscore" : event.key === "End" ? "none" : selected === "zscore" ? "none" : "zscore";
+      const direction = ['ArrowDown', 'ArrowRight'].includes(event.key) ? 1 : -1;
+      const next = event.key === 'Home' ? choices[0] : event.key === 'End' ? choices.at(-1)!
+        : choices[(Math.max(0, choices.indexOf(selected)) + direction + choices.length) % choices.length];
       onSelect(next);
       event.currentTarget.querySelector<HTMLButtonElement>(`[data-model="${next}"]`)?.focus();
     }}>
-      <button className="model-option" role="radio" aria-checked={selected === "zscore"}
-        data-model="zscore" tabIndex={selected === "zscore" ? 0 : -1}
-        disabled={disabled} onClick={() => onSelect("zscore")}>
-        <Sigma size={24} aria-hidden="true" />
-        <span><strong>Z-score</strong><small>선택한 LOT 전체의 평균 ±3σ를 벗어난 값</small>
-          <em>과거 자료 분석 · 미래 고장 예측 아님</em></span>
-        {selected === "zscore" && <Check size={19} aria-label="선택됨" />}
+      {live && <button className="model-option" role="radio" aria-checked={selected === 'randomforest'}
+        data-model="randomforest" tabIndex={selected === 'randomforest' ? 0 : -1} disabled={disabled} onClick={() => onSelect('randomforest')}>
+        <BrainCircuit size={24} aria-hidden="true" /><span><strong>RandomForestClassifier</strong>
+          <small>Z3~Z6는 구역별 활성 모델 사용. 그 밖의 구역은 Z-score 사용.</small>
+          <em>2024년 팀·통계 라벨 학습 · 고장 원인 채널은 따로 확인</em></span>
+        {selected === 'randomforest' && <Check size={19} aria-label="선택됨" />}
+      </button>}
+      <button className="model-option" role="radio" aria-checked={selected === 'zscore'}
+        data-model="zscore" tabIndex={selected === 'zscore' ? 0 : -1} disabled={disabled} onClick={() => onSelect('zscore')}>
+        <Sigma size={24} aria-hidden="true" /><span><strong>Z-score</strong>
+          <small>{live ? '같은 LOT에서 앞서 도착한 값의 평균 ±3σ와 비교' : '선택한 LOT 전체의 평균 ±3σ를 벗어난 값'}</small>
+          <em>{live ? '앞의 30분이 쌓이면 계산 · 미래 값 사용 안 함' : '과거 자료 분석 · 미래 고장 예측 아님'}</em></span>
+        {selected === 'zscore' && <Check size={19} aria-label="선택됨" />}
       </button>
-      <button className="model-option" role="radio" aria-checked="false" disabled>
-        <BrainCircuit size={24} aria-hidden="true" />
-        <span><strong>RandomForestClassifier <b>연결 전</b></strong>
-          <small>2024년의 정상·이상 라벨을 학습한 분류 모델</small>
-          <em>학습된 모델과 입력 컬럼 확인 후 선택할 수 있습니다.</em></span>
-      </button>
-      <button className="model-option" role="radio" aria-checked={selected === "none"}
-        data-model="none" tabIndex={selected === "none" ? 0 : -1}
-        disabled={disabled} onClick={() => onSelect("none")}>
-        <EyeOff size={24} aria-hidden="true" />
-        <span><strong>추가 분석 끄기</strong><small>새 분석 실행을 끕니다. 저장된 미조치 알림은 계속 표시합니다.</small></span>
-        {selected === "none" && <Check size={19} aria-label="선택됨" />}
+      <button className="model-option" role="radio" aria-checked={selected === 'none'}
+        data-model="none" tabIndex={selected === 'none' ? 0 : -1} disabled={disabled} onClick={() => onSelect('none')}>
+        <EyeOff size={24} aria-hidden="true" /><span><strong>추가 분석 끄기</strong><small>원자료 재생과 저장된 점검 요청은 유지함.</small></span>
+        {selected === 'none' && <Check size={19} aria-label="선택됨" />}
       </button>
     </div>
-    {selected === "zscore" && <button className="primary-button" disabled={disabled} onClick={onOpenAnalysis}>Z-score 분석과 저장된 후보 보기</button>}
-    <div className="model-next">
-      <strong>RandomForestClassifier를 연결하려면</strong>
-      <p>학습에 쓴 컬럼과 정상·이상 라벨 기준을 먼저 맞춥니다. 현재 자료에는 학습된 분류 모델 파일이 없습니다.</p>
-      <p>2026년 실측은 그대로 예측에 넣고, 2024년 자료를 늘려 만든 일주일은 <b>합성 재생</b>으로 구분합니다.</p>
-    </div>
+    {!live && selected === 'zscore' && <button className="primary-button" disabled={disabled} onClick={onOpenAnalysis}>Z-score 분석과 저장된 후보 보기</button>}
+    <div className="model-next"><p>{live ? '끝난 분의 온도·출력·CP와 지난 값을 서버가 계산함. CSV의 LABEL·EXCLUDED는 모델 입력에 넣지 않음.' : 'RandomForestClassifier는 실시간 CSV 시연 탭에서 선택할 수 있음.'}</p>
+      <p>CSV 시연은 실제 설비 수집이나 별도 성능 평가가 아님.</p></div>
   </div>;
 }

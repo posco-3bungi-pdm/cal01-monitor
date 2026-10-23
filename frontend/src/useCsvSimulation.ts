@@ -11,13 +11,14 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
   const key = `${datasetId}:${range?.start ?? ''}:${range?.end ?? ''}`;
   const [snapshot, setSnapshot] = useState<Snapshot>(() => emptySnapshot(key));
   const [engaged, setEngaged] = useState(false), [running, setRunning] = useState(false);
+  const [runId, setRunId] = useState(0);
   const [speed, setSpeed] = useState(1), [loading, setLoading] = useState(false), [error, setError] = useState('');
   const queue = useRef<SimulationFrame[]>([]), next = useRef<string | null>(null);
   const hasMore = useRef(true), pending = useRef(false), active = useRef(false), currentKey = useRef(key);
   const received = useRef(0), epoch = useRef(0), controller = useRef<AbortController | null>(null), credit = useRef(0);
 
   const reset = useCallback(() => {
-    epoch.current++; controller.current?.abort(); queue.current = []; next.current = null;
+    epoch.current++; setRunId(value => value + 1); controller.current?.abort(); queue.current = []; next.current = null;
     hasMore.current = true; pending.current = false; active.current = false; received.current = 0; credit.current = 0;
     currentKey.current = key; setSnapshot(emptySnapshot(key));
     setEngaged(false); setRunning(false); setLoading(false); setError('');
@@ -83,5 +84,6 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
   const pause = useCallback(() => { active.current = false; setRunning(false); }, []);
   const visible = snapshot.key === key ? snapshot : emptySnapshot(key);
   return { ...visible, frame: visible.frames.at(-1) ?? null, engaged: snapshot.key === key && engaged,
-    running, speed, setSpeed, loading, error, play, pause, reset };
+    runId, running, speed, setSpeed, loading, error, play, pause, reset,
+    ended: visible.count > 0 && !running && !hasMore.current && queue.current.length === 0 && !pending.current };
 }

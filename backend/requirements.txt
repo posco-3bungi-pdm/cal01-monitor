@@ -3,3 +3,7 @@ djangorestframework>=3.18.3,<3.19
 psycopg[binary]>=3.2,<4
 waitress>=3,<4
 whitenoise>=6,<7
+scikit-learn==1.9.1
+joblib>=1.6,<2
+pandas>=3.0,<3.1
+numpy>=2.3,<3
