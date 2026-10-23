@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: cal01-monitor
+    runtime: docker
+    repo: https://github.com/posco-3bungi-pdm/cal01-monitor
+    branch: fix/32-team-server-ui-namelesspark
+    region: singapore
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: "off"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    preDeployCommand: python manage.py prepare_deployment
+    healthCheckPath: /api/ready
+    envVars:
+      - key: CAL01_DEPLOYMENT
+        value: cloud
+      - key: CAL01_REQUIRE_RESTORED_DB
+        value: "1"
+      - key: CAL01_EXPECTED_DATASET_SHA256
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: PGSSLMODE
+        value: require
+      - key: PGCONNECT_TIMEOUT
+        value: "3"
+      - key: PGHOST
+        fromDatabase:
+          name: cal01-monitor-db
+          property: host
+      - key: PGPORT
+        fromDatabase:
+          name: cal01-monitor-db
+          property: port
+      - key: PGDATABASE
+        fromDatabase:
+          name: cal01-monitor-db
+          property: database
+      - key: PGUSER
+        fromDatabase:
+          name: cal01-monitor-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: cal01-monitor-db
+          property: password
+
+databases:
+  - name: cal01-monitor-db
+    region: singapore
+    plan: 0.1c-256mb
+    postgresMajorVersion: "18"
+    databaseName: cal01_monitor
+    user: cal01_monitor
+    diskSizeGB: 1
+    ipAllowList: []

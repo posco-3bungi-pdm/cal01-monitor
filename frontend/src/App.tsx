@@ -35,6 +35,7 @@ import { sceneChannelIds, toggleSceneLabelGroup } from "./components/scene-label
 import type { SceneLabelGroup, SceneLabelState } from "./components/scene-label-groups";
 import HistorySearchDialog from "./components/HistorySearchDialog";
 import { sceneMotion } from "./components/scene-motion";
+import FullscreenButton from "./components/FullscreenButton";
 import ReadingValue from "./components/ReadingValue";
 import CoilProductInfo from "./components/CoilProductInfo";
 import { zoneForChannel } from "./components/furnace-model";
@@ -326,7 +327,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   }, [dirty]);
   useEffect(() => {
     const closeOverlay = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || document.querySelector("dialog[open]")) return;
+      if (event.key !== "Escape" || document.fullscreenElement || document.querySelector("dialog[open]")) return;
       if (guideIndex !== null) closeGuide();
       else if (sidebarOpen) setSidebarOpen(false);
       else if (drawer) setDrawer(null);
@@ -689,7 +690,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <button aria-label="과거 LOT 이상 후보 열기" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{candidates.length > 0 && <small>{candidates.length}</small>}</button>
           <button aria-label="팀 확인 요청함 열기" aria-expanded={drawer === "requests"} className={drawer === "requests" ? "active" : ""} onClick={() => openDrawer("requests")}><ClipboardList size={15} /><span>요청함</span></button>
         </nav>
-        <div className="topbar-right"><TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label="공정 읽기 열고 닫기" title="공정 읽기" className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>공정 읽기</span></button><ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} /></div>
+        <div className="topbar-right"><FullscreenButton onError={text => setMessage({ kind: "error", text })} /><TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label="공정 읽기 열고 닫기" title="공정 읽기" className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>공정 읽기</span></button><ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} /></div>
       </header>
       <main className="main-content">
         {history ? <section className="scene-data-control" aria-label="현재 보고 있는 자료">

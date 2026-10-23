@@ -1,4 +1,5 @@
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+const LOCAL_SERVER = "http://127.0.0.1:9017";
 
 function normalizeServerUrl(value) {
   if (typeof value !== "string" || value.length > 2048) throw new Error("서버 주소를 확인해 주세요.");
@@ -12,4 +13,10 @@ function normalizeServerUrl(value) {
   }
   return url.origin;
 }
-module.exports = { normalizeServerUrl };
+function resolveInitialServer(savedServer, buildServer) {
+  for (const value of [savedServer, buildServer, LOCAL_SERVER]) {
+    try { return normalizeServerUrl(value); } catch { /* Try the next default. */ }
+  }
+}
+
+module.exports = { normalizeServerUrl, resolveInitialServer, LOCAL_SERVER };
