@@ -79,6 +79,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build the same image used by the team server
         run: docker build --tag cal01-monitor:ci .
+      - name: Verify packaged model files and inference runtime
+        run: docker run --rm --env CAL01_TEST_SQLITE=1 --env CAL01_DEPLOYMENT=local cal01-monitor:ci python manage.py shell -c "from monitor.model_registry import load_selected_model, load_zscore_rule; [load_selected_model(z) for z in ['Z3','Z4','Z5','Z6']]; load_zscore_rule(); print('packaged models loaded')"
       - name: Configure an isolated deployment database
         run: |
           cat > "$RUNNER_TEMP/cal01-ci.env" <<'EOF'

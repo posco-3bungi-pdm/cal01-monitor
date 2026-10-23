@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import auth_views, context_views, data_views, detection_views, views, workflow_views
+from . import model_inference, auth_views, context_views, data_views, detection_views, views, workflow_views
 
 urlpatterns = [
     path("health", auth_views.health),
@@ -15,6 +15,8 @@ urlpatterns = [
     path("material-grades", views.material_grades),
     path("lot-grade-link", views.lot_grade_link),
     path("channels", views.channels),
+    path("models", model_inference.model_manifest),
+    path("model-predictions", model_inference.model_predictions),
     path("series", views.series),
     path("current-frame", views.current_frame),
     path("playback-frames", data_views.playback_frames),
