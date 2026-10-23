@@ -15,7 +15,7 @@ type EquipmentProps = {
 
 function Metal({ appearance, color = '#aab8bd' }: { appearance: FurnaceAppearance; color?: string }) {
   return appearance === 'hologram'
-    ? <HologramMaterial color={color === '#aab8bd' ? '#75c5d2' : color} opacity={0.62} />
+    ? <HologramMaterial color="#68cadd" opacity={0.56} />
     : <IndustrialMaterial color={color} />
 }
 
@@ -72,7 +72,7 @@ function BrushPair({ active, appearance }: { active: boolean; appearance: Furnac
         const a = index * Math.PI / 7
         return <mesh key={index} position={[Math.cos(a) * 0.21, Math.sin(a) * 0.21, 0]} rotation={[0, 0, a]}>
           <boxGeometry args={[0.022, 0.045, 1.45]} />
-          <meshStandardMaterial color="#708183" roughness={0.92} />
+          {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#708183" roughness={0.92} />}
         </mesh>
       })}
     </group>)}
@@ -92,7 +92,7 @@ function Wringer({ active, appearance }: { active: boolean; appearance: FurnaceA
       <Cylinder position={[0, 0, 0]} radius={0.231} length={1.54} appearance={appearance} color="#263b41" />
       <Cylinder position={[0, 0, 0]} radius={0.07} length={2.05} appearance={appearance} />
       <mesh position={[0.225, 0, 0]}><boxGeometry args={[0.012, 0.025, 1.5]} />
-        <meshStandardMaterial color="#779397" roughness={0.8} /></mesh>
+        {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#779397" roughness={0.8} />}</mesh>
     </group>)}</group>
     {[-1, 1].map(side => <Box key={side} position={[-13.95, 1.48, side * 1.06]}
       size={[0.3, 1.4, 0.17]} appearance={appearance} />)}
@@ -169,7 +169,7 @@ function CleaningEquipment({ simulationActive, appearance }: Pick<EquipmentProps
       size={[3.4, 0.4, 0.09]} appearance={appearance} />)}
     <mesh position={[-15.35, 1.13, 0]} rotation={[-Math.PI / 2, 0, 0]}>
       <planeGeometry args={[3.2, 2.3]} />
-      <meshStandardMaterial color="#426b70" metalness={0.25} roughness={0.18} transparent opacity={0.48} />
+      {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#426b70" metalness={0.25} roughness={0.18} transparent opacity={0.48} />}
     </mesh>
     <Spray x={-16.5} active={simulationActive} appearance={appearance} />
     <BrushPair active={simulationActive} appearance={appearance} />
@@ -204,9 +204,9 @@ function ShaftSeal({ appearance, selected }: { appearance: FurnaceAppearance; se
     <Cylinder position={[0, 0, 0]} radius={0.13} length={0.95} appearance={appearance} />
     <Box position={[0, -0.1, -0.08]} size={[0.7, 0.6, 0.28]} appearance={appearance} color="#566e7b" />
     <mesh position={[0, 0, selected ? 0.4 : 0.1]}><torusGeometry args={[0.205, 0.065, 10, 36]} />
-      <meshStandardMaterial color="#1a2529" roughness={0.82} /></mesh>
+      {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#1a2529" roughness={0.82} />}</mesh>
     <mesh position={[0, 0, selected ? 0.44 : 0.12]}><torusGeometry args={[0.155, 0.012, 6, 40]} />
-      <meshStandardMaterial color="#c3bfa9" metalness={0.8} roughness={0.3} /></mesh>
+      {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#c3bfa9" metalness={0.8} roughness={0.3} />}</mesh>
     <mesh position={[0, 0, selected ? 0.28 : 0.06]}><torusGeometry args={[0.27, 0.026, 8, 32]} />
       <Metal appearance={appearance} /></mesh>
   </group>
@@ -217,13 +217,13 @@ function ORing({ appearance, selected }: { appearance: FurnaceAppearance; select
   return <group>
     {[-1, 1].map(side => <group key={side} position={[0, 0, side * spread]}>
       <Cylinder position={[0, 0, side * 0.13]} radius={0.105} length={0.22} appearance={appearance} />
-      <mesh><ringGeometry args={[0.11, 0.27, 32]} /><meshStandardMaterial color="#9aaeb5" metalness={0.7} side={THREE.DoubleSide} /></mesh>
+      <mesh><ringGeometry args={[0.11, 0.27, 32]} />{appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#9aaeb5" metalness={0.7} side={THREE.DoubleSide} />}</mesh>
       {Array.from({ length: 6 }, (_, index) => <Cylinder key={index}
         position={[Math.cos(index * Math.PI / 3) * 0.21, Math.sin(index * Math.PI / 3) * 0.21, side * 0.035]}
         radius={0.025} length={0.06} appearance={appearance} color="#5f7784" />)}
     </group>)}
     <mesh><torusGeometry args={[0.153, 0.025, 12, 36]} />
-      <meshStandardMaterial color="#242c2c" roughness={0.88} /></mesh>
+      {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#242c2c" roughness={0.88} />}</mesh>
   </group>
 }
 

@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import type { FurnaceZone } from './furnace-model'
 
 export type FurnaceAppearance = 'hologram' | 'realistic'
+export const HologramThemeContext = createContext<'light' | 'dark'>('dark')
 
 const finiteValue = (value: number | null | undefined): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -126,8 +127,10 @@ export function IndustrialMaterial({ color = '#a4afb4', emissive = '#000000', em
     metalness={0.62} roughness={0.85} />
 }
 
+// Pixel-width UV contours retain instancing and add no geometry or draw calls.
+// Flat panel edges stay sharp; curved surfaces use sparse, quieter section lines.
 const HOLOGRAM_VERTEX = /* glsl */`
-  varying vec3 vWorldPosition;
+  varying vec2 vPanelUv;
   varying vec3 vViewNormal;
   varying vec3 vViewDirection;
   void main() {
@@ -140,9 +143,8 @@ const HOLOGRAM_VERTEX = /* glsl */`
       localNormal = instanceBasis * localNormal;
       localPosition = instanceMatrix * localPosition;
     #endif
-    vec4 worldPosition = modelMatrix * localPosition;
-    vec4 viewPosition = viewMatrix * worldPosition;
-    vWorldPosition = worldPosition.xyz;
+    vec4 viewPosition = viewMatrix * modelMatrix * localPosition;
+    vPanelUv = uv;
     vViewNormal = normalize(normalMatrix * localNormal);
     vViewDirection = -viewPosition.xyz;
     gl_Position = projectionMatrix * viewPosition;
@@ -151,35 +153,51 @@ const HOLOGRAM_VERTEX = /* glsl */`
 const HOLOGRAM_FRAGMENT = /* glsl */`
   uniform vec3 uColor;
   uniform float uOpacity;
-  varying vec3 vWorldPosition;
+  uniform float uEmphasis;
+  varying vec2 vPanelUv;
   varying vec3 vViewNormal;
   varying vec3 vViewDirection;
   void main() {
-    float fresnel = pow(1.0 - abs(dot(normalize(vViewNormal), normalize(vViewDirection))), 1.7);
-    float phase = vWorldPosition.y * 13.0;
-    float edge = max(fwidth(phase), 0.015);
-    float scan = 1.0 - smoothstep(0.045, 0.045 + edge, abs(fract(phase) - 0.5));
-    float alpha = uOpacity * (0.18 + fresnel * 0.70 + scan * 0.12);
-    gl_FragColor = vec4(uColor * (0.83 + fresnel * 0.17), alpha);
+    vec2 pixelWidth = max(fwidth(vPanelUv), vec2(0.00001));
+    vec2 borderDistance = min(vPanelUv, 1.0 - vPanelUv) / pixelWidth;
+    float hasUv = step(0.000001, max(fwidth(vPanelUv.x), fwidth(vPanelUv.y)));
+    float border = (1.0 - smoothstep(0.35, 1.0, min(borderDistance.x, borderDistance.y))) * hasUv;
+    vec3 viewNormal = normalize(vViewNormal);
+    float curved = smoothstep(0.0003, 0.003, length(fwidth(viewNormal)));
+    vec2 sections = vPanelUv * vec2(8.0, 4.0);
+    vec2 sectionDistance = abs(fract(sections - 0.5) - 0.5) / max(fwidth(sections), vec2(0.00001));
+    float sectionLine = (1.0 - smoothstep(0.3, 0.85, min(sectionDistance.x, sectionDistance.y))) * curved * hasUv;
+    float rim = pow(1.0 - abs(dot(viewNormal, normalize(vViewDirection))), 8.0);
+    float contour = max(border, sectionLine * 0.28);
+    float frontBack = gl_FrontFacing ? 1.0 : 0.28;
+    float depthFade = 0.62 + 0.38 * exp(-length(vViewDirection) * 0.018);
+    float fill = mix(0.018, 0.18, uEmphasis);
+    float alpha = uOpacity * (fill + contour * mix(1.30, 1.65, uEmphasis) + rim * 0.11) * frontBack * depthFade;
+    gl_FragColor = vec4(uColor, clamp(alpha, 0.0, 0.92));
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
 `
 
-export function HologramMaterial({ color = '#6fdce8', opacity = 0.48 }: {
+export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis = false }: {
   color?: THREE.ColorRepresentation
   opacity?: number
+  emphasis?: boolean
 }) {
   const { invalidate } = useThree()
+  const theme = useContext(HologramThemeContext)
+  const palette = theme === 'light' ? (emphasis ? '#c83c32' : '#07596b') : color
   const uniforms = useMemo(() => ({
-    uColor: { value: new THREE.Color(color) },
+    uColor: { value: new THREE.Color(palette) },
     uOpacity: { value: THREE.MathUtils.clamp(opacity, 0, 1) },
+    uEmphasis: { value: emphasis ? 1 : 0 },
   }), [])
   useEffect(() => {
-    uniforms.uColor.value.set(color)
+    uniforms.uColor.value.set(palette)
     uniforms.uOpacity.value = THREE.MathUtils.clamp(opacity, 0, 1)
+    uniforms.uEmphasis.value = emphasis ? 1 : 0
     invalidate()
-  }, [color, opacity, uniforms, invalidate])
+  }, [palette, opacity, emphasis, uniforms, invalidate])
   return <shaderMaterial vertexShader={HOLOGRAM_VERTEX} fragmentShader={HOLOGRAM_FRAGMENT}
     uniforms={uniforms} transparent depthWrite={false} depthTest
     side={THREE.DoubleSide} forceSinglePass toneMapped={false} />

@@ -13,7 +13,7 @@ import {
   workViewForViewport, partViewForViewport, housingPanels, COIL_RADIUS, COIL_CENTRE_Y,
 } from './furnace-model'
 import type { FurnaceZone, Position3 } from './furnace-model'
-import { HeatHaze, HeatHazeLayer, HologramMaterial, IndustrialMaterial, SteelSurfaceMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
+import { HeatHaze, HeatHazeLayer, HologramMaterial, HologramThemeContext, IndustrialMaterial, SteelSurfaceMaterial, heatLevel, temperatureForZone } from './furnace-appearance'
 import ProcessEquipment from './ProcessEquipment'
 import HeatingEquipment from './HeatingEquipment'
 import { PART_CATALOG } from './part-catalog'
@@ -76,7 +76,7 @@ function ModelMaterial({ weathered = false, attention = false, ...props }: {
 }) {
   const { appearance, theme } = useContext(AppearanceContext)
   if (appearance === 'hologram') {
-    return <HologramMaterial color={attention ? '#ff695c' : theme === 'dark' ? '#4ae2ff' : '#00748b'} opacity={attention ? 0.65 : weathered ? 0.15 : 0.42} />
+    return <HologramMaterial color={attention ? '#ff695c' : theme === 'dark' ? '#4ae2ff' : '#00748b'} opacity={attention ? 0.65 : weathered ? 0.15 : 0.42} emphasis={attention} />
   }
   return weathered ? <IndustrialMaterial color={props.color} emissive={props.emissive}
     emissiveIntensity={props.emissiveIntensity} /> : <meshStandardMaterial {...props} />
@@ -298,7 +298,7 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert, openSer
     {(alert || appearance === 'hologram') && <mesh position={[zone.x, zone.height / 2 + 0.4, 0]} raycast={() => {}}>
       <boxGeometry args={[zone.width + 0.15, zone.height - 0.65, zone.depth + 0.2]} />
       <meshBasicMaterial color="#ed5145" transparent opacity={alert ? 0.12 : 0} depthWrite={false} visible={alert} />
-      <Edges color={alert ? '#f16d64' : theme === 'dark' ? '#57cde7' : '#238296'} lineWidth={alert ? 1.6 : 1} />
+      <Edges color={alert ? '#f16d64' : theme === 'dark' ? '#57cde7' : '#238296'} lineWidth={alert ? 1.6 : 0.65} />
     </mesh>}
   </group>
 }
@@ -629,7 +629,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   }, [size.width, size.height, props.overlayOpen, props.overlaySide])
   const shadowRevision = useMemo(() => [placements, showInterior, props.simulationActive, props.selectedPartId],
     [placements, showInterior, props.simulationActive, props.selectedPartId])
-  return <AppearanceContext.Provider value={{ appearance, theme }}>
+  return <AppearanceContext.Provider value={{ appearance, theme }}><HologramThemeContext.Provider value={theme}>
     <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} />
     <ChannelLabelProjection bridge={channelLabelBridge} occlude={!props.showZoneReadouts && appearance === 'realistic' && !showInterior}
       occlusionRevision={shadowRevision} process={Boolean(props.showZoneReadouts)} />
@@ -696,7 +696,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
           <meshBasicMaterial color={theme === 'dark' ? '#3cc9e2' : '#397b8c'} transparent opacity={0.3} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>)}
       </group>}
-  </AppearanceContext.Provider>
+  </HologramThemeContext.Provider></AppearanceContext.Provider>
 }
 
 class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {

@@ -39,7 +39,7 @@ function Instances({ geometry, entries, color, appearance, selected = false, rou
   }, [entries])
   return <instancedMesh ref={mesh} args={[geometry, undefined, entries.length]}>
     {appearance === 'hologram'
-      ? <HologramMaterial color={selected ? '#bde889' : '#80bac4'} opacity={selected ? 0.75 : 0.48} />
+      ? <HologramMaterial color={selected ? '#c9f5ff' : '#54c6df'} opacity={selected ? 0.75 : 0.48} />
       : <meshStandardMaterial color={color} roughness={roughness} metalness={roughness > 0.9 ? 0 : 0.6}
         emissive={selected ? '#a8d577' : '#000000'} emissiveIntensity={selected ? 0.12 : 0} />}
   </instancedMesh>
