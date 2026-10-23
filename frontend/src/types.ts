@@ -7,7 +7,9 @@ export type User = {
   can_edit_layout: boolean;
 };
 export type Dataset = { id: string; name: string; row_count: number; status: string };
-export type Lot = { lot_no: string; grade: string; start: string; end: string; count: number };
+export type MaterialGrade = { grade: string; color: string; family: string; characteristics: string; description: string; sources: { title: string; url: string }[] };
+export type Lot = { lot_no: string; grade: string; start: string; end: string; count: number;
+  source_grade?: string; grade_source?: 'source' | 'linked' | null; material_revision?: number; product?: MaterialGrade | null };
 export type Channel = { id: string; label: string; unit: string | null; zone: string; kind: string };
 export type Placement = { channel_id: string; zone_id: string; position: [number, number, number] };
 export type EquipmentLayout = { model_version: string; revision: number; placements: Placement[] };

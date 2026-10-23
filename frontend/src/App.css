@@ -789,6 +789,66 @@ details.analysis-rule p { margin-top: 10px; }
 .history-search-results { display: grid; gap: 8px; }
 .history-search-results > button { display: grid; grid-template-columns: auto 1fr; gap: 7px 12px; padding: 13px; text-align: left; background: var(--panel-alt); border: 1px solid var(--border); border-radius: 10px; color: var(--text); }
 .history-search-results small { grid-column: 1 / -1; color: var(--muted); }
+
+/* Shared measurements keep panels immediately above the actual process dock. */
+.immersive { --process-dock-bottom: 90px; }
+.immersive .playback-control { bottom: 30px; width: min(560px,calc(100vw - 28px)); gap: 10px; padding: 7px 11px; border-radius: 16px; }
+.immersive .playback-control .replay-toggle { width: 31px; height: 31px; min-height: 31px; padding: 6px; }
+.immersive .playback-control .replay-toggle svg { width: 18px; height: 18px; }
+.immersive .playback-control .themed-select { min-height: 30px; min-width: 62px; padding: 5px 7px; border-radius: 9px; font-size: 12px; }
+.immersive .replay-track input { height: 14px; }
+.immersive .replay-track > div { font-size: 10px; line-height: 1.3; }
+.immersive .channel-inspector,
+.immersive.has-candidate .channel-inspector,
+.immersive .part-inspector,
+.immersive:has(.zone-navigation.has-readouts) .channel-inspector,
+.immersive:has(.zone-navigation.has-readouts) .part-inspector {
+  bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px);
+  max-height: calc(100dvh - var(--process-dock-bottom) - var(--process-dock-height, 64px) - 160px);
+}
+.immersive .channel-inspector { width: 298px; padding: 14px 16px; border-radius: 17px; }
+.immersive .channel-inspector:has(.cp-readings) { width: 332px; }
+.cp-readings { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.cp-reading { min-width: 0; padding: 10px; background: var(--panel-alt); border-radius: 10px; }
+.cp-reading h4 { font: 500 12px var(--mono); color: var(--muted); margin: 0; }
+.immersive .cp-reading .main-reading { margin: 8px 0 4px; display: flex; flex-wrap: nowrap; gap: 5px; }
+.immersive .cp-reading .main-reading > strong { font-size: 26px; }
+.cp-reading > small { color: var(--muted); font: 10px var(--mono); }
+.main-reading .reading-exponent, .reading-exponent { font: 400 12px var(--mono); color: #9ca3af; margin-left: 3px; letter-spacing: 0; white-space: nowrap; }
+:root[data-theme="light"] .reading-exponent { color: #697480; }
+.immersive:has(.zone-navigation.has-readouts) .workspace-drawer,
+.immersive .workspace-drawer,
+.immersive .scene-alert-chip,
+.immersive:has(.zone-navigation.has-readouts) .scene-alert-chip,
+.immersive .equipment-alert,
+.immersive.has-drawer .equipment-alert,
+.immersive:has(.zone-navigation.has-readouts) .equipment-alert {
+  bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 10px);
+}
+.immersive .scene-alert-chip.is-expanded,
+.immersive:has(.zone-navigation.has-readouts) .scene-alert-chip.is-expanded { bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 186px); }
+.immersive:has(.scene-tools-menu) .scene-alert-chip { top: 210px; bottom: auto; }
+.grade-label { display: inline-flex; gap: 6px; align-items: center; }
+.grade-label > i, .grade-color-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; box-shadow: 0 0 0 1px #9dabb84d; }
+.grade-color-dot { margin-right: 7px; }
+.coil-product-info { grid-column: 1 / -1; position: relative; min-width: 0; }
+.coil-product-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 7px; padding: 5px 5px 0; color: var(--muted); font-size: 10px; line-height: 1.4; }
+.coil-product-family { color: var(--text); }
+.coil-product-trigger { padding: 0 2px; margin-left: auto; font-size: 10px; }
+.coil-product-popover { position: absolute; z-index: 95; top: calc(100% + 12px); left: -12px; width: min(350px,calc(100vw - 40px)); max-height: min(500px,65dvh); overflow: auto; padding: 15px; border: 1px solid var(--border); border-radius: 15px; background: var(--panel); box-shadow: 0 12px 40px #0005; color: var(--text); font-size: 12px; line-height: 1.7; }
+.coil-product-popover > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.coil-product-popover > header .icon-button { width: 26px; height: 26px; padding: 4px; }
+.coil-product-popover label { display: grid; gap: 5px; margin: 9px 0; color: var(--muted); }
+.coil-product-popover select { width: 100%; padding: 9px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--panel-alt); }
+.coil-product-reference { display: grid; gap: 7px; margin: 10px 0; }
+.coil-product-reference > a { color: var(--accent); font-size: 11px; }
+.coil-product-popover > small { display: block; font-size: 10px; color: var(--muted); }
+.coil-product-popover > .primary-button { margin-top: 12px; }
+@media (max-width: 600px) {
+  .immersive .channel-inspector, .immersive .channel-inspector:has(.cp-readings) { width: min(318px,calc(100vw - 24px)); }
+  .cp-reading { padding: 8px; }
+  .immersive .cp-reading .main-reading > strong { font-size: 23px; }
+}
 @media (hover: none) { .immersive[data-scene-close="true"] .playback-control { opacity: .8; } }
 @media (max-width: 760px) { .data-mode-control > button { padding: 6px; font-size: 11px; } .history-search-dialog { padding: 18px; } .immersive .temperature-control > .temperature-toggle { min-height: 34px; padding: 6px; } }
 .scene-settings-heading { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }

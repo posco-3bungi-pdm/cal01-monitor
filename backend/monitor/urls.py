@@ -11,6 +11,8 @@ urlpatterns = [
     path("datasets", views.datasets),
     path("datasets/import", data_views.import_dataset),
     path("lots", views.lots),
+    path("material-grades", views.material_grades),
+    path("lot-grade-link", views.lot_grade_link),
     path("channels", views.channels),
     path("series", views.series),
     path("current-frame", views.current_frame),

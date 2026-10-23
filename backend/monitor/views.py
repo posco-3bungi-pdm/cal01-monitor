@@ -10,6 +10,7 @@ from rest_framework.response import Response
 
 from .channels import CHANNEL_BY_ID, CHANNEL_IDS, CHANNELS, ZONE_IDS
 from .models import Dataset, EquipmentLayout, EquipmentLayoutHistory, LotSummary, MeasurementFrame
+from .materials import MATERIAL_GRADES, lot_material
 from .series import make_series, number_or_none, recorded_time
 
 TIME_BASIS = {"mode": "historical", "time_basis": "source_recorded_clock", "source_timezone": None}
@@ -47,7 +48,40 @@ def datasets(request):
 @api_view(["GET"])
 def lots(request):
     dataset = selected_dataset(request)
-    return Response({"lots": list(dataset.lots.values("lot_no", "grade", "start", "end", "count"))})
+    return Response({"lots": [lot_material(lot, dataset) for lot in dataset.lots.all()]})
+
+
+@api_view(["GET"])
+def material_grades(request):
+    return Response({"grades": [{"grade": grade, **product} for grade, product in MATERIAL_GRADES.items()]})
+
+
+@api_view(["PATCH"])
+def lot_grade_link(request):
+    if not isinstance(request.data, dict):
+        raise ValidationError("강종 연결 내용을 확인하십시오.")
+    if not (request.user.is_staff or request.user.groups.filter(name__in=["monitoring", "field"]).exists()):
+        raise PermissionDenied("팀 담당자만 강종을 연결할 수 있습니다.")
+    dataset = selected_dataset(request)
+    lot = selected_lot(request, dataset)
+    if lot.grade:
+        raise ValidationError("원자료에 기록된 강종은 이 화면에서 변경하지 않습니다.")
+    grade = request.data.get("grade")
+    revision = request.data.get("revision")
+    if not isinstance(grade, str) or grade not in ["", *MATERIAL_GRADES]:
+        raise ValidationError({"grade": "목록에 있는 실제 강종을 선택하십시오."})
+    if type(revision) is not int or revision < 0:
+        raise ValidationError({"revision": "최신 강종 연결 상태를 다시 확인하십시오."})
+    with transaction.atomic():
+        dataset = Dataset.objects.select_for_update().get(pk=dataset.pk)
+        links = dict(dataset.metadata.get("lot_grade_links", {}))
+        previous = links.get(lot.lot_no, {})
+        if previous.get("revision", 0) != revision:
+            return Response({"detail": "다른 담당자가 먼저 연결을 변경했습니다. 최신 상태를 확인하십시오."}, status=409)
+        links[lot.lot_no] = {"grade": grade, "revision": revision + 1, "linked_by": request.user.username}
+        dataset.metadata = {**dataset.metadata, "lot_grade_links": links}
+        dataset.save(update_fields=["metadata"])
+    return Response({"lot": lot_material(lot, dataset)})
 
 
 @api_view(["GET"])
