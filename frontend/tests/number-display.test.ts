@@ -3,17 +3,17 @@ import assert from 'node:assert/strict'
 import { numberText, readingParts } from '../src/time.ts'
 
 test('small observations preserve their exponent with the requested e notation', () => {
-  assert.equal(numberText(1.15176e-10), '1.152e^-10')
-  assert.equal(numberText(-1.15176e-10), '-1.152e^-10')
-  assert.equal(numberText(5e-7), '5.000e^-7')
-  assert.equal(numberText(Number.MIN_VALUE), '4.941e^-324')
+  assert.equal(numberText(1.15176e-10), '1.152e⁻¹⁰')
+  assert.equal(numberText(-1.15176e-10), '-1.152e⁻¹⁰')
+  assert.equal(numberText(5e-7), '5.000e⁻⁷')
+  assert.equal(numberText(Number.MIN_VALUE), '4.941e⁻³²⁴')
 })
 
 test('CP magnitude separates the exponent without changing other channels or filling missing values', () => {
-  assert.deepEqual(readingParts('CP-Z4M', 1.15176e-10), { value: '1.152', exponent: 'e^-10' })
-  assert.deepEqual(readingParts('CP-Z4M', -5e-9), { value: '-5.000', exponent: 'e^-9' })
-  assert.deepEqual(readingParts('CP-Z4M', Number.MIN_VALUE), { value: '4.941', exponent: 'e^-324' })
-  assert.deepEqual(readingParts('CP-Z4M', 0), { value: '0', exponent: 'e^-10' })
+  assert.deepEqual(readingParts('CP-Z4M', 1.15176e-10), { value: '1.152', exponent: 'e⁻¹⁰' })
+  assert.deepEqual(readingParts('CP-Z4M', -5e-9), { value: '-5.000', exponent: 'e⁻⁹' })
+  assert.deepEqual(readingParts('CP-Z4M', Number.MIN_VALUE), { value: '4.941', exponent: 'e⁻³²⁴' })
+  assert.deepEqual(readingParts('CP-Z4M', 0), { value: '0', exponent: 'e⁻¹⁰' })
   assert.deepEqual(readingParts('CP-Z4M', null), { value: '—', exponent: null })
   assert.deepEqual(readingParts('CP-Z4', 0.45), { value: '0.45', exponent: null })
 })

@@ -10,7 +10,7 @@ export default function ModelSelectionPanel({ selected, disabled, onSelect, onOp
   onOpenAnalysis: () => void;
 }) {
   return <div className="model-selection">
-    <p>어떤 기준으로 이상 후보를 볼지 고르세요.</p>
+    <p>이상 후보를 확인할 분석 기준을 선택하십시오.</p>
     <div className="model-options" role="radiogroup" aria-label="사용할 분석 모델" onKeyDown={event => {
       if (disabled || !["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
       event.preventDefault();
@@ -36,7 +36,7 @@ export default function ModelSelectionPanel({ selected, disabled, onSelect, onOp
         data-model="none" tabIndex={selected === "none" ? 0 : -1}
         disabled={disabled} onClick={() => onSelect("none")}>
         <EyeOff size={24} aria-hidden="true" />
-        <span><strong>이상 후보 표시 끄기</strong><small>측정값만 봅니다. 저장된 분석과 팀 판단은 그대로 남습니다.</small></span>
+        <span><strong>추가 분석 끄기</strong><small>새 분석 실행을 끕니다. 저장된 미조치 알림은 계속 표시합니다.</small></span>
         {selected === "none" && <Check size={19} aria-label="선택됨" />}
       </button>
     </div>

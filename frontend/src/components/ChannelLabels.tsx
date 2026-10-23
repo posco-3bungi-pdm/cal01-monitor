@@ -11,11 +11,13 @@ import { anchorOccluded, labelOccluders } from './scene-occlusion'
 import { layoutReadouts, READOUT_WIDTH, READOUT_HEIGHT } from './scene-label-layout'
 import type { LabelAnchor, LabelRect } from './scene-label-layout'
 import { PROCESS_READOUT_WIDTH, PROCESS_READOUT_HEIGHT } from './process-readouts'
+import { layoutAnchoredReadouts, followAnchoredReadout } from './anchored-readout-layout'
+import type { AnchoredSeat } from './anchored-readout-layout'
 
 type LabelEntry = { node: HTMLDivElement; position: Position3; offset: [number, number]; selected: boolean }
-export type ChannelLabelBridge = RefObject<{ entries: Map<string, LabelEntry>; revision: number; invalidate?: () => void; status?: HTMLDivElement | null }>
+export type ChannelLabelBridge = RefObject<{ entries: Map<string, LabelEntry>; leaders: Map<string, SVGGElement>; revision: number; invalidate?: () => void; status?: HTMLDivElement | null }>
 export function useChannelLabelBridge(): ChannelLabelBridge {
-  return useRef({ entries: new Map(), revision: 0 })
+  return useRef({ entries: new Map(), leaders: new Map(), revision: 0 })
 }
 
 export function ChannelLabels({ target, bridge, channels, positions, values, selected, theme, measuredAt, gesture, onSelect }: {
@@ -85,6 +87,11 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
   const lastMatrix = useMemo(() => new THREE.Matrix4(), [])
   const lastRevision = useRef(-1)
   const lastSize = useRef('')
+  const lastGroups = useRef('')
+  const processTargets = useRef(new Map<string, AnchoredSeat>())
+  const processDisplay = useRef(new Map<string, AnchoredSeat>())
+  const settling = useRef(false)
+  const reducedMotion = useMemo(() => window.matchMedia('(prefers-reduced-motion: reduce)'), [])
   const origin = useMemo(() => new THREE.Vector3(), [])
   const worldPoint = useMemo(() => new THREE.Vector3(), [])
   const ray = useMemo(() => new THREE.Raycaster(), [])
@@ -95,16 +102,21 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
   }, [bridge, invalidate])
   useLayoutEffect(() => {
     lastRevision.current = -1
+    if (!process) { processTargets.current.clear(); processDisplay.current.clear(); settling.current = false }
     invalidate()
   }, [occlude, occlusionRevision, process, invalidate])
-  useFrame(() => {
+  useFrame((_, delta) => {
     camera.updateMatrixWorld()
     matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     const key = `${size.width}:${size.height}`
-    if (matrix.equals(lastMatrix) && lastRevision.current === bridge.current.revision && key === lastSize.current) return
+    const groups = [...bridge.current.entries.keys()].sort().join(',')
+    if (matrix.equals(lastMatrix) && lastRevision.current === bridge.current.revision && key === lastSize.current && !settling.current) return
     lastMatrix.copy(matrix)
     lastRevision.current = bridge.current.revision
+    if (key !== lastSize.current || groups !== lastGroups.current) { processTargets.current.clear(); processDisplay.current.clear() }
     lastSize.current = key
+    lastGroups.current = groups
+    settling.current = false
     const walls = occlude ? labelOccluders(scene) : []
     camera.getWorldPosition(origin)
     const visibleAnchors: LabelAnchor[] = []
@@ -113,9 +125,12 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
       point.copy(worldPoint).applyMatrix4(matrix)
       const x = (point.x + 1) * size.width / 2
       const y = (1 - point.y) * size.height / 2
-      const inView = point.z >= -1 && point.z <= 1 && x >= 0 && x <= size.width && y >= 0 && y <= size.height
+      const margin = process ? 80 : 0
+      const inView = point.z >= -1 && point.z <= 1 && x >= -margin && x <= size.width + margin && y >= -margin && y <= size.height + margin
       const visible = inView && (!occlude || !anchorOccluded(origin, worldPoint, walls, ray))
       node.style.visibility = 'hidden'
+      const leader = process ? bridge.current.leaders.get(id) : node.querySelector('svg')
+      if (leader) leader.style.display = visible ? '' : 'none'
       if (visible) visibleAnchors.push({ id, x, y, dx: offset[0], dy: offset[1], selected })
     }
     const exclusions: LabelRect[] = []
@@ -125,34 +140,59 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
       const root = node?.closest('.immersive')
       if (host && root) {
         const bounds = host.getBoundingClientRect()
-        for (const panel of root.querySelectorAll<HTMLElement>('.scene-data-control, .scene-view-controls, .channel-inspector, .scene-tools, .equipment-alert, .scene-alert-chip')) {
+        for (const panel of root.querySelectorAll<HTMLElement>('.scene-data-control, .coil-product-popover, .scene-view-controls, .channel-inspector, .scene-tools, .equipment-alert, .scene-alert-chip, .pending-alert-banner, .scene-toolbar, .workspace-drawer:not([hidden])')) {
           const rect = panel.getBoundingClientRect()
-          if (rect.width && rect.height) exclusions.push({ x: rect.left - bounds.left - 8, y: rect.top - bounds.top - 8, width: rect.width + 16, height: rect.height + 16 })
+          if (rect.width && rect.height) exclusions.push({ x: rect.left - bounds.left - 4, y: rect.top - bounds.top - 4, width: rect.width + 8, height: rect.height + 8 })
         }
       }
     }
-    const placements = layoutReadouts(visibleAnchors, size.width, size.height, process ? {
-      boxWidth: PROCESS_READOUT_WIDTH, boxHeight: PROCESS_READOUT_HEIGHT,
-      top: 90, bottom: 164, exclusions,
-    } : undefined)
+    const placements = process ? layoutAnchoredReadouts(visibleAnchors, size.width, size.height, {
+      boxWidth: PROCESS_READOUT_WIDTH, boxHeight: PROCESS_READOUT_HEIGHT, gap: 6,
+      top: 90, bottom: 164, exclusions, previous: processTargets.current,
+    }) : layoutReadouts(visibleAnchors, size.width, size.height)
     for (const anchor of visibleAnchors) {
-      const box = placements.get(anchor.id)
-      if (box) {
+      const target = placements.get(anchor.id)
+      if (target) {
         const { node } = bridge.current.entries.get(anchor.id)!
         node.style.visibility = 'visible'
+        if (process) {
+          const next = followAnchoredReadout(processDisplay.current.get(anchor.id), anchor.x, anchor.y, target, delta, reducedMotion.matches)
+          const moving = Math.hypot(next.x - target.x, next.y - target.y) > .35
+          const box = moving ? { ...next, x: Math.max(10, Math.min(size.width - next.width - 10, next.x)), y: Math.max(90, Math.min(size.height - next.height - 164, next.y)) } : target
+          settling.current ||= moving
+          processTargets.current.set(anchor.id, { x: anchor.x, y: anchor.y, box: target })
+          processDisplay.current.set(anchor.id, { x: anchor.x, y: anchor.y, box })
+          node.style.transform = `translate3d(${box.x.toFixed(2)}px,${box.y.toFixed(2)}px,0)`
+          const button = node.querySelector('button')!
+          button.style.left = '0px'; button.style.top = '0px'
+          const edgeX = anchor.x < box.x + box.width / 2 ? box.x : box.x + box.width
+          const edgeY = Math.max(box.y + 16, Math.min(box.y + box.height - 16, anchor.y))
+          const leader = bridge.current.leaders.get(anchor.id)
+          if (leader) {
+            leader.querySelector('polyline')!.setAttribute('points', `${anchor.x},${anchor.y} ${edgeX + (edgeX === box.x ? -14 : 14)},${edgeY} ${edgeX},${edgeY}`)
+            const circle = leader.querySelector('circle')!
+            circle.setAttribute('cx', String(anchor.x)); circle.setAttribute('cy', String(anchor.y))
+          }
+          continue
+        }
+        const box = target
         node.style.transform = `translate3d(${anchor.x.toFixed(2)}px,${anchor.y.toFixed(2)}px,0)`
         const dx = box.x - anchor.x, dy = box.y - anchor.y
         const button = node.querySelector('button')!
         button.style.left = `${dx}px`
         button.style.top = `${dy}px`
         node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + (process ? PROCESS_READOUT_WIDTH : READOUT_WIDTH) : dx},${dy + 28}`)
+      } else if (process) {
+        const leader = bridge.current.leaders.get(anchor.id)
+        if (leader) leader.style.display = 'none'
       }
     }
     if (bridge.current.status) {
       const hidden = visibleAnchors.length - placements.size
       bridge.current.status.style.display = hidden ? 'block' : 'none'
-      bridge.current.status.textContent = hidden ? `라벨 ${hidden}개를 더 보려면 표시할 채널을 줄여 주세요.` : ''
+      bridge.current.status.textContent = hidden ? process ? `겹치는 계측 ${hidden}개 · 아래 Zone을 선택해 확인하세요.` : `라벨 ${hidden}개를 더 보려면 표시할 채널을 줄여 주세요.` : ''
     }
+    if (settling.current) invalidate()
   })
   return null
 }

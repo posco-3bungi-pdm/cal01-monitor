@@ -1,5 +1,6 @@
 export type ZoneAttention = { count: number; unacknowledged: number }
 export type ZoneAttentionMap = Record<string, ZoneAttention>
+type AttentionCandidate = { zone_id: string; channel_id: string; acknowledged: boolean; resolved?: boolean }
 
 export function normalizeZoneId(zoneId: string): string | null {
   if (zoneId === 'CLN' || zoneId === 'CLN-IN') return 'CLN'
@@ -9,9 +10,10 @@ export function normalizeZoneId(zoneId: string): string | null {
 }
 
 // Channel-level review candidates, not confirmed equipment failures.
-export function summarizeZoneAttention(candidates: readonly { zone_id: string; acknowledged: boolean }[]): ZoneAttentionMap {
+export function summarizeZoneAttention(candidates: readonly { zone_id: string; acknowledged: boolean; resolved?: boolean }[]): ZoneAttentionMap {
   const zones: ZoneAttentionMap = {}
   for (const candidate of candidates) {
+    if (candidate.resolved) continue
     const id = normalizeZoneId(candidate.zone_id)
     if (!id) continue
     const status = zones[id] ??= { count: 0, unacknowledged: 0 }
@@ -19,6 +21,24 @@ export function summarizeZoneAttention(candidates: readonly { zone_id: string; a
     if (!candidate.acknowledged) status.unacknowledged++
   }
   return zones
+}
+
+// CP shares the Z4 housing, but belongs to its own measurement and review group.
+export function measurementGroupId(candidate: Pick<AttentionCandidate, 'channel_id' | 'zone_id'>): string | null {
+  return candidate.channel_id.startsWith('CP-') ? 'CP' : normalizeZoneId(candidate.zone_id)
+}
+
+export function summarizeMeasurementAttention(candidates: readonly AttentionCandidate[]): ZoneAttentionMap {
+  const groups: ZoneAttentionMap = {}
+  for (const candidate of candidates) {
+    if (candidate.resolved) continue
+    const id = measurementGroupId(candidate)
+    if (!id) continue
+    const status = groups[id] ??= { count: 0, unacknowledged: 0 }
+    status.count++
+    if (!candidate.acknowledged) status.unacknowledged++
+  }
+  return groups
 }
 
 export function zoneViewAfterClick(mode: 'work' | 'full' | 'custom', currentZone: string, clickedZone: string): 'work' | 'full' {

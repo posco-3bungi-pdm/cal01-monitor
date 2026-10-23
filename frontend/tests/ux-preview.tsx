@@ -17,16 +17,34 @@ const exampleLots: Lot[] = [
 ]
 const user = { username: 'ux-example', display_name: '예시 담당자', team: 'field', is_admin: false, can_edit_layout: false }
 const ids = ['CLN-IN', ...Array.from({ length: 9 }, (_, i) => `TC-Z${i + 1}`), ...Array.from({ length: 8 }, (_, i) => `OP-Z${i + 1}`), 'CP-Z4', 'CP-Z4M', 'TC-OUT1', 'TC-OUT2']
-const channels: Channel[] = ids.map(id => ({ id, label: id, zone: id === 'CLN-IN' ? 'CLN' : id.split('-')[1].replace('M', ''), unit: id.startsWith('OP-') ? '%' : id.startsWith('CP-') ? null : '°C', kind: id.startsWith('OP-') ? 'output' : id.startsWith('CP-') ? 'process' : 'temperature' }))
+const channels: Channel[] = ids.map(id => ({ id, label: id, zone: id === 'CLN-IN' ? 'CLN' : id.split('-')[1].replace('M', ''), unit: id.startsWith('OP-') ? '%' : id === 'CP-Z4' ? '무차원' : id.startsWith('CP-') ? null : '°C', kind: id.startsWith('OP-') ? 'output' : id.startsWith('CP-') ? 'process' : 'temperature' }))
 const values = Object.fromEntries(channels.map(channel => [channel.id, channel.id === 'CP-Z4M' ? 1.15176e-10 : channel.id === 'CP-Z4' ? 0.45 : channel.kind === 'output' ? 56 : channel.id === 'CLN-IN' ? 65.48 : 740]))
 const baseline = { count: 120, mean: 760, std: 5, lower: 745, upper: 775, status: 'ready' as const }
 const candidate: DetectionCandidate = { id: 'example-candidate', run_id: 'example-run', dataset_id: 'example-data', lot_no: 'EXAMPLE01', mode: 'historical', channel_id: 'TC-Z3', zone_id: 'Z3', start: '2026-10-01T08:10:00', end: '2026-10-01T08:12:00', peak_at: '2026-10-01T08:11:00', peak_value: 740, peak_z: -4, point_count: 5, baseline, acknowledged: false, acknowledged_at: null, acknowledged_by: null }
+const alarmExample = new URLSearchParams(location.search).get('alarms')
+const cpCandidate: DetectionCandidate = { ...candidate, id: 'example-cp', channel_id: 'CP-Z4', zone_id: 'Z4', peak_value: .46, baseline: { ...baseline, mean: .45, std: .002, lower: .444, upper: .456 } }
+const temperatureCandidate: DetectionCandidate = { ...candidate, id: 'example-temperature', channel_id: 'TC-Z4', zone_id: 'Z4' }
+const outputCandidate: DetectionCandidate = { ...candidate, id: 'example-output', channel_id: 'OP-Z4', zone_id: 'Z4', peak_value: 56, baseline: { ...baseline, mean: 50, std: 1, lower: 47, upper: 53 } }
+const exampleCandidates = alarmExample === 'cp' ? [cpCandidate] : alarmExample === 'z4' ? [temperatureCandidate, outputCandidate]
+  : alarmExample === 'both' ? [cpCandidate, temperatureCandidate, outputCandidate] : [candidate]
 const person = { username: user.username, display_name: user.display_name }
 const requests: FieldRequest[] = (['requested', 'accepted', 'completed', 'closed'] as const).map((status, index) => ({ id: `example-request-${index}`, candidate_id: candidate.id, run_id: candidate.run_id, dataset_id: candidate.dataset_id, lot_no: candidate.lot_no, channel_id: candidate.channel_id, zone_id: candidate.zone_id, start: candidate.start, end: candidate.end, title: `예시 요청 ${index + 1} · Z3 온도 변화 확인`, message: '[관측한 변화]\nTC-Z3 변화 관측\n\n[함께 확인한 조건]\nTC·OP 비교 필요\n\n[점검할 내용]\n해당 시각 운전 기록 확인', status, revision: 1, requested_by: { username: 'example-operator', display_name: '예시 요청자' }, assigned_to: status === 'requested' ? null : person, created_at: '2026-10-01T00:15:00Z', updated_at: '2026-10-01T00:20:00Z', result: status === 'completed' || status === 'closed' ? '예시 점검 결과 · 실제 작업 기록 아님' : '' }))
 const run = { id: candidate.run_id, dataset_id: candidate.dataset_id, lot_no: candidate.lot_no, mode: 'historical', status: 'completed', config: { channels: ['TC-Z3'], threshold: 3, ddof: 0, max_gap_seconds: 60, min_valid_samples: 30 }, stats: { 'TC-Z3': baseline }, summary: { source_count: 120, candidate_count: 1, exceedance_count: 5, analyzed_channels: ['TC-Z3'], skipped_channels: {}, interpretation: '예시 분석' }, created_by: person, created_at: '2026-10-01T00:14:00Z' }
 window.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href)
   const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+  const actionCandidate = exampleCandidates.find(item => url.pathname.split('/').includes(item.id)) ?? candidate
+  if (url.pathname.endsWith('/acknowledge') && init?.method === 'POST') {
+    actionCandidate.acknowledged = true
+    return reply({ candidate: actionCandidate })
+  }
+  if (url.pathname.endsWith('/resolve') && init?.method === 'POST') {
+    const payload = JSON.parse(String(init.body))
+    if (!payload.note?.trim()) return reply({ detail: '예시 조치 내용을 입력하십시오.' }, 400)
+    actionCandidate.resolved = true; actionCandidate.resolution_note = payload.note
+    actionCandidate.resolved_by = user.display_name; actionCandidate.resolved_at = '2026-10-01T00:30:00Z'
+    return reply({ candidate: actionCandidate })
+  }
   if (url.pathname === '/api/lot-grade-link' && init?.method === 'PATCH') {
     const payload = JSON.parse(String(init.body))
     const lot = exampleLots.find(item => item.lot_no === url.searchParams.get('lot'))
@@ -56,8 +74,9 @@ window.fetch = async (input, init) => {
       const time = new Date(Date.UTC(2026, 9, 1, 8, 0, index * 30)).toISOString().slice(0, 23)
       return { source_row: index + 1, source_record_id: `example-${index}`, time, recorded_at_raw: time, values, annotations: {} }
     }), has_more: false, next_cursor: null })
+    case '/api/detection/pending': return reply({ candidates: exampleCandidates.filter(item => !item.resolved), count: exampleCandidates.filter(item => !item.resolved).length, truncated: false })
     case '/api/detection/runs': return reply({ runs: [run] })
-    case '/api/detection/candidates': return reply({ candidates: [candidate] })
+    case '/api/detection/candidates': return reply({ candidates: exampleCandidates })
     case '/api/field-requests': return reply({ requests })
     case '/api/notifications': return reply({ notifications: [{ id: 1, kind: 'request', request_id: 'example-request-1', candidate_id: candidate.id, title: '예시 점검 요청 · 실제 알림 아님', actor: person, created_at: '2026-10-01T00:15:00Z' }], last_id: 1, has_more: false })
     case '/api/series': return reply({ start, end, mode: 'raw', aggregation_seconds: 0, source_count: 3, label_intervals: [], series: (url.searchParams.get('channels') ?? '').split(',').map(id => ({ channel_id: id, unit: channels.find(channel => channel.id === id)?.unit, points: [start, candidate.peak_at, end].map(time => ({ time, value: values[id] ?? null })) })) })
