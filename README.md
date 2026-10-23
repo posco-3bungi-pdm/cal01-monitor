@@ -2,9 +2,9 @@
 
 소둔로에서 기준을 벗어난 채널을 찾고, 모니터링팀과 현장팀이 같은 근거로 확인·요청·조치하는 소프트웨어.
 
-**첫 개발 버전:** 팀 로그인, 실제 CSV 조회, 새 소둔로 3D, 채널 위치 저장, 그래프 확대와 조업·정비 기록 조회를 연결함. 가이드 모드에서 공정과 채널을 7단계로 살펴볼 수 있음. [로컬 실행 방법](docs/08-local-development.md).
+팀 로그인, 실제 CSV 조회, 소둔로 3D, Z-score 후보·알림·현장 요청을 연결함. 가이드에서 공정과 채널을 7단계로 살펴볼 수 있음. Windows exe는 같은 서버에 접속하는 전용 앱임. [로컬 실행](docs/08-local-development.md) · [Windows 앱과 감지 기준](docs/09-windows-and-detection.md).
 
-기존 분석 자료와 공동 검토 서버의 판단은 그대로 유지함. 아래 흐름 중 자동 감지·현장 요청·AI 설명은 후속 이슈에서 구현함.
+기존 분석 자료와 공동 검토 서버의 판단은 그대로 유지함. 현재 감지는 과거 LOT 분석이며 실시간 수집·고정 기준 감지·AI 설명·달력은 후속 개발 범위임.
 
 ## 첫 시연에서 끝까지 보여줄 흐름
 
@@ -31,5 +31,6 @@ flowchart TB
 | [06 오픈소스와 3D](docs/06-open-source-and-3d.md) | 사용할 오픈소스, 새 연속 소둔로 모형 제작 |
 | [07 오픈소스 비교](docs/07-open-source-selection.md) | 완성형 관제·정비 제품, 재사용할 UI·3D 부품과 자산, 이번에 가져올 범위 |
 | [08 로컬 실행](docs/08-local-development.md) | 설치, 실제 자료 등록, 계정, 실행과 검증 |
+| [09 Windows 앱과 감지](docs/09-windows-and-detection.md) | exe 실행, Z-score 기준, 현장 요청 흐름 |
 
 제품 이름은 CAL01 Monitor, 저장소는 `posco-3bungi-pdm/cal01-monitor`임. 비공개로 시작함. 원본 CSV, 비밀번호, API 키, 실행 DB는 Git에 올리지 않음.

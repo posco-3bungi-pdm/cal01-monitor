@@ -106,3 +106,7 @@ class OperationalRecord(models.Model):
             models.Index(fields=["dataset", "kind", "start_time"], name="context_dataset_kind_time"),
             models.Index(fields=["dataset", "start_date"], name="context_dataset_date"),
         ]
+
+
+from .detection_models import AnomalyCandidate, CandidatePoint, DetectionRun  # noqa: E402,F401
+from .workflow_models import FieldRequest, FieldRequestHistory, FieldRequestSubmission, Notification  # noqa: E402,F401

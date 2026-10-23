@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Crosshair } from "lucide-react";
+import { AlertTriangle, Check, Crosshair, BookOpen } from "lucide-react";
 import { dateTime, numberText } from "../time";
 
 export type EquipmentAlertData = {
@@ -15,21 +15,27 @@ export type EquipmentAlertData = {
 };
 
 // Render only from an actual detection event. CSV labels do not activate this component.
-export default function EquipmentAlert({ alert, onAcknowledge, onFocus }: {
+export default function EquipmentAlert({ alert, onAcknowledge, onFocus, onGuide, pending = false }: {
   alert: EquipmentAlertData;
   onAcknowledge: (id: string) => void;
   onFocus: (alert: EquipmentAlertData) => void;
+  onGuide: () => void;
+  pending?: boolean;
 }) {
   return <>
     {!alert.acknowledged && <div className="warning-edge-pulse" aria-hidden="true" />}
     <section className="equipment-alert" role={alert.acknowledged ? "status" : "alert"}>
-      <AlertTriangle size={22} />
-      <div><strong>{alert.severity === "confirmed" ? "팀이 확인한 이상" : "이상 후보"} · {alert.equipment} / {alert.zone} / {alert.channel}</strong>
-        <p>{numberText(alert.value)} {alert.unit} · {dateTime(alert.time, true)} · {alert.reason}</p>
-        {alert.acknowledged && <p>확인함 · 표시 움직임을 멈췄습니다. 이상 상태를 해결 처리한 것은 아닙니다.</p>}
+      <AlertTriangle size={20} aria-hidden="true" />
+      <div className="equipment-alert-copy">
+        <strong>과거 자료의 이상 후보 · {alert.channel}</strong>
+        <p className="alert-recorded-value">{dateTime(alert.time, true)} · {numberText(alert.value)} {alert.unit}</p>
+        <div className="alert-summary"><span>{alert.acknowledged ? "팀 확인함 · 고장 확정 아님" : "고장 확정 아님"}</span>
+          <details className="alert-help"><summary>설명</summary><div><p>{alert.reason}</p><p>{alert.equipment} / {alert.zone}에서 기록한 값입니다. 현재 설비의 실시간 고장 경고가 아닙니다.</p><p>‘확인’은 후보를 읽었다는 표시입니다. 고장이나 해결 여부를 확정하지 않습니다.</p></div></details>
+        </div>
       </div>
-      <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={14} />해당 채널 보기</button>
-        {!alert.acknowledged && <button className="subtle-button" onClick={() => onAcknowledge(alert.id)}><Check size={14} />확인 · 움직임 끄기</button>}
+      <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={16} />구간 보기</button>
+        <button className="subtle-button" onClick={onGuide}><BookOpen size={16} />대응 가이드</button>
+        {!alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => onAcknowledge(alert.id)}><Check size={16} />{pending ? "저장 중" : "확인"}</button>}
       </div>
     </section>
   </>;

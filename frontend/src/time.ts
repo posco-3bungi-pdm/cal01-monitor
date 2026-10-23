@@ -29,6 +29,9 @@ export function dateTime(value: string | number, seconds = false): string {
 
 export function numberText(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
-  if (value !== 0 && Math.abs(value) < 0.01) return value.toExponential(3);
+  if (value !== 0 && Math.abs(value) < 0.01) {
+    const [coefficient, exponent] = value.toExponential(3).split("e");
+    return `${coefficient}e^${Number(exponent)}`;
+  }
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
 }

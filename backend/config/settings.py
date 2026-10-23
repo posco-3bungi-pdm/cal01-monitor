@@ -38,6 +38,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "monitor.upload_limits.CsvUploadLimitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -79,6 +80,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 APPEND_SLASH = False
 STATIC_URL = "/static/"
 STATIC_ROOT = Path(os.environ.get("CAL01_STATIC_ROOT", str(BASE_DIR / "staticfiles")))
+CAL01_FRONTEND_ROOT = Path(os.environ.get("CAL01_FRONTEND_ROOT", str(BASE_DIR.parent / "frontend" / "dist")))
+WHITENOISE_ROOT = CAL01_FRONTEND_ROOT
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
@@ -107,3 +110,5 @@ CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"
 LOGIN_FAILURE_LIMIT = 10
 LOGIN_FAILURE_WINDOW = 15 * 60
 CAL01_MODEL_VERSION = "cal01-concept-v1"
+CAL01_UPLOAD_MAX_BYTES = 512 * 1024 * 1024
+CAL01_UPLOAD_MAX_ROWS = 500_000
