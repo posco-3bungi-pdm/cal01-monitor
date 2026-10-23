@@ -2,6 +2,8 @@
 
 하나의 HTTPS 주소로 브라우저와 Windows 앱을 연결한다. 화면과 API는 같은 서버, 기록은 PostgreSQL 18에 저장한다. 3D는 접속한 PC에서 그린다.
 
+팀 접속 주소: **https://cal01-monitor.onrender.com**. 기존 팀 아이디와 비밀번호를 그대로 사용한다.
+
 ## 배포할 것
 
 - 저장소 루트의 `Dockerfile`로 화면 빌드와 Python 서버를 함께 만든다.
@@ -80,9 +82,11 @@ GitHub에는 실행 코드와 설정만 올린다. DB, 백업, 개인 계정 파
 ## Windows 앱
 
 ```powershell
-pnpm --dir desktop build --server https://실제접속도메인
+pnpm --dir desktop build --server https://cal01-monitor.onrender.com
 ```
 
 배포한 exe에 기본 접속 주소를 넣는다. 이미 사용자가 저장한 주소는 유지되므로 기존 사용자는 `CAL01 → 서버 연결 설정`에서 공용 주소를 선택한다. exe에 계정이나 비밀번호는 포함하지 않는다.
+
+GitHub Actions의 `CAL01-Monitor-Windows` 산출물도 이 주소를 기본으로 사용한다.
 
 공식 참고: [Docker 지원](https://render.com/docs/docker), [PostgreSQL 버전](https://render.com/docs/postgresql-upgrading).

@@ -137,7 +137,7 @@ jobs:
           cache-dependency-path: desktop/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
-      - run: pnpm build
+      - run: pnpm build --server https://cal01-monitor.onrender.com
       - uses: actions/upload-artifact@v4
         with:
           name: CAL01-Monitor-Windows
