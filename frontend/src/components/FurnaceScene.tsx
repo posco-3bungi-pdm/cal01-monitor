@@ -24,6 +24,8 @@ import type { ZoneLabelBridgeRef } from './ZoneLabels'
 import { SceneGesture } from './scene-input'
 import { KeyboardNavigation, SceneDiagnostics, ShadowPolicy } from './SceneRuntime'
 import { ChannelLabels, ChannelLabelProjection, useChannelLabelBridge } from './ChannelLabels'
+import { zoneViewAfterClick } from './zone-attention'
+import type { ZoneAttentionMap } from './zone-attention'
 import type { ChannelLabelBridge } from './ChannelLabels'
 import { CpChannelProbe } from './CpChannelProbe'
 
@@ -39,8 +41,10 @@ export type FurnaceSceneProps = {
   theme: Theme
   alertChannelIds?: string[]
   alertZoneIds?: string[]
+  zoneAttention?: ZoneAttentionMap
   motionPlaying?: boolean
   overlayOpen?: boolean
+  overlaySide?: 'left' | 'right' | null
   appearance: FurnaceAppearance
   showLabels?: boolean
   visibleLabelIds?: string[]
@@ -51,37 +55,41 @@ export type FurnaceSceneProps = {
   temperatureColors?: boolean
   selectedPartId?: string | null
   onSelectPart?: (partId: string) => void
+  showZoneReadouts?: boolean
+  onToggleZoneReadouts?: () => void
+  readoutsDisabled?: boolean
+  onCloseViewChange?: (close: boolean) => void
 }
 
 type BeamSpec = { position: Position3; scale: Position3; rotation?: Position3 }
 const AppearanceContext = createContext({ appearance: 'realistic' as FurnaceAppearance, theme: 'light' as Theme })
 const GestureContext = createContext<SceneGesture | null>(null)
 
-function ModelMaterial({ weathered = false, ...props }: {
+function ModelMaterial({ weathered = false, attention = false, ...props }: {
   color?: string; metalness?: number; roughness?: number; emissive?: string;
-  emissiveIntensity?: number; side?: THREE.Side; weathered?: boolean
+  emissiveIntensity?: number; side?: THREE.Side; weathered?: boolean; attention?: boolean
 }) {
   const { appearance, theme } = useContext(AppearanceContext)
   if (appearance === 'hologram') {
-    return <HologramMaterial color={theme === 'dark' ? '#4ae2ff' : '#00748b'} opacity={weathered ? 0.15 : 0.42} />
+    return <HologramMaterial color={attention ? '#ff695c' : theme === 'dark' ? '#4ae2ff' : '#00748b'} opacity={attention ? 0.65 : weathered ? 0.15 : 0.42} />
   }
   return weathered ? <IndustrialMaterial color={props.color} emissive={props.emissive}
     emissiveIntensity={props.emissiveIntensity} /> : <meshStandardMaterial {...props} />
 }
 
-function SceneViewport({ overlayOpen }: { overlayOpen: boolean }) {
+function SceneViewport({ overlayOpen, overlaySide }: { overlayOpen: boolean; overlaySide?: 'left' | 'right' | null }) {
   const { camera, size, invalidate } = useThree()
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
     if (overlayOpen) {
       const mobile = size.width <= 760
       camera.setViewOffset(size.width, size.height,
-        mobile ? 0 : size.width * 0.3, mobile ? size.height * 0.3 : 0,
+        mobile ? 0 : size.width * (overlaySide === 'left' ? -0.25 : 0.3), mobile ? size.height * 0.3 : 0,
         size.width, size.height)
     } else camera.clearViewOffset()
     camera.updateProjectionMatrix()
     invalidate()
-  }, [camera, size.width, size.height, overlayOpen, invalidate])
+  }, [camera, size.width, size.height, overlayOpen, overlaySide, invalidate])
   return null
 }
 type StripMotion = RefObject<number>
@@ -229,7 +237,7 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert, openSer
   const { appearance } = useContext(AppearanceContext)
   const gesture = useContext(GestureContext)
   const shell = useRef<THREE.InstancedMesh>(null)
-  const shellColor = theme === 'dark' ? '#a4aaa5' : '#9ba29f'
+  const shellColor = alert ? '#b84d44' : theme === 'dark' ? '#a4aaa5' : '#9ba29f'
   const panels = useMemo(() => housingPanels(zone).filter(panel =>
     !(openService && (panel.side === 'front' || panel.side === 'roof'))), [zone, openService])
   useLayoutEffect(() => {
@@ -263,7 +271,7 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert, openSer
     <group name={`SHELL_${zone.id}`} visible={!interior} onClick={pick}>
       <instancedMesh key={panels.length} ref={shell} args={[undefined, undefined, panels.length]} castShadow receiveShadow>
         <boxGeometry />
-        <ModelMaterial weathered color={shellColor} emissive={selected ? '#a3d334' : '#000000'} emissiveIntensity={selected ? 0.1 : 0} />
+        <ModelMaterial weathered attention={alert} color={shellColor} emissive={alert ? '#d94436' : selected ? '#a3d334' : '#000000'} emissiveIntensity={alert ? 0.35 : selected ? 0.1 : 0} />
       </instancedMesh>
       {!openService && <>
         <mesh position={[zone.x - zone.width * 0.15, 2.1, zone.depth / 2 + 0.075]}>
@@ -279,12 +287,12 @@ function ZoneHousing({ zone, selected, interior, onSelect, theme, alert, openSer
     <group name={`ZONE_FRAME_${zone.id}`}><StructuralBeams beams={members} color="#526773" /></group>
     <mesh position={[zone.x, 0.69, 0]} onClick={pick}>
       <boxGeometry args={[zone.width, 0.14, zone.depth + 0.12]} />
-      <ModelMaterial color={selected ? '#c8ed77' : '#3a4a52'} metalness={0.5} roughness={0.4}
-        emissive={selected ? '#abda47' : '#000000'} emissiveIntensity={0.12} />
+      <ModelMaterial attention={alert} color={alert ? '#d84e3e' : selected ? '#c8ed77' : '#3a4a52'} metalness={0.5} roughness={0.4}
+        emissive={alert ? '#d94436' : selected ? '#abda47' : '#000000'} emissiveIntensity={alert ? 0.4 : 0.12} />
     </mesh>
     {(alert || appearance === 'hologram') && <mesh position={[zone.x, zone.height / 2 + 0.4, 0]} raycast={() => {}}>
       <boxGeometry args={[zone.width + 0.15, zone.height - 0.65, zone.depth + 0.2]} />
-      <meshBasicMaterial visible={false} />
+      <meshBasicMaterial color="#ed5145" transparent opacity={alert ? 0.12 : 0} depthWrite={false} visible={alert} />
       <Edges color={alert ? '#f16d64' : theme === 'dark' ? '#57cde7' : '#238296'} lineWidth={alert ? 1.6 : 1} />
     </mesh>}
   </group>
@@ -499,9 +507,10 @@ function Lighting({ theme, realistic }: { theme: Theme; realistic: boolean }) {
 
 type ViewCommand = { mode: 'work' | 'full'; serial: number }
 
-function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLabelBridge, host }: {
+function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLabelBridge, host, onZoneViewChange }: {
   props: FurnaceSceneProps; viewCommand: ViewCommand; animateHeat: boolean;
   zoneLabelBridge: ZoneLabelBridgeRef; channelLabelBridge: ChannelLabelBridge; host: RefObject<HTMLDivElement | null>
+  onZoneViewChange: (zoneId: string) => void
 }) {
   const { channels, selectedChannel, onSelectChannel, placements, values, showInterior, theme, appearance, editing = false, onPlacementChange } = props
   const controls = useRef<CameraControls>(null)
@@ -512,8 +521,17 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   const gesture = useContext(GestureContext)
   const { camera, size, scene, invalidate } = useThree()
   const motion = useRef(0)
+  const proximityTarget = useMemo(() => new THREE.Vector3(), [])
+  const wasClose = useRef(false)
+  const overviewDistance = useMemo(() => overviewForViewport(size.width || 1, size.height || 1,
+    camera instanceof THREE.PerspectiveCamera ? camera.fov : 40).distance, [size.width, size.height, camera])
   useFrame((_, delta) => {
     if (props.motionPlaying || props.simulationActive) motion.current += Math.min(delta, 0.05) * 1.6
+    if (controls.current && size.width && size.height) {
+      controls.current.getTarget(proximityTarget)
+      const close = camera.position.distanceTo(proximityTarget) < overviewDistance * 0.72
+      if (close !== wasClose.current) { wasClose.current = close; props.onCloseViewChange?.(close) }
+    }
   }, -1)
   const defaults = useMemo(() => defaultPlacements(channels), [channels])
   const selected = channels.find((channel) => channel.id === selectedChannel)
@@ -564,6 +582,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
           [cpPosition[0], cpPosition[1], cpPosition[2] - 0.15], 1.2, camera.fov, shiftX, shiftY)
         : workViewForViewport(size.width, size.height, zoneId, camera.fov, shiftX, shiftY)
     currentView.current = mode
+    onZoneViewChange(mode === 'work' ? zoneId : '')
     workZone.current = zoneId
     workPart.current = part?.id ?? null
     workChannel.current = cpPosition ? channelId : null
@@ -578,10 +597,12 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
     void controls.current.setLookAt(...fit.position, ...fit.target, animate).catch(() => {})
   }
   const selectZone = (zoneId: string) => {
+    const mode = zoneViewAfterClick(currentView.current, workZone.current, zoneId)
     const inZone = channels.filter(channel => zoneForChannel(channel) === zoneId)
     const match = inZone.find(channel => alertedChannels.has(channel.id)) ?? inZone[0]
-    if (match) onSelectChannel(match.id)
-    setView('work', zoneId, !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null, null)
+    if (mode === 'full') props.onClearSelection?.()
+    else if (match) onSelectChannel(match.id)
+    setView(mode, zoneId, !window.matchMedia('(prefers-reduced-motion: reduce)').matches, null, null)
   }
   const selectNearest = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
@@ -600,19 +621,19 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   }, [viewCommand])
   useEffect(() => {
     if (currentView.current !== 'custom') setView(currentView.current, workZone.current, false, workPart.current, workChannel.current)
-  }, [size.width, size.height, props.overlayOpen])
+  }, [size.width, size.height, props.overlayOpen, props.overlaySide])
   const shadowRevision = useMemo(() => [placements, showInterior, props.simulationActive, props.selectedPartId],
     [placements, showInterior, props.simulationActive, props.selectedPartId])
   return <AppearanceContext.Provider value={{ appearance, theme }}>
     <ZoneLabelProjection zones={FURNACE_ZONES} bridge={zoneLabelBridge} onSelectZone={selectZone} />
     <ChannelLabelProjection bridge={channelLabelBridge} occlude={appearance === 'realistic' && !showInterior}
       occlusionRevision={shadowRevision} />
-    <KeyboardNavigation controls={controls} host={host} disabled={editing} onMove={() => { currentView.current = 'custom' }} />
+    <KeyboardNavigation controls={controls} host={host} disabled={editing} onMove={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
     <Lighting theme={theme} realistic={appearance === 'realistic'} />
     <ShadowPolicy realistic={appearance === 'realistic'} moving={editing} revision={shadowRevision} />
     <CameraControls ref={controls} makeDefault minDistance={5} maxDistance={85}
       minPolarAngle={0.15} maxPolarAngle={Math.PI / 2 - 0.025} smoothTime={0.3} draggingSmoothTime={0.12}
-      onControlStart={() => controls.current?.stop()} onControl={() => { currentView.current = 'custom' }} />
+      onControlStart={() => controls.current?.stop()} onControl={() => { currentView.current = 'custom'; onZoneViewChange('') }} />
     <group name="CAL01_ROOT" userData={{ model_version: MODEL_VERSION, coordinates: 'concept-layout' }}>
       <FrameAndWalkways />
       {FURNACE_ZONES.map((zone) => <ZoneHousing key={zone.id} zone={zone}
@@ -625,7 +646,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
       </HeatHazeLayer>}
       <RollerBank rollers={strip.rollers} motion={motion} onSelect={selectNearest} />
       <mesh geometry={ribbonGeometry} name="CONTINUOUS_STEEL_STRIP" castShadow onClick={selectNearest}>
-        {appearance === 'hologram'
+        {appearance === 'hologram' && !props.temperatureColors
           ? <HologramMaterial color={theme === 'dark' ? '#b0f9ff' : '#005b75'} opacity={0.8} />
           : <SteelSurfaceMaterial simulationActive={Boolean(props.simulationActive || props.motionPlaying)} motion={motion} temperatureColors={Boolean(props.temperatureColors)} />}
       </mesh>
@@ -644,8 +665,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
             onSelectChannel(channel.id)
           }}
           theme={theme} editing={editing} alert={alertedChannels.has(channel.id)}
-          hasReadout={props.showLabels !== false && (selectedChannel === channel.id
-            || !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))}
+          hasReadout={props.showLabels !== false && (!props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))}
           onChange={(position) => onPlacementChange?.(channel.id, position)} />)}
       </group>
     </group>
@@ -676,8 +696,8 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
   componentDidCatch(error: Error, info: ErrorInfo) { console.error('3D view could not load', error, info.componentStack) }
   render() {
     if (this.state.failed) return <div style={{ padding: 24, lineHeight: 1.7 }}>
-      <strong>이 브라우저에서 3D 화면을 열지 못했어요.</strong>
-      <div>채널 목록과 그래프에서 계속 확인할 수 있어요. 브라우저의 하드웨어 가속도 확인해 주세요.</div>
+      <strong>3D 화면을 열지 못했습니다.</strong>
+      <div>채널 목록과 그래프에서 값을 확인하십시오. 브라우저의 하드웨어 가속 설정도 확인하십시오.</div>
     </div>
     return this.props.children
   }
@@ -685,21 +705,20 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 
 function FurnaceScene(props: FurnaceSceneProps) {
   const [viewCommand, setViewCommand] = useState<ViewCommand>({ mode: 'full', serial: 0 })
+  const [zoomedZone, setZoomedZone] = useState('')
   const host = useRef<HTMLDivElement>(null)
   const gesture = useMemo(() => new SceneGesture(), [])
   const zoneLabelBridge = useZoneLabelBridge()
   const channelLabelBridge = useChannelLabelBridge()
   const [zoneLabelTarget, setZoneLabelTarget] = useState<HTMLDivElement | null>(null)
   const [diagnosticsTarget, setDiagnosticsTarget] = useState<HTMLDivElement | null>(null)
-  const selected = props.channels.find(channel => channel.id === props.selectedChannel)
-  const selectedZone = selected ? zoneForChannel(selected) : ''
   const alertChannels = new Set(props.alertChannelIds ?? [])
   const alertZones = new Set([
     ...(props.alertZoneIds ?? []).map(id => id === 'OUT1' || id === 'OUT2' ? 'OUT' : id),
     ...props.channels.filter(channel => alertChannels.has(channel.id)).map(zoneForChannel),
   ])
   const labelChannels = props.showLabels === false ? [] : props.channels.filter(channel =>
-    channel.id === props.selectedChannel || !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))
+    !props.visibleLabelIds || props.visibleLabelIds.includes(channel.id))
   const labelPositions = useMemo(() => new Map(defaultPlacements(props.channels).map(fallback => {
     const saved = props.placements.find(item => item.channel_id === fallback.channel_id)
     const valid = saved?.position?.length === 3 && saved.position.every(Number.isFinite)
@@ -748,7 +767,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     cursor: 'pointer', background: props.theme === 'dark' ? '#1c2c34ed' : '#f7faf7f2',
     color: props.theme === 'dark' ? '#dde8eb' : '#253f4c', fontSize: 13, borderRadius: 14,
     border: 0, boxShadow: '0 4px 18px #0002' }
-  return <div ref={host} tabIndex={0} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, 위 화살표 또는 E 상승, 아래 화살표 또는 Q 하강, Shift 더 빠르게."
+  return <div ref={host} tabIndex={0} data-cleaning-motion={simulationActive ? 'running' : 'stopped'} data-strip-motion={motionPlaying ? 'running' : 'stopped'} aria-label="3D 설비 화면. 드래그로 회전, 휠로 확대. W A S D 이동, 위 화살표 또는 E 상승, 아래 화살표 또는 Q 하강, Shift 더 빠르게."
     style={{ position: 'relative', width: '100%', height: '100%', minHeight: 320, outlineOffset: -2,
       background, overflow: 'hidden' }}>
     <GestureContext.Provider value={gesture}>
@@ -765,16 +784,19 @@ function FurnaceScene(props: FurnaceSceneProps) {
           }}>
           <color attach="background" args={[background]} />
           <fog attach="fog" args={[background, 65, 130]} />
-          <SceneViewport overlayOpen={Boolean(props.overlayOpen)} />
+          <SceneViewport overlayOpen={Boolean(props.overlayOpen)} overlaySide={props.overlaySide} />
           {props.showDiagnostics && <SceneDiagnostics target={diagnosticsTarget} continuous={continuous} />}
           <Suspense fallback={null}><Facility props={{ ...props, motionPlaying, simulationActive }} viewCommand={viewCommand}
-            animateHeat={animateHeat} zoneLabelBridge={zoneLabelBridge} channelLabelBridge={channelLabelBridge} host={host} /></Suspense>
+            animateHeat={animateHeat} zoneLabelBridge={zoneLabelBridge} channelLabelBridge={channelLabelBridge} host={host}
+            onZoneViewChange={setZoomedZone} /></Suspense>
         </Canvas>
       </SceneErrorBoundary>
     </GestureContext.Provider>
     <div ref={setZoneLabelTarget} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20 }} />
     <ZoneLabels zones={FURNACE_ZONES} target={zoneLabelTarget} bridge={zoneLabelBridge}
-      theme={props.theme} selectedZone={selectedZone} alertZones={alertZones} gesture={gesture} />
+      theme={props.theme} selectedZone={zoomedZone} alertZones={alertZones} attention={props.zoneAttention ?? {}} gesture={gesture}
+      channels={props.channels} values={props.values} visibleIds={props.visibleLabelIds} measuredAt={props.measuredAt}
+      showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} disabled={props.readoutsDisabled} />
     <ChannelLabels target={zoneLabelTarget} bridge={channelLabelBridge} channels={labelChannels}
       positions={labelPositions} values={props.values} selected={props.selectedChannel} theme={props.theme}
       measuredAt={props.measuredAt ?? null} gesture={gesture} onSelect={props.onSelectChannel} />

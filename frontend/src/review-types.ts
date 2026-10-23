@@ -21,7 +21,8 @@ export type DetectionCandidate = {
 };
 export type TeamPerson = { username: string; display_name: string };
 export type FieldRequest = {
-  id: string; candidate_id: string; run_id: string; dataset_id: string; lot_no: string;
+  id: string; candidate_id: string | null; run_id: string | null; dataset_id: string; lot_no: string;
+  source?: 'candidate' | 'manual';
   channel_id: string; zone_id: string; start: string; end: string; title: string;
   message: string; status: "requested" | "accepted" | "completed" | "closed"; revision: number;
   requested_by: TeamPerson; assigned_to: TeamPerson | null; created_at: string; updated_at: string; result: string;
@@ -31,6 +32,7 @@ export type TeamNotification = {
   title: string; actor: TeamPerson | null; created_at: string;
   dataset_id?: string; lot_no?: string; run_id?: string; channel_id?: string; start?: string; end?: string;
 };
+export type ManualRequestContext = { dataset_id: string; lot_no: string; channel_id: string; start: string; end: string };
 export type CandidateLocation = { candidate_id: string; dataset_id: string; lot_no: string; run_id?: string };
 
 export function activityTime(value: string) {

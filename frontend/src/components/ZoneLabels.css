@@ -1,0 +1,71 @@
+.zone-navigation {
+  position: absolute; z-index: 50; left: 50%; bottom: 132px;
+  transform: translateX(-50%); width: max-content; max-width: calc(100% - 32px);
+  padding: 10px 12px 8px; border: 1px solid #354b54;
+  border-radius: 20px; background: #101e27ee; color: #e5eef1;
+  box-shadow: 0 8px 30px #0003; backdrop-filter: blur(12px); pointer-events: auto;
+}
+.zone-navigation[data-theme="light"] { background: #f7fbf7f5; border-color: #bdcdcc; color: #243c43; }
+.zone-navigation { transition: opacity .2s ease, background-color .2s ease; }
+.zone-navigation.has-readouts { max-width: calc(100% - 24px); }
+.zone-navigation.has-readouts .zone-nav-button { flex-direction: column; min-width: 72px; gap: 5px; }
+.zone-navigation .zone-readout-toggle { flex: 0 0 auto; align-self: stretch; display: flex; align-items: center; justify-content: center; width: 36px; border-radius: 11px; border: 1px solid #40565f; background: #1e303a; color: inherit; }
+.zone-navigation .zone-readout-toggle[aria-pressed="true"] { color: #1b290e; background: #c9ee78; }
+.zone-navigation[data-theme="light"] .zone-readout-toggle { background: #eaf1ef; border-color: #c1d0d3; }
+.zone-navigation[data-theme="light"] .zone-readout-toggle[aria-pressed="true"] { background: #c9ee78; }
+.zone-navigation .zone-metrics { display: flex; flex-direction: column; gap: 3px; width: 100%; }
+.zone-navigation .zone-metrics > span { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.zone-navigation .zone-metrics small { font-size: 10px; opacity: .8; font-weight: 400; }
+.zone-navigation .zone-metrics strong { font-size: 11px; font-weight: 500; }
+.zone-navigation .zone-cp-button { min-width: 52px; flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px; border: 1px solid #667181; border-left: 3px solid #9485a7; border-radius: 10px; background: #25313f; color: #decdf1; font: 600 13px ui-monospace,monospace; }
+.zone-navigation.has-readouts .zone-cp-button { min-width: 122px; }
+.zone-navigation[data-theme="light"] .zone-cp-button { background: #f0edf5; color: #644a7d; border-color: #d3cadb; border-left-color: #9485a7; }
+.immersive[data-scene-close="true"] .zone-navigation { opacity: .28; }
+.immersive[data-scene-close="true"] .zone-navigation:has(.is-alert) { opacity: .85; }
+.immersive[data-scene-close="true"] .zone-navigation:hover,
+.immersive[data-scene-close="true"] .zone-navigation:focus-within { opacity: 1; }
+@media (hover: none) { .immersive[data-scene-close="true"] .zone-navigation { opacity: .8; } }
+.zone-navigation-row { display: flex; gap: 6px; overflow-x: auto; padding: 3px 2px 5px; scrollbar-width: thin; }
+.zone-navigation-hint { text-align: center; color: #9caeb5; font-size: 11px; line-height: 1.5; padding-top: 3px; }
+.zone-navigation-status { display: block; color: #ffaaa0; }
+.zone-navigation[data-theme="light"] .zone-navigation-status { color: #a23329; }
+.zone-navigation[data-theme="light"] .zone-navigation-hint { color: #5b7179; }
+.zone-navigation button.zone-nav-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex: 0 0 auto;
+  min-width: 43px; min-height: 39px; padding: 8px 10px; border-radius: 11px;
+  border: 1px solid #40565f; background: #1e303a; color: #e2edf1;
+  font: 600 13px ui-monospace, monospace; cursor: pointer;
+}
+.zone-navigation[data-theme="light"] button.zone-nav-button { border-color: #c1d0d3; background: #eaf1ef; color: #29434b; }
+.zone-navigation button.zone-nav-button[aria-pressed="true"] { background: #c9ee78; border-color: #c9ee78; color: #1b290e; }
+.zone-navigation button.zone-nav-button.is-alert { background: #542526; color: #ffe8e4; border-color: #f17368; }
+.zone-navigation[data-theme="light"] button.zone-nav-button.is-alert { background: #ffe7e2; color: #91281f; border-color: #d84c40; }
+.zone-navigation button.zone-nav-button.is-alert[aria-pressed="true"] { box-shadow: 0 0 0 2px #ffb6a5; }
+.zone-nav-count { display: inline-flex; min-width: 17px; height: 17px; align-items: center; justify-content: center; padding: 0 3px; border-radius: 6px; background: #8c302b; color: #fff; font-size: 10px; }
+.zone-attention-anchor { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; z-index: 27; }
+.zone-attention-anchor button.zone-attention-button {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 100px; padding: 9px 12px; border: 1px solid #ffb1a3; border-radius: 13px;
+  background: #be342e; color: #fff8f5; box-shadow: 0 0 0 4px #ec57402b, 0 8px 24px #0005;
+  pointer-events: auto; cursor: pointer; white-space: nowrap;
+}
+.zone-attention-button::after { content: ''; position: absolute; width: 2px; height: var(--zone-attention-stem-length, 22px); top: 100%; left: calc(50% - 1px); background: #ff8b78; pointer-events: none; }
+.zone-attention-heading { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.zone-attention-detail { font-size: 11px; font-weight: 600; }
+.zone-attention-button[aria-pressed="true"] { outline: 2px solid #ffd6b4; outline-offset: 3px; }
+.zone-attention-pulse { animation: zone-attention-pulse 1.8s ease-in-out infinite; }
+@keyframes zone-attention-pulse {
+  0%, 100% { background-color: #a72f2a; box-shadow: 0 0 0 3px #ff75652b, 0 5px 18px #0004; }
+  50% { background-color: #e24a3e; box-shadow: 0 0 0 7px #ff756545, 0 0 24px #ff665b55; }
+}
+.immersive.has-drawer .zone-navigation { left: 50%; transform: translateX(-50%); max-width: calc(100% - 32px); }
+.immersive .equipment-alert, .immersive.has-drawer .equipment-alert { bottom: 234px; }
+@media (max-width: 760px) {
+  .zone-navigation { bottom: 128px; max-width: calc(100% - 24px); padding: 7px 8px 5px; }
+  .zone-navigation-hint { font-size: 10px; }
+  .zone-navigation button.zone-nav-button { min-width: 39px; min-height: 38px; padding: 7px 9px; }
+  .zone-attention-anchor button.zone-attention-button { min-width: 86px; padding: 8px 9px; }
+  .immersive.has-drawer .zone-navigation { display: block; max-width: calc(100% - 24px); }
+  .immersive .equipment-alert { bottom: 222px; }
+}
+@media (prefers-reduced-motion: reduce) { .zone-attention-pulse { animation: none; } }

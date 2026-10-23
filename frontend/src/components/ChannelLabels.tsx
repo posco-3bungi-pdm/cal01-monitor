@@ -8,7 +8,7 @@ import type { Position3 } from './furnace-model'
 import { numberText } from '../time'
 import type { SceneGesture } from './scene-input'
 import { anchorOccluded, labelOccluders } from './scene-occlusion'
-import { layoutReadouts } from './scene-label-layout'
+import { layoutReadouts, READOUT_WIDTH, READOUT_HEIGHT } from './scene-label-layout'
 import type { LabelAnchor } from './scene-label-layout'
 
 type LabelEntry = { node: HTMLDivElement; position: Position3; offset: [number, number]; selected: boolean }
@@ -30,7 +30,7 @@ export function ChannelLabels({ target, bridge, channels, positions, values, sel
     const output = channel.id.startsWith('OP-')
     const value = values[channel.id]
     const focused = channel.id === selected
-    const x = output ? 22 : -142
+    const x = output ? 22 : -174
     const y = channel.id.startsWith('CP-') ? 16 : -70
     const color = channel.id === 'CP-Z4'
       ? (theme === 'dark' ? '#d4b6f3' : '#755093') : (theme === 'dark' ? '#8ce6ed' : '#236978')
@@ -45,14 +45,14 @@ export function ChannelLabels({ target, bridge, channels, positions, values, sel
       }}
       style={{ position: 'absolute', top: 0, left: 0, visibility: 'hidden', pointerEvents: 'none' }}>
       <svg width="1" height="1" aria-hidden="true" style={{ overflow: 'visible', position: 'absolute', pointerEvents: 'none' }}>
-        <polyline points={`0,0 ${x < 0 ? -14 : 14},${y + 28} ${x < 0 ? x + 122 : x},${y + 28}`}
+        <polyline points={`0,0 ${x < 0 ? -14 : 14},${y + 28} ${x < 0 ? x + READOUT_WIDTH : x},${y + 28}`}
           fill="none" stroke={color} strokeWidth="1" />
         <circle cx="0" cy="0" r="3" fill={color} />
       </svg>
       <button type="button" aria-label={`${channel.id} 채널 선택`}
         onClick={event => { if (gesture.allowClick(event.detail === 0)) onSelect(channel.id) }}
-        title={`${kind} · ${measuredAt?.replace('T', ' ') ?? '선택 시각에 기록 없음'}`}
-        style={{ position: 'absolute', left: x, top: y, width: 122, height: 74, boxSizing: 'border-box', pointerEvents: 'auto',
+        title={`${kind}${channel.unit ? '' : ' · 단위 미확인'} · ${measuredAt?.replace('T', ' ') ?? '선택 시각에 기록 없음'}`}
+        style={{ position: 'absolute', left: x, top: y, width: READOUT_WIDTH, height: READOUT_HEIGHT, boxSizing: 'border-box', pointerEvents: 'auto',
           padding: '6px 8px', textAlign: 'left', fontSize: 13, cursor: 'pointer',
           color: theme === 'dark' ? '#e6f7fa' : '#173c4a',
           background: theme === 'dark' ? '#0b2632e8' : '#f3fbffed',
@@ -128,7 +128,7 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision }: {
         const button = node.querySelector('button')!
         button.style.left = `${dx}px`
         button.style.top = `${dy}px`
-        node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + 122 : dx},${dy + 28}`)
+        node.querySelector('polyline')!.setAttribute('points', `0,0 ${dx < 0 ? -14 : 14},${dy + 28} ${dx < 0 ? dx + READOUT_WIDTH : dx},${dy + 28}`)
       }
     }
     if (bridge.current.status) {

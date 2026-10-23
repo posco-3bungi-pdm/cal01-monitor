@@ -5,8 +5,9 @@ import { api, queryString } from "../api";
 import type { CandidateLocation, TeamNotification } from "../review-types";
 import { activityTime } from "../review-types";
 
-export default function TeamNotifications({ username, onOpenCandidate, onOpenRequests }: {
+export default function TeamNotifications({ username, onOpenCandidate, onOpenRequests, onOpen }: {
   username: string; onOpenCandidate: (location: CandidateLocation) => void; onOpenRequests: (requestId?: string) => void;
+  onOpen?: () => void;
 }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -70,7 +71,7 @@ export default function TeamNotifications({ username, onOpenCandidate, onOpenReq
     return () => window.removeEventListener("keydown", closeOnEscape, true);
   }, [open]);
   const unread = notifications.filter(notification => notification.id > seen).length;
-  function toggle() { if (!open) markSeen(after.current); setOpen(value => !value); }
+  function toggle() { if (!open) { onOpen?.(); markSeen(after.current); } setOpen(value => !value); }
   return <div className="notification-center">
     <button ref={trigger} className={`notification-button ${disconnected ? "disconnected" : ""}`} aria-label={`팀 알림 ${unread}개 읽지 않음${disconnected ? " · 연결 끊김" : ""}`} aria-expanded={open} onClick={toggle}>{disconnected ? <WifiOff size={17} /> : <Bell size={17} />}{unread > 0 && <span>{unread > 99 ? "99+" : unread}</span>}</button>
     {open && <section className="notification-popover" aria-label="팀 알림 목록"><header><strong>팀 알림</strong><span>{disconnected ? "연결 끊김" : "5초마다 확인"}</span><button className="icon-button" onClick={() => setOpen(false)} aria-label="알림 목록 닫기"><X size={15} /></button></header>

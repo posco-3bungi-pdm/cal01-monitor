@@ -1,11 +1,13 @@
 export type LabelAnchor = { id: string; x: number; y: number; dx: number; dy: number; selected?: boolean }
 export type LabelRect = { x: number; y: number; width: number; height: number }
+export const READOUT_WIDTH = 154
+export const READOUT_HEIGHT = 76
 
 export function layoutReadouts(items: LabelAnchor[], width: number, height: number) {
   const placed = new Map<string, LabelRect>()
-  const boxWidth = 122, boxHeight = 74, gap = 8
+  const boxWidth = READOUT_WIDTH, boxHeight = READOUT_HEIGHT, gap = 8
   const top = height > 500 ? 100 : 8
-  const bottom = height > 500 ? 124 : 8
+  const bottom = height > 500 ? 230 : 100
   const maxX = width - boxWidth - gap, maxY = height - boxHeight - bottom
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max))
   const free = (x: number, y: number) => [...placed.values()].every(box =>
@@ -13,8 +15,8 @@ export function layoutReadouts(items: LabelAnchor[], width: number, height: numb
     || y + boxHeight + gap <= box.y || y >= box.y + box.height + gap)
   for (const item of [...items].sort((a, b) => Number(b.selected) - Number(a.selected))) {
     if (maxX < gap || maxY < top) continue
-    const offsets = [[item.dx, item.dy], [22, -78], [-144, -78], [22, 14], [-144, 14],
-      [22, -160], [-144, -160], [22, 96], [-144, 96]]
+    const offsets = [[item.dx, item.dy], [22, -78], [-176, -78], [22, 14], [-176, 14],
+      [22, -160], [-176, -160], [22, 96], [-176, 96]]
     const nearby = offsets.map(([dx, dy]) => ({
       x: clamp(item.x + dx, gap, maxX), y: clamp(item.y + dy, top, maxY),
     }))

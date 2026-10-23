@@ -216,7 +216,7 @@ export function workViewForViewport(width: number, height: number, zoneId = 'Z3'
   const zone = FURNACE_ZONES.find(item => item.id === zoneId) ?? FURNACE_ZONES[3]
   const halfWidth = Math.max(2.6, zone.width * 0.8)
   const centreY = zone.height / 2 + 0.25
-  return fitBounds(width, height, fov, shiftX, shiftY, [zone.x, centreY, 0], [6, 3.8, 14],
+  return fitBounds(width, height, fov, shiftX, shiftY, [zone.x, centreY, 0], [0, 0.65, 14],
     [[zone.x - halfWidth, 0.5, -2.2], [zone.x + halfWidth, zone.height + 0.9, 2.6]])
 }
 

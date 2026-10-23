@@ -153,6 +153,17 @@ test('work view is closer than full view; full view contains its actual bounds o
   }
 })
 
+test('zone buttons use a front view consistently, with the inspector clear of the reserved bottom row', () => {
+  for (const zone of FURNACE_ZONES) {
+    const work = workViewForViewport(1280, 720, zone.id)
+    assert.equal(work.position[0], work.target[0], `${zone.id} must not turn diagonally`)
+    assert.ok(Math.abs(work.position[1] - work.target[1]) < Math.abs(work.position[2] - work.target[2]) * 0.1)
+  }
+  const placements = layoutReadouts([{ id: 'CP-Z4M', x: 500, y: 650, dx: 22, dy: 14, selected: true }], 1280, 720)
+  const value = placements.get('CP-Z4M')!
+  assert.ok(value.y + value.height <= 720 - 230, 'a readout cannot cover the process navigation')
+})
+
 test('readouts sharing an anchor are placed without overlap and remain inside the viewport', () => {
   for (const [width, height, count] of [[588, 850, 6], [1280, 720, 22]]) {
     const entries = Array.from({ length: count }, (_, index) => ({

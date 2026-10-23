@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, Crosshair } from "lucide-react";
+import { AlertTriangle, Check, Crosshair, BookOpen } from "lucide-react";
 import { dateTime, numberText } from "../time";
 
 export type EquipmentAlertData = {
@@ -15,10 +15,11 @@ export type EquipmentAlertData = {
 };
 
 // Render only from an actual detection event. CSV labels do not activate this component.
-export default function EquipmentAlert({ alert, onAcknowledge, onFocus, pending = false }: {
+export default function EquipmentAlert({ alert, onAcknowledge, onFocus, onGuide, pending = false }: {
   alert: EquipmentAlertData;
   onAcknowledge: (id: string) => void;
   onFocus: (alert: EquipmentAlertData) => void;
+  onGuide: () => void;
   pending?: boolean;
 }) {
   return <>
@@ -33,6 +34,7 @@ export default function EquipmentAlert({ alert, onAcknowledge, onFocus, pending 
         </div>
       </div>
       <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={16} />구간 보기</button>
+        <button className="subtle-button" onClick={onGuide}><BookOpen size={16} />대응 가이드</button>
         {!alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => onAcknowledge(alert.id)}><Check size={16} />{pending ? "저장 중" : "확인"}</button>}
       </div>
     </section>

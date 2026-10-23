@@ -6,8 +6,8 @@ import {
   Activity, ArrowRight, Box, Check, ChevronDown, Database, Eye,
   EyeOff, FileSpreadsheet, Layers3, LoaderCircle, LogOut, Moon,
   Move3D, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, ShieldCheck, Sun,
-  UserRound, X, AlertCircle, BookOpen, ChevronLeft, ChevronRight, Play, Pause, ClipboardList,
-  FileUp, Gauge, Thermometer, Tags, SkipForward, Settings2, Droplets, BrainCircuit, LocateFixed,
+  UserRound, X, AlertCircle, BookOpen, Play, Pause, ClipboardList,
+  FileUp, Gauge, Thermometer, Tags, SkipForward, Settings2, Droplets, BrainCircuit, LocateFixed, Search,
 } from "lucide-react";
 import { api, ApiError, queryString, refreshCsrf } from "./api";
 import type { Channel, CurrentFrame, Dataset, EquipmentLayout, Lot, Placement, SeriesResponse, Theme, TimeRange, User } from "./types";
@@ -21,18 +21,25 @@ import RequestDialog from "./components/RequestDialog";
 import TeamNotifications from "./components/TeamNotifications";
 import FieldRequestsPanel from "./components/FieldRequestsPanel";
 import WorkspaceDrawer from "./components/WorkspaceDrawer";
-import type { CandidateLocation, DetectionCandidate, DetectionRun } from "./review-types";
+import type { CandidateLocation, DetectionCandidate, DetectionRun, FieldRequest } from "./review-types";
 import { usePlayback } from "./usePlayback";
 import CsvImportDialog from "./components/CsvImportDialog";
 import { PART_CATALOG } from "./components/part-catalog";
 import ModelSelectionPanel from "./components/ModelSelectionPanel";
 import type { AnalysisModel } from "./components/ModelSelectionPanel";
 import ThemedSelect from "./components/ThemedSelect";
+import { summarizeZoneAttention } from "./components/zone-attention";
+import ProcessGuide from "./components/ProcessGuide";
+import ResponseGuide from "./components/ResponseGuide";
+import { sceneChannelIds, toggleSceneLabelGroup } from "./components/scene-label-groups";
+import type { SceneLabelGroup, SceneLabelState } from "./components/scene-label-groups";
+import HistorySearchDialog from "./components/HistorySearchDialog";
+import { sceneMotion } from "./components/scene-motion";
 
 const FurnaceScene = lazy(() => import("./components/FurnaceScene"));
 
 type Message = { kind: "success" | "error" | "info"; text: string };
-type DrawerName = "channels" | "analysis" | "requests" | "models" | null;
+type DrawerName = "channels" | "analysis" | "requests" | "models" | "response" | null;
 type Appearance = "hologram" | "realistic";
 type GuideContext = {
   datasetId: string; lotNo: string; selectedChannel: string; visibleIds: string[];
@@ -118,6 +125,10 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [section, setSection] = useState<"equipment" | "channels">("equipment");
   const [drawer, setDrawer] = useState<DrawerName>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [dataMode, setDataMode] = useState<'history' | 'live'>('history');
+  const history = dataMode === 'history';
+  const [historySearchOpen, setHistorySearchOpen] = useState(false);
+  const [sceneClose, setSceneClose] = useState(false);
   const [datasetId, setDatasetId] = useState("");
   const [lotNo, setLotNo] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("TC-Z3");
@@ -137,7 +148,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [motionPlaying, setMotionPlaying] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [showLabels, setShowLabels] = useState(true);
+  const [sceneLabels, setSceneLabels] = useState<SceneLabelState>({ group: 'all', shown: false });
+  const showLabels = history && sceneLabels.shown;
+  const [sceneToolsOpen, setSceneToolsOpen] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [temperatureColors, setTemperatureColors] = useState(false);
   const [alertExpanded, setAlertExpanded] = useState(false);
@@ -151,8 +164,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [analysisError, setAnalysisError] = useState<unknown>(null);
   const [acknowledging, setAcknowledging] = useState<string | null>(null);
   const [requestCandidate, setRequestCandidate] = useState<DetectionCandidate | null>(null);
+  const [manualRequestOpen, setManualRequestOpen] = useState(false);
+  const [pendingRequestFocus, setPendingRequestFocus] = useState<FieldRequest | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [requestFocusRevision, setRequestFocusRevision] = useState(0);
+  const [responseCandidate, setResponseCandidate] = useState<DetectionCandidate | null>(null);
+  const workspaceRoot = useRef<HTMLDivElement>(null);
   const guideContext = useRef<GuideContext | null>(null);
   const chartTarget = useRef<HTMLDivElement>(null);
   const firstLotKey = useRef("");
@@ -180,12 +197,15 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const dataset = datasets.find(item => item.id === datasetId);
   const lot = lots.find(item => String(item.lot_no) === lotNo);
   const playback = usePlayback(datasetId, lot, setCursor);
+  const sceneMovement = sceneMotion(history && playback.running, motionPlaying, Boolean(editing || reducedMotion));
   const selectedPart = PART_CATALOG.find(item => item.id === selectedPartId);
   const channel = channels.find(item => item.id === selectedChannel);
   const displayedChannels = useMemo(() => channels.filter(item => visibleIds.includes(item.id)), [channels, visibleIds]);
+  const sceneLabelIds = useMemo(() => sceneLabels.group ? sceneChannelIds(channels, sceneLabels.group, selectedChannel) : visibleIds,
+    [channels, sceneLabels.group, selectedChannel, visibleIds]);
   const analysisContext = `${datasetId}:${lotNo}`;
   const runsQuery = useQuery({
-    queryKey: ["detection-runs", datasetId, lotNo], enabled: !!datasetId && !!lotNo,
+    queryKey: ["detection-runs", datasetId, lotNo], enabled: history && !!datasetId && !!lotNo,
     queryFn: ({ signal }) => api<{ runs: DetectionRun[] }>(`/api/detection/runs?${queryString({ dataset: datasetId, lot: lotNo })}`, { signal }),
     refetchInterval: 5000,
   });
@@ -193,7 +213,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const chosenRunId = runChoice?.context === analysisContext && runs.some(run => run.id === runChoice.id) ? runChoice.id : runs[0]?.id;
   const chosenRun = runs.find(run => run.id === chosenRunId);
   const candidatesQuery = useQuery({
-    queryKey: ["detection-candidates", datasetId, lotNo, chosenRunId], enabled: !!chosenRunId,
+    queryKey: ["detection-candidates", datasetId, lotNo, chosenRunId], enabled: history && !!chosenRunId,
     queryFn: ({ signal }) => api<{ candidates: DetectionCandidate[] }>(`/api/detection/candidates?${queryString({ dataset: datasetId, lot: lotNo, run: chosenRunId })}`, { signal }),
     refetchInterval: 5000,
   });
@@ -201,34 +221,35 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const focusedCandidate = candidates.find(candidate => candidate.id === selectedCandidateId);
   const alertCandidate = candidates.find(candidate => candidate.id === bannerCandidateId)
     ?? focusedCandidate ?? candidates.find(candidate => !candidate.acknowledged) ?? candidates[0];
-  const visibleCandidates = useMemo(() => analysisModel === "none" ? [] : playback.engaged
+  const visibleCandidates = useMemo(() => !history || analysisModel === "none" ? [] : playback.engaged
     ? candidates.filter(candidate => playback.frame && timeMs(candidate.start) <= playback.position && timeMs(candidate.end) >= playback.position)
-    : candidates, [analysisModel, candidates, playback.engaged, playback.position, playback.frame]);
+    : candidates, [history, analysisModel, candidates, playback.engaged, playback.position, playback.frame]);
   const alertChannelKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.channel_id))].join(",");
   const alertZoneKey = guideStep ? "" : [...new Set(visibleCandidates.map(candidate => candidate.zone_id))].join(",");
   const alertChannelIds = useMemo(() => alertChannelKey ? alertChannelKey.split(",") : [], [alertChannelKey]);
   const alertZoneIds = useMemo(() => alertZoneKey ? alertZoneKey.split(",") : [], [alertZoneKey]);
-  const replayAlert = analysisModel === "none" ? undefined : playback.engaged ? visibleCandidates[0] : alertCandidate;
+  const zoneAttention = useMemo(() => guideStep ? {} : summarizeZoneAttention(visibleCandidates), [visibleCandidates, guideStep]);
+  const replayAlert = !history || analysisModel === "none" ? undefined : playback.engaged ? visibleCandidates[0] : alertCandidate;
   const staticCursor = playback.engaged ? null : cursor;
   const frameQuery = useQuery({
-    queryKey: ["frame", datasetId, lotNo, staticCursor], enabled: !!datasetId && !!lot && !!staticCursor,
+    queryKey: ["frame", datasetId, lotNo, staticCursor], enabled: history && !!datasetId && !!lot && !!staticCursor,
     queryFn: ({ signal }) => api<CurrentFrame>(`/api/current-frame?${queryString({ dataset: datasetId, lot: lotNo, at: staticCursor ?? undefined })}`, { signal }),
   });
   const seriesQuery = useQuery({
     queryKey: ["series", datasetId, lotNo, visibleIds.join(","), view?.start, view?.end],
-    enabled: !!datasetId && !!lot && !!view && visibleIds.length > 0,
+    enabled: history && !!datasetId && !!lot && !!view && visibleIds.length > 0,
     queryFn: ({ signal }) => api<SeriesResponse>(`/api/series?${queryString({ dataset: datasetId, lot: lotNo, channels: visibleIds.join(","), start: view?.start, end: view?.end, max_points: 1000 })}`, { signal }),
   });
-  const frameValues = useMemo(() => playback.engaged
+  const frameValues = useMemo(() => !history ? {} : playback.engaged
     ? playback.frame?.values ?? {}
-    : Object.fromEntries((frameQuery.data?.channels ?? []).map(item => [item.channel_id, item.value])), [frameQuery.data, playback.engaged, playback.frame]);
-  const frameValue = playback.engaged ? {
+    : Object.fromEntries((frameQuery.data?.channels ?? []).map(item => [item.channel_id, item.value])), [history, frameQuery.data, playback.engaged, playback.frame]);
+  const frameValue = !history ? undefined : playback.engaged ? {
     value: playback.frame?.values[selectedChannel] ?? null,
     measured_at: playback.frame?.time ?? null,
     quality_status: playback.frame ? (playback.frame.values[selectedChannel] == null ? "missing" : "replay_record") : "replay_gap",
   } : frameQuery.data?.channels.find(item => item.channel_id === selectedChannel);
   const frameTime = playback.engaged ? cursor : frameQuery.data?.anchor_time ?? cursor;
-  const measuredAt = playback.engaged ? playback.frame?.time ?? null : frameQuery.data?.channels[0]?.measured_at ?? null;
+  const measuredAt = !history ? null : playback.engaged ? playback.frame?.time ?? null : frameQuery.data?.channels[0]?.measured_at ?? null;
   const placements = draftPlacements ?? layoutQuery.data?.placements ?? [];
   const dirty = editing && draftPlacements !== null && JSON.stringify(draftPlacements) !== JSON.stringify(layoutQuery.data?.placements);
 
@@ -259,6 +280,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       setPendingFocus(null);
     }
   }, [pendingFocus, lot, datasetId]);
+  useEffect(() => {
+    if (pendingRequestFocus && lot && datasetId === pendingRequestFocus.dataset_id && String(lot.lot_no) === String(pendingRequestFocus.lot_no)) {
+      openRequestGraph(pendingRequestFocus);
+      setPendingRequestFocus(null);
+    }
+  }, [pendingRequestFocus, lot, datasetId]);
   useEffect(() => { if (reducedMotion) setMotionPlaying(false); }, [reducedMotion]);
   useEffect(() => {
     try { localStorage.setItem("cal01-appearance", appearance); } catch { /* Display preference is optional. */ }
@@ -283,11 +310,38 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       if (guideIndex !== null) closeGuide();
       else if (sidebarOpen) setSidebarOpen(false);
       else if (drawer) setDrawer(null);
+      else if (sceneToolsOpen) { setSceneToolsOpen(false); setShowDiagnostics(false); }
       else { setInspectorOpen(false); setSelectedPartId(null); }
     };
     window.addEventListener("keydown", closeOverlay);
     return () => window.removeEventListener("keydown", closeOverlay);
-  }, [guideIndex, sidebarOpen, drawer]);
+  }, [guideIndex, sidebarOpen, drawer, sceneToolsOpen]);
+  useEffect(() => {
+    const root = workspaceRoot.current;
+    if (!root) return;
+    let down: { id: number; x: number; y: number } | null = null;
+    const pointerDown = (event: PointerEvent) => {
+      down = event.button === 0 ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+    };
+    const pointerUp = (event: PointerEvent) => {
+      const start = down; down = null;
+      if (!start || start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
+      const target = event.target;
+      if (!(target instanceof Element) || !root.contains(target) || editing || document.querySelector('dialog[open]')) return;
+      // Reading, scrolling, editing and interacting with the current panel must not dismiss it.
+      if (target.closest('.workspace-topbar, .workspace-drawer:not([hidden]), .guide-panel, .channel-inspector, .part-inspector, .equipment-alert, .scene-alert-chip, .sidebar:not([hidden]), .scene-tools, .notification-center')) return;
+      if (root.querySelector('.workspace-drawer:not([hidden]) [data-preserve-outside="true"]')) return;
+      // The process guide stays open while the learner examines its related 3D process.
+      if (guideIndex !== null && target.closest('canvas, [data-scene-ui], [data-channel-readout]')) return;
+      if (guideIndex !== null) closeGuide(false);
+      setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+      setSceneToolsOpen(false);
+      setShowDiagnostics(false);
+    };
+    root.addEventListener('pointerdown', pointerDown);
+    root.addEventListener('pointerup', pointerUp);
+    return () => { root.removeEventListener('pointerdown', pointerDown); root.removeEventListener('pointerup', pointerUp); };
+  }, [guideIndex, drawer, editing]);
 
   const selectChannel = useCallback((id: string) => {
     setSelectedChannel(id);
@@ -316,16 +370,19 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     if (scroll) goToSection("channels");
   }
 
-  const selectSceneChannel = useCallback((id: string) => {
+  const selectSceneChannel = useCallback((id: string, keepSettings = false) => {
     selectChannel(id);
     setInspectorOpen(true);
     setSelectedPartId(null);
+    setDrawer(null); setSidebarOpen(false); setAlertExpanded(false);
+    if (!keepSettings) setSceneToolsOpen(false);
+    setShowDiagnostics(false);
   }, [selectChannel]);
   const clearSceneSelection = useCallback(() => {
     setInspectorOpen(false); setSelectedPartId(null);
   }, []);
-  const selectPart = useCallback((id: string) => {
-    setSelectedPartId(id); setInspectorOpen(false);
+  const selectPart = useCallback((id: string, keepSettings = false) => {
+    setSelectedPartId(id); setInspectorOpen(false); setDrawer(null); setSidebarOpen(false); setAlertExpanded(false); if (!keepSettings) setSceneToolsOpen(false); setShowDiagnostics(false);
   }, []);
 
   function chooseTime(time: string) {
@@ -380,11 +437,68 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   function openRequests(requestId?: string) {
     setSelectedRequestId(requestId ?? null);
     setRequestFocusRevision(value => value + 1);
-    setDrawer("requests");
-    setSidebarOpen(false);
+    openDrawer("requests", false);
+  }
+
+  function dismissTransientPanels(keepSettings = false) {
+    if (guideIndex !== null) closeGuide(false);
+    setDrawer(null); setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+    if (!keepSettings) setSceneToolsOpen(false);
+    setShowDiagnostics(false);
+  }
+
+  function sceneAction(action: () => void, keepSettings = false) {
+    dismissTransientPanels(keepSettings);
+    action();
+  }
+
+  function chooseSceneLabels(group: SceneLabelGroup) {
+    sceneAction(() => setSceneLabels(previous => toggleSceneLabelGroup(previous, group)), true);
+  }
+
+  function changeDataMode(next: 'history' | 'live') {
+    if (editing || analysisRunning || requestCandidate || manualRequestOpen || importOpen) return;
+    playback.pause(); dismissTransientPanels(); setHistorySearchOpen(false); setDataMode(next);
+  }
+
+  function openHistorySearch() {
+    if (editing || analysisRunning) return;
+    playback.pause(); dismissTransientPanels(); setDataMode('history'); setHistorySearchOpen(true);
+  }
+
+  function beginManualRequest() {
+    if (!lot || !datasetId || !channels.length) return;
+    playback.pause(); setSceneToolsOpen(false); setShowDiagnostics(false); setManualRequestOpen(true);
+  }
+
+  function openRequestGraph(request: FieldRequest) {
+    if (request.candidate_id) { void openCandidateLocation({ candidate_id: request.candidate_id, dataset_id: request.dataset_id, lot_no: request.lot_no, run_id: request.run_id ?? undefined }); return; }
+    if (analysisRunning || editing || guideIndex !== null) { setMessage({ kind: 'info', text: '진행 중인 분석·편집·공정 읽기를 마친 뒤 요청 구간을 여십시오.' }); return; }
+    playback.clear();
+    if (!lot || datasetId !== request.dataset_id || lotNo !== String(request.lot_no)) {
+      setPendingRequestFocus(request); setDatasetId(request.dataset_id); setLotNo(String(request.lot_no)); return;
+    }
+    setSelectedCandidateId(null); selectChannel(request.channel_id);
+    const padding = Math.max(30_000, (timeMs(request.end) - timeMs(request.start)) * 0.3);
+    setView({ start: timeIso(Math.max(timeMs(lot.start), timeMs(request.start) - padding)), end: timeIso(Math.min(timeMs(lot.end), timeMs(request.end) + padding)) });
+    setCursor(request.start); goToSection('channels');
+  }
+
+  function openDrawer(name: Exclude<DrawerName, null>, toggle = true) {
+    const next = toggle && drawer === name ? null : name;
+    dismissTransientPanels();
+    if (name !== 'requests') setDataMode('history');
+    setDrawer(next);
+    setSection(name === "channels" && next ? "channels" : "equipment");
+  }
+
+  function openResponseGuide(candidate?: DetectionCandidate) {
+    setResponseCandidate(candidate ?? focusedCandidate ?? replayAlert ?? null);
+    openDrawer("response", false);
   }
 
   function startGuide() {
+    setDataMode('history');
     if (guideIndex !== null || editing) return;
     playback.pause();
     guideContext.current = {
@@ -393,6 +507,9 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     };
     setGuideIndex(0);
     setDrawer(null);
+    setSidebarOpen(false); setInspectorOpen(false); setSelectedPartId(null); setAlertExpanded(false);
+    setSceneToolsOpen(false);
+    setShowDiagnostics(false);
     setSection("equipment");
     if (GUIDE_STEPS[0]?.channel) selectChannel(GUIDE_STEPS[0].channel);
     if (window.innerWidth <= 760) setSidebarOpen(false);
@@ -406,7 +523,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     if (step.channel) selectChannel(step.channel);
   }
 
-  function closeGuide() {
+  function closeGuide(restoreDrawer = false) {
     const previous = guideContext.current;
     setGuideIndex(null);
     guideContext.current = null;
@@ -419,8 +536,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     setView(previous.view);
     setSelection(previous.selection);
     setCursor(previous.cursor);
-    setSection(previous.section);
-    setDrawer(previous.drawer);
+    setSection(restoreDrawer ? previous.section : "equipment");
+    setDrawer(restoreDrawer ? previous.drawer : null);
     window.setTimeout(() => window.scrollTo({ top: previous.scrollY, behavior: "instant" }), 100);
   }
 
@@ -499,15 +616,14 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   }
 
   function goToSection(next: "equipment" | "channels") {
-    setSection(next);
-    setDrawer(next === "channels" ? "channels" : null);
-    setSidebarOpen(false);
+    if (next === "channels") openDrawer("channels", false);
+    else { dismissTransientPanels(); setSection("equipment"); }
   }
 
   const fatalAuth = [datasetsQuery.error, channelsQuery.error, lotsQuery.error, frameQuery.error, seriesQuery.error].some(error => error instanceof ApiError && error.status === 401);
   if (fatalAuth) return <div className="session-expired"><ShieldCheck size={36} /><h1>다시 로그인해 주세요.</h1><p>로그인이 만료됐습니다. 저장된 자료는 서버에 남아 있습니다.</p><button className="primary-button" onClick={() => { queryClient.clear(); onLogout(); }}>로그인 화면으로<ArrowRight size={16} /></button></div>;
 
-  return <div className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${analysisModel === "zscore" && alertCandidate && guideIndex === null ? "has-candidate" : ""}`}>
+  return <div ref={workspaceRoot} data-scene-close={sceneClose} className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${guideStep ? "has-guide" : ""} ${history && analysisModel === "zscore" && alertCandidate && guideIndex === null ? "has-candidate" : ""}`}>
     <aside className="sidebar" aria-label="작업 메뉴" hidden={!sidebarOpen} onKeyDown={event => { if (event.key === "Escape") setSidebarOpen(false); }}>
       <div className="sidebar-brand"><Brand compact /><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
       <div className="sidebar-section-label">작업 화면</div>
@@ -539,25 +655,25 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     </aside>
     <div className="workspace-main">
       <header className="workspace-topbar">
-        <div className="breadcrumb"><button className="icon-button" onClick={() => setSidebarOpen(value => !value)} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><span className="mode-badge">과거 자료</span></div>
+        <div className="breadcrumb"><button className="icon-button" onClick={() => { const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next); }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
           <button aria-label="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
-          <button aria-label="채널 그래프 열기" className={drawer === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={15} /><span>그래프</span></button>
-          <button aria-label="예측 모델 선택" title={analysisModel === "zscore" ? "분석 모델 · Z-score" : "이상 후보 표시 꺼짐"} className={drawer === "models" ? "active" : ""} onClick={() => { setDrawer(drawer === "models" ? null : "models"); setSidebarOpen(false); }}><BrainCircuit size={17} /><span>모델</span></button>
-          <button aria-label="과거 LOT 이상 후보 열기" className={drawer === "analysis" ? "active" : ""} onClick={() => setDrawer(drawer === "analysis" ? null : "analysis")}><AlertCircle size={15} /><span>이상 후보</span>{candidates.length > 0 && <small>{candidates.length}</small>}</button>
-          <button aria-label="팀 확인 요청함 열기" className={drawer === "requests" ? "active" : ""} onClick={() => openRequests()}><ClipboardList size={15} /><span>요청함</span></button>
+          <button aria-label="채널 그래프 열기" title="채널 그래프 열고 닫기" className={drawer === "channels" ? "active" : ""} aria-expanded={drawer === "channels"} onClick={() => openDrawer("channels")}><Activity size={15} /><span>그래프</span></button>
+          <button aria-label="예측 모델 선택" title={analysisModel === "zscore" ? "분석 모델 · Z-score" : "이상 후보 표시 꺼짐"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
+          <button aria-label="과거 LOT 이상 후보 열기" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{candidates.length > 0 && <small>{candidates.length}</small>}</button>
+          <button aria-label="팀 확인 요청함 열기" aria-expanded={drawer === "requests"} className={drawer === "requests" ? "active" : ""} onClick={() => openDrawer("requests")}><ClipboardList size={15} /><span>요청함</span></button>
         </nav>
-        <div className="topbar-right"><TeamNotifications username={user.username} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label={guideStep ? "가이드 종료" : "가이드 모드"} className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={guideStep ? closeGuide : startGuide} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>{guideStep ? "가이드 종료" : "가이드"}</span></button><ThemeButton theme={theme} onToggle={onThemeToggle} /></div>
+        <div className="topbar-right"><TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label="공정 읽기 열고 닫기" title="공정 읽기" className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>공정 읽기</span></button><ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} /></div>
       </header>
       <main className="main-content">
-        <section className="scene-data-control" aria-label="현재 보고 있는 자료">
+        {history ? <section className="scene-data-control" aria-label="현재 보고 있는 자료">
           <button className="icon-button" aria-label="온도 CSV 불러오기" title="CSV 불러오기" disabled={editing || analysisRunning || !!guideStep} onClick={() => { playback.pause(); setImportOpen(true); }}><FileUp size={21} /></button>
           <ThemedSelect id="scene-lot-select" label="LOT" value={lotNo} onChange={setLotNo}
             disabled={!lots.length || analysisRunning || editing || !!guideStep}
             options={lots.map(item => ({ value: String(item.lot_no), label: `${item.lot_no} · ${item.grade || "강종 미기록"}` }))} />
           <div className="scene-recorded-time"><span>{playback.engaged ? "과거 기록 재생" : "선택 시각"}</span><strong>{cursor ? dateTime(cursor, true) : "불러오는 중"}</strong></div>
-        </section>
-        {lot && <section className="playback-control" aria-label="온도 기록 재생">
+        </section> : <section className="scene-data-control live-source-status" aria-label="실시간 연결 상태"><strong>실시간 연결 전</strong><span>현재 수집 대상 LOT·강종·제품 정보 없음</span><small>측정 데이터가 연결되면 현재 코일 정보와 관측값을 표시합니다.</small><button className="text-button" onClick={() => changeDataMode('history')}>과거 기록 보기</button></section>}
+        {history && lot && <section className="playback-control" aria-label="온도 기록 재생">
           <button className="icon-button replay-toggle" aria-label={playback.running ? "기록 재생 일시정지" : "기록 재생"} title={playback.running ? "일시정지" : "기록 재생"} disabled={editing || !!guideStep || importOpen} onClick={() => playback.running ? playback.pause() : playback.play(cursor ?? lot.start)}>{playback.running ? <Pause size={21} /> : <Play size={21} />}</button>
           <div className="replay-track"><input type="range" min={timeMs(lot.start)} max={timeMs(lot.end)} step={1000} value={cursor ? timeMs(cursor) : timeMs(lot.start)} aria-label="온도 기록 재생 위치" disabled={editing || !!guideStep} onChange={event => playback.seek(timeIso(Number(event.target.value)))} /><div><span>{clockTime(lot.start)}</span><span>{playback.loading ? "자료 불러오는 중" : playback.engaged && !playback.frame ? "30초 내 기록 없음" : "원자료 시각"}</span><span>{clockTime(lot.end)}</span></div></div>
           <ThemedSelect label="기록 재생 속도" value={String(playback.speed)} onChange={value => playback.setSpeed(Number(value))}
@@ -565,51 +681,51 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           {playback.engaged && !playback.frame && <button className="icon-button" aria-label="다음 기록으로 이동" title="다음 기록" onClick={playback.nextRecord}><SkipForward size={19} /></button>}
           {playback.error && <p className="form-error" role="alert">{playback.error}</p>}
         </section>}
-        {guideStep && guideIndex !== null && <section className="guide-panel" aria-label="공정과 채널 읽기 가이드" aria-live="polite">
-          <div className="guide-panel-top"><span><BookOpen size={16} />공정 읽기</span><span>{guideIndex + 1} / {GUIDE_STEPS.length}</span><button className="icon-button" onClick={closeGuide} aria-label="가이드 닫고 이전 화면으로 돌아가기"><X size={18} /></button></div>
-          <div className="guide-content"><div className="guide-steps" aria-label="가이드 단계">{GUIDE_STEPS.map((step, index) => <button key={step.id} className={index === guideIndex ? "active" : ""} onClick={() => moveGuide(index)} aria-current={index === guideIndex ? "step" : undefined}><span>{String(index + 1).padStart(2, "0")}</span>{step.title}</button>)}</div>
-            <div className="guide-explanation"><span className="guide-kind">{guideStep.kind === "practice" ? "설명용 연습 · 실제 경고가 아닙니다" : guideStep.kind === "reading" ? "기록 읽는 방법" : "설비 공정 이해"}</span><h2>{guideStep.title}</h2><p>{guideStep.body}</p><div className="guide-check"><Check size={15} /><span>{guideStep.check}</span></div><p className="guide-preservation">설명에 맞춰 채널만 선택합니다. 종료하면 가이드 시작 전에 보던 LOT와 시각으로 돌아갑니다.</p></div>
-          </div>
-          <div className="guide-footer"><button className="subtle-button" disabled={guideIndex === 0} onClick={() => moveGuide(guideIndex - 1)}><ChevronLeft size={15} />이전</button><span>교육 진행 내용은 저장하지 않습니다.</span>{guideIndex < GUIDE_STEPS.length - 1 ? <button className="primary-button compact" onClick={() => moveGuide(guideIndex + 1)}>다음<ChevronRight size={15} /></button> : <button className="primary-button compact" onClick={closeGuide}>마치고 돌아가기<Check size={15} /></button>}</div>
-        </section>}
+        {guideStep && guideIndex !== null && <ProcessGuide index={guideIndex} onStep={moveGuide} onClose={() => closeGuide()} />}
         <AnimatePresence>{message && <motion.div initial={reducedMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className={`notice ${message.kind}`} role={message.kind === "error" ? "alert" : "status"}>
           {message.kind === "success" ? <Check size={17} /> : <AlertCircle size={17} />}<span>{message.text}</span>{layoutConflict && <button className="text-button" onClick={() => void loadLatestLayout()}>최신 위치 불러오기</button>}<button className="icon-button" onClick={() => setMessage(null)} aria-label="안내 닫기"><X size={15} /></button>
         </motion.div>}</AnimatePresence>
         <ErrorMessage error={lotsQuery.error} retry={() => void lotsQuery.refetch()} />
         <ErrorMessage error={channelsQuery.error} retry={() => void channelsQuery.refetch()} />
         {!datasetsQuery.isPending && datasets.length === 0 && !datasetsQuery.error && <div className="panel no-data-panel"><Database size={30} /><h2>등록된 데이터가 없습니다.</h2><p>서버에 CSV를 등록하면 LOT와 채널값을 여기에서 확인할 수 있습니다.</p><button className="subtle-button" onClick={() => void datasetsQuery.refetch()}><RefreshCw size={14} />등록 상태 다시 확인</button></div>}
-        {replayAlert && guideIndex === null && !alertExpanded && <button className="scene-alert-chip" aria-label="현재 이상 후보 알림 펼치기" onClick={() => setAlertExpanded(true)}><AlertCircle size={18} /><span>{playback.engaged ? replayAlert.channel_id : `${candidates.length}개`} · 이상 후보</span></button>}
+        {replayAlert && guideIndex === null && <button className={`scene-alert-chip ${alertExpanded ? 'is-expanded' : ''}`} aria-label="현재 이상 후보 알림 열고 닫기" aria-expanded={alertExpanded} onClick={() => { const next = !alertExpanded; dismissTransientPanels(); setAlertExpanded(next); }}><AlertCircle size={18} /><span>{playback.engaged ? replayAlert.channel_id : `${candidates.length}개`} · 이상 후보</span><ChevronDown size={15} /></button>}
         {replayAlert && guideIndex === null && alertExpanded && <><button className="scene-alert-close icon-button" aria-label="이상 후보 알림 접기" onClick={() => setAlertExpanded(false)}><X size={17} /></button><EquipmentAlert alert={{
           id: replayAlert.id, equipment: "CAL01", zone: replayAlert.zone_id, channel: replayAlert.channel_id,
           value: replayAlert.peak_value, unit: channels.find(item => item.id === replayAlert.channel_id)?.unit ?? "단위 미확인",
           time: replayAlert.peak_at, reason: `과거 LOT ${lotNo} · |Z| > 3으로 찾은 후보`, severity: "candidate", acknowledged: replayAlert.acknowledged,
-        }} pending={acknowledging === replayAlert.id} onAcknowledge={() => void acknowledgeCandidate(replayAlert)} onFocus={() => focusCandidate(replayAlert)} /></>}
+        }} pending={acknowledging === replayAlert.id} onAcknowledge={() => void acknowledgeCandidate(replayAlert)} onFocus={() => focusCandidate(replayAlert)} onGuide={() => openResponseGuide(replayAlert)} /></>}
         <section className="panel equipment-panel" aria-labelledby="equipment-heading">
           <div className="panel-heading scene-toolbar">
             <h2 id="equipment-heading" className="visually-hidden">연속 소둔로 CAL01</h2>
             <div className="segmented-control appearance-control" role="group" aria-label="설비 표현 방식">
-              <button aria-label="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => setAppearance("hologram")}><Layers3 size={20} /></button>
-              <button aria-label="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => setAppearance("realistic")}><Box size={20} /></button>
+              <button aria-label="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
+              <button aria-label="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
             </div>
-            <button className="icon-button" aria-label="채널 측정값 표시" title="채널 측정값" aria-pressed={showLabels} onClick={() => setShowLabels(value => !value)}><Tags size={20} /></button>
-            <button className="icon-button" aria-label="존 온도를 색으로 표시" title="존 온도 색 표시" aria-pressed={temperatureColors} onClick={() => setTemperatureColors(value => !value)}><Thermometer size={20} /></button>
-            <details className="scene-tools">
-              <summary aria-label="3D 도구" title="3D 도구"><Settings2 size={21} /></summary>
-              <div className="scene-tools-menu">
-                <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} onClick={() => setMotionPlaying(value => !value)}><Droplets size={16} />세정·건조 동작 {motionPlaying ? "끄기" : "보기"}</button>
+            <button className="icon-button" aria-label="채널 측정값 표시" title="하단 구역별 전체 계측값 표시·숨기기" disabled={!history} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
+            <div className="temperature-control"><button className="subtle-button temperature-toggle" aria-label="존 온도를 색으로 표시" aria-describedby="temperature-display-help" disabled={!history} aria-pressed={history && temperatureColors} onClick={() => sceneAction(() => setTemperatureColors(value => !value))}><Thermometer size={20} /><span>온도 색상</span></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip">TC 관측값 색상 · 설명용<br />실제 강판 표면온도·경보 등급 아님</span></div>
+            <div className="scene-tools">
+              <button className="scene-tools-trigger icon-button" aria-label="화면 설정" title="화면 설정" aria-expanded={sceneToolsOpen} onClick={() => { const next = !sceneToolsOpen; dismissTransientPanels(); setSceneToolsOpen(next); }}><Settings2 size={21} /></button>
+              {sceneToolsOpen && <div className="scene-tools-menu" role="region" aria-label="화면 설정 항목">
+                <div className="scene-settings-heading"><strong>화면 설정</strong><button className="icon-button" aria-label="화면 설정 닫기" onClick={() => { setSceneToolsOpen(false); setShowDiagnostics(false); }}><X size={16} /></button></div>
+                <span className="settings-section-label">계측창 표시 · 같은 항목을 다시 누르면 숨김</span>
+                <div className="label-groups" role="group" aria-label="값을 표시할 채널">{(['all', 'TC', 'OP', 'CP'] as const).map(group => <button key={group} disabled={!history} aria-pressed={showLabels && sceneLabels.group === group} onClick={() => chooseSceneLabels(group)} title={group === 'TC' ? '온도 계열 · CLN-IN 포함' : undefined}>{({ all: '전체', TC: 'TC', OP: 'OP', CP: 'CP' })[group]}</button>)}</div>
+                <button className="subtle-button" onClick={() => sceneAction(() => setSceneLabels(previous => ({ ...previous, shown: false })), true)}><EyeOff size={16} />계측창 모두 숨기기</button>
+                <span className="settings-section-label">설비 살펴보기</span>
+                <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} onClick={() => sceneAction(() => setMotionPlaying(value => !value), true)}><Droplets size={16} />세정·건조 동작 {motionPlaying ? "끄기" : "보기"}</button>
                 <p className="scene-help-note">강판 이동과 세정·건조는 설명용 동작입니다.</p>
                 {reducedMotion && <p>기기의 동작 줄이기 설정에 따라 재생을 껐습니다.</p>}
-                <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => setShowInterior(value => !value)}><Layers3 size={16} />{showInterior ? "외함 보기" : "내부 보기"}</button>
-                <div className="label-groups" role="group" aria-label="값을 표시할 채널"><button onClick={() => setChannelGroup("all")}>전체</button><button onClick={() => setChannelGroup("TC")}>TC</button><button onClick={() => setChannelGroup("OP")}>OP</button><button onClick={() => setChannelGroup("selected")}>선택</button></div>
-                <button className="subtle-button" aria-pressed={showDiagnostics} onClick={() => setShowDiagnostics(value => !value)}><Gauge size={16} />그래픽 성능 확인</button>
-                <button className="subtle-button" onClick={() => { setShowLabels(true); selectSceneChannel("CP-Z4"); }}><LocateFixed size={16} />CP-Z4 위치 찾기</button>
+                <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => sceneAction(() => setShowInterior(value => !value), true)}><Layers3 size={16} />{showInterior ? "외함 보기" : "내부 보기"}</button>
+                <button className="subtle-button" onClick={() => sceneAction(() => { setSceneLabels({ group: 'CP', shown: true }); selectSceneChannel("CP-Z4", true); }, true)}><LocateFixed size={16} />CP-Z4 위치 찾기</button>
                 <div className="scene-part-picker"><ThemedSelect label="확인할 설비 부품" value={selectedPartId ?? ""}
-                  onChange={value => value ? selectPart(value) : setSelectedPartId(null)}
+                  onChange={value => sceneAction(() => value ? selectPart(value, true) : setSelectedPartId(null), true)}
                   options={[{ value: "", label: "장비·부품 보기" }, ...PART_CATALOG.map(part => ({ value: part.id, label: part.name }))]} /></div>
-                {user.can_edit_layout && !editing && <button className="subtle-button" onClick={beginEditing} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}
+                <details className="advanced-scene-tools"><summary>고급 도구</summary>
+                  <button className="subtle-button diagnostics-preview-trigger" onPointerEnter={event => { if (event.pointerType !== 'touch') setShowDiagnostics(true); }} onPointerLeave={() => setShowDiagnostics(false)} onFocus={event => { if (event.currentTarget.matches(':focus-visible')) setShowDiagnostics(true); }} onBlur={() => setShowDiagnostics(false)} aria-label="그래픽 성능 확인 · 커서를 올린 동안 표시"><Gauge size={16} /><span>그래픽 성능 확인<small>커서를 올린 동안만 표시</small></span></button>
+                  {user.can_edit_layout && !editing && <button className="subtle-button" onClick={() => sceneAction(beginEditing, true)} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}
+                </details>
                 <details className="display-help"><summary>화면 설명</summary><p>드래그: 회전 · 휠: 확대 · WASD: 이동 · ↑/E: 상승 · ↓/Q: 하강 · Shift: 더 빠르게</p><p>설비를 한 번 누르면 키보드로 움직일 수 있습니다. 값창은 채널을 눌러 엽니다.</p><p>온도 색은 존의 TC 값을 표현합니다. 강판의 실제 표면온도가 아닙니다. 강종만으로 확인할 수 없는 표면 마감은 기본 금속으로 표시합니다.</p><p>부품 위치와 운전 동작은 공정 설명용입니다. 재생 중에는 마지막 기록을 최대 30초만 표시합니다. 화면 표시 기준이며 이상 판정이나 원본 값을 바꾸지 않습니다.</p></details>
-              </div>
-            </details>
+              </div>}
+            </div>
             {editing && <div className="editing-actions"><button className="subtle-button" onClick={cancelEditing} disabled={saving}>취소</button><button className="primary-button" onClick={() => void saveLayout()} disabled={saving || !dirty || layoutConflict}>{saving ? <LoaderCircle className="spin" size={16} /> : <Save size={16} />}위치 저장</button></div>}
           </div>
           <div className="equipment-body">
@@ -618,16 +734,18 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 channels={channels} selectedChannel={inspectorOpen || editing || guideStep ? selectedChannel : ""} onSelectChannel={selectSceneChannel}
                 values={frameValues} placements={placements} onPlacementChange={editing ? changePlacement : undefined}
                 editing={editing} showInterior={showInterior} appearance={appearance} theme={theme}
-                alertChannelIds={alertChannelIds} alertZoneIds={alertZoneIds}
-                motionPlaying={(motionPlaying || playback.running) && !editing && !reducedMotion}
-                simulationActive={(motionPlaying || playback.running) && !editing && !reducedMotion}
-                overlayOpen={drawer !== null || sidebarOpen || importOpen || requestCandidate !== null || guideStep !== null}
-                showLabels={showLabels} visibleLabelIds={visibleIds} showDiagnostics={showDiagnostics}
-                measuredAt={measuredAt} temperatureColors={temperatureColors} onClearSelection={clearSceneSelection}
+                alertChannelIds={alertChannelIds} alertZoneIds={alertZoneIds} zoneAttention={zoneAttention}
+                motionPlaying={sceneMovement.strip}
+                simulationActive={sceneMovement.cleaning}
+                overlayOpen={drawer !== null || sidebarOpen || importOpen || historySearchOpen || requestCandidate !== null || manualRequestOpen || guideStep !== null}
+                overlaySide={drawer ? "right" : guideStep || sidebarOpen ? "left" : null}
+                showLabels={editing || !!guideStep} visibleLabelIds={editing || guideStep ? visibleIds : sceneLabelIds} showDiagnostics={showDiagnostics && sceneToolsOpen}
+                showZoneReadouts={showLabels && !editing && !guideStep} readoutsDisabled={!history} onCloseViewChange={setSceneClose}
+                onToggleZoneReadouts={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}
+                measuredAt={measuredAt} temperatureColors={history && temperatureColors} onClearSelection={clearSceneSelection}
                 selectedPartId={selectedPartId} onSelectPart={selectPart}
               /></Suspense> : <div className="scene-placeholder">{channelsQuery.isPending ? <><LoaderCircle className="spin" size={24} /><span>채널 정보를 불러오는 중</span></> : <><Box size={28} /><span>채널 정보를 불러오면 설비를 표시합니다.</span></>}</div>}
             </div>
-            {temperatureColors && <div className="thermal-key">존 TC 온도 색 · 강판 표면온도 아님</div>}
             {inspectorOpen && <aside className="channel-inspector" aria-label="선택한 채널 정보">
               <div className="inspector-heading"><h3>{channel?.id ?? "채널 선택"}</h3><span className="zone-badge">{channel?.zone || "—"}</span><button className="icon-button" aria-label="채널 정보 닫기" onClick={() => setInspectorOpen(false)}><X size={18} /></button></div>
               <div className={`main-reading ${frameQuery.isFetching ? "is-loading" : ""}`}><strong>{numberText(frameValue?.value)}</strong><span>{channel?.unit || "단위 미확인"}</span></div>
@@ -658,6 +776,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           error={analysisError ?? runsQuery.error ?? candidatesQuery.error} disabled={analysisModel !== "zscore" || editing || guideStep !== null}
           onRun={() => void runAnalysis()} onChooseRun={id => { setRunChoice({ context: analysisContext, id }); setSelectedCandidateId(null); setBannerCandidateId(null); }}
           onFocus={candidate => focusCandidate(candidate)} onRequest={setRequestCandidate}
+          onGuide={openResponseGuide}
           onAcknowledge={candidate => void acknowledgeCandidate(candidate)} acknowledging={acknowledging} />}
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "channels"} title="채널 그래프와 앞뒤 기록" name="channels" onClose={() => setDrawer(null)}>
@@ -693,16 +812,26 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         </> : lotsQuery.isFetching || datasetsQuery.isPending ? <div className="panel data-loading"><LoaderCircle size={20} className="spin" />관측 자료를 불러오는 중</div> : null}
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "requests"} title="팀 확인 요청" name="requests" onClose={() => setDrawer(null)}>
-          <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenCandidate={location => void openCandidateLocation(location)} />
+          <FieldRequestsPanel user={user} selectedRequestId={selectedRequestId} focusRevision={requestFocusRevision} onOpenRequest={openRequestGraph} onCreate={beginManualRequest} canCreate={!!lot && !!datasetId && channels.length > 0} />
         </WorkspaceDrawer>
         <WorkspaceDrawer open={drawer === "models"} title="분석 모델 선택" name="models" onClose={() => setDrawer(null)}>
           <ModelSelectionPanel selected={analysisModel} disabled={analysisRunning || editing || !!guideStep}
-            onSelect={setAnalysisModel} onOpenAnalysis={() => setDrawer("analysis")} />
+            onSelect={setAnalysisModel} onOpenAnalysis={() => openDrawer("analysis", false)} />
         </WorkspaceDrawer>
-        <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>과거 자료 · 원자료 시각 기준</span></footer>
+        <WorkspaceDrawer open={drawer === "response"} title="알림 대응 가이드" name="response" onClose={() => setDrawer(null)}>
+          <ResponseGuide key={responseCandidate?.id ?? 'general'} candidate={responseCandidate} candidates={candidates} onOpenGraph={candidate => focusCandidate(candidate)} onRequest={setRequestCandidate} />
+        </WorkspaceDrawer>
+        <footer className="workspace-footer"><span>{user.display_name} · {fieldTeam ? "현장 작업팀" : "모니터링팀"}</span><span>{history ? '과거 기록 · 원자료 시각 기준' : '실시간 · 측정 데이터 연결 전'}</span></footer>
       </main>
     </div>
+    {historySearchOpen && <HistorySearchDialog datasets={datasets} datasetId={datasetId} onClose={() => setHistorySearchOpen(false)} onSelect={(source, sourceLot) => {
+      playback.clear(); setDataMode('history'); setHistorySearchOpen(false); setDatasetId(source); setLotNo(sourceLot);
+      const selected = source === datasetId ? lots.find(item => String(item.lot_no) === sourceLot) : undefined;
+      if (selected) { setView({ start: selected.start, end: selected.end }); setCursor(selected.start); setSelection(null); }
+      setDrawer('channels'); setSection('channels');
+    }} />}
     {importOpen && <CsvImportDialog onClose={() => setImportOpen(false)} onImported={(next, reused) => {
+      setDataMode('history');
       setImportOpen(false);
       queryClient.setQueryData<{ datasets: Dataset[] }>(["datasets", user.username], previous => ({
         datasets: [next, ...(previous?.datasets ?? []).filter(item => item.id !== next.id)],
@@ -711,8 +840,10 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
       playback.clear();
       setMessage({ kind: "success", text: reused ? "이미 등록된 같은 파일을 열었습니다." : `${next.row_count.toLocaleString()}행을 등록했습니다. LOT를 골라 재생해 보세요.` });
     }} />}
-    {requestCandidate && <RequestDialog key={requestCandidate.id} candidate={requestCandidate} onClose={() => setRequestCandidate(null)} onSaved={(request, reused) => {
-      setRequestCandidate(null); void queryClient.invalidateQueries({ queryKey: ["field-requests"] });
+    {(requestCandidate || manualRequestOpen) && <RequestDialog key={requestCandidate?.id ?? 'manual'} candidate={requestCandidate}
+      manualContext={{ dataset_id: datasetId, lot_no: lotNo, channel_id: selectedChannel, start: selection?.start ?? cursor ?? lot?.start ?? '', end: selection?.end ?? cursor ?? lot?.start ?? '' }} channels={channels} lots={lots}
+      onClose={() => { setRequestCandidate(null); setManualRequestOpen(false); }} onSaved={(request, reused) => {
+      setRequestCandidate(null); setManualRequestOpen(false); void queryClient.invalidateQueries({ queryKey: ["field-requests"] });
       setMessage({ kind: "success", text: reused ? "이미 저장된 요청을 불러왔습니다." : "현장 확인 요청을 저장했습니다. 팀 알림에 반영됩니다." });
       openRequests(request.id);
     }} />}
