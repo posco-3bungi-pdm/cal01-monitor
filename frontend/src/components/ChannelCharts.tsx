@@ -1,17 +1,17 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent } from "react";
 import { Crosshair, LoaderCircle, Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import type { Channel, ChannelSeries, SeriesPoint, TimeRange } from "../types";
 import { clockTime, dateTime, numberText, timeIso, timeMs } from "../time";
 import type { ChannelBaseline, DetectionCandidate } from "../review-types";
+import { incidentAxis, incidentTick } from './incident-axis';
+import ReadingValue from './ReadingValue';
 
-const WIDTH = 1100;
 const LEFT = 72;
 const RIGHT = 22;
-const TOP = 18;
-const BOTTOM = 136;
-const HEIGHT = 198;
-const PLOT_WIDTH = WIDTH - LEFT - RIGHT;
+const TOP = 24;
+const BOTTOM = 178;
+const HEIGHT = 244;
 const COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 type Props = {
@@ -37,11 +37,9 @@ type Props = {
 
 function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?: ChannelBaseline) {
   const values = [...points.flatMap(point => [point.value, point.min, point.max]), baseline?.mean, baseline?.lower, baseline?.upper].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  const minimum = values.length ? Math.min(...values) : 0;
-  const maximum = values.length ? Math.max(...values) : 1;
-  const padding = Math.max((maximum - minimum) * 0.12, Math.abs(maximum || minimum) * 0.015, maximum === 0 && minimum === 0 ? 1 : Number.MIN_VALUE);
-  const low = minimum - padding;
-  const high = maximum + padding;
+  const axis = incidentAxis(values.length ? values : [0, 1]);
+  const low = axis.min;
+  const high = axis.max;
   const y = (value: number) => BOTTOM - (value - low) / (high - low) * (BOTTOM - TOP);
   const segments: SeriesPoint[][] = [];
   let segment: SeriesPoint[] = [];
@@ -83,27 +81,37 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   onLabelZoom: (range: TimeRange) => void;
 }) {
   const svg = useRef<SVGSVGElement>(null);
+  const [width, setWidth] = useState(680);
+  useLayoutEffect(() => {
+    const node = svg.current;
+    if (!node) return;
+    const sync = () => setWidth(Math.max(280, node.getBoundingClientRect().width));
+    const observer = new ResizeObserver(sync); observer.observe(node); sync();
+    return () => observer.disconnect();
+  }, []);
   const gesture = useRef<{ id: number; startX: number; startTime: number; original: TimeRange | null } | null>(null);
   const [dragging, setDragging] = useState(false);
   const start = timeMs(view.start);
   const end = timeMs(view.end);
   const duration = Math.max(1, end - start);
-  const x = (time: number) => LEFT + (time - start) / duration * PLOT_WIDTH;
+  const plotWidth = width - LEFT - RIGHT;
+  const x = (time: number) => LEFT + (time - start) / duration * plotWidth;
   const points = data?.points ?? [];
   const baseline = focusedCandidate?.baseline;
-  const plot = useMemo(() => plotData(points, x, baseline), [points, start, end, baseline]);
+  const plot = useMemo(() => plotData(points, x, baseline), [points, start, end, baseline, width]);
   const color = COLORS[index % COLORS.length];
   const cursorMs = cursor ? timeMs(cursor) : Number.NaN;
   const nearest = Number.isFinite(cursorMs) ? points.reduce<SeriesPoint | null>((best, point) =>
     point.value === null ? best : !best || Math.abs(timeMs(point.time) - cursorMs) < Math.abs(timeMs(best.time) - cursorMs) ? point : best, null) : null;
   const selectionX = selection ? Math.max(LEFT, x(timeMs(selection.start))) : 0;
-  const selectionEnd = selection ? Math.min(WIDTH - RIGHT, x(timeMs(selection.end))) : 0;
+  const selectionEnd = selection ? Math.min(width - RIGHT, x(timeMs(selection.end))) : 0;
   const clipId = `chart-clip-${channel.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
+  const tickScale = channel.id === 'CP-Z4M' ? 1e-10 : 1;
 
   function pointerTime(event: PointerEvent<SVGSVGElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    const pixel = (event.clientX - rect.left) / rect.width * WIDTH;
-    return Math.max(start, Math.min(end, start + (pixel - LEFT) / PLOT_WIDTH * duration));
+    const pixel = (event.clientX - rect.left) / rect.width * width;
+    return Math.max(start, Math.min(end, start + (pixel - LEFT) / plotWidth * duration));
   }
 
   function pointerDown(event: PointerEvent<SVGSVGElement>) {
@@ -145,10 +153,10 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         <span className="channel-color" style={{ background: color }} />
         <strong>{channel.id}</strong><span>{channel.label !== channel.id ? channel.label : channel.zone}</span>
       </button>
-      <div className="chart-reading">{nearest ? <>{aggregated && <span>요약 평균</span>}<strong>{numberText(nearest.value)}</strong><span>{channel.unit || "단위 미확인"}</span><small>{clockTime(nearest.time, true)}</small></> : <span>{points.length ? "그래프를 눌러 시각 선택" : "이 구간에 관측값 없음"}</span>}</div>
+      <div className="chart-reading">{nearest ? <>{aggregated && <span>요약 평균</span>}<ReadingValue channelId={channel.id} value={nearest.value} unit={channel.unit} /><small>{clockTime(nearest.time, true)}</small></> : <span>{points.length ? "그래프를 눌러 시각 선택" : "이 구간에 관측값 없음"}</span>}</div>
     </div>
     {baseline && <div className="baseline-description">이번 LOT 원자료 전체 기준 · 평균 {numberText(baseline.mean)} · 평균 − 3σ {numberText(baseline.lower)} · 평균 + 3σ {numberText(baseline.upper)} {channel.unit ?? ""}</div>}
-    <svg ref={svg} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className={`series-svg ${dragging ? "is-dragging" : ""}`}
+    <svg ref={svg} viewBox={`0 0 ${width} ${HEIGHT}`} style={{ height: HEIGHT }} className={`series-svg ${dragging ? "is-dragging" : ""}`}
       role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start)}부터 ${dateTime(view.end)}까지. ${live ? "실시간 시연" : "드래그해 구간 선택"}`}
       onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
       onPointerCancel={() => {
@@ -156,24 +164,25 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         gesture.current = null;
         setDragging(false);
       }}>
-      <defs><clipPath id={clipId}><rect x={LEFT} y={TOP - 2} width={PLOT_WIDTH} height={BOTTOM - TOP + 4} /></clipPath></defs>
+      <defs><clipPath id={clipId}><rect x={LEFT} y={TOP - 2} width={plotWidth} height={BOTTOM - TOP + 4} /></clipPath></defs>
+      {tickScale !== 1 && <text className="chart-axis-label" x="6" y="14">e⁻¹⁰</text>}
       {[0, 1, 2, 3].map(tick => {
         const value = plot.low + (plot.high - plot.low) * tick / 3;
-        return <g key={`y-${tick}`}><line className="chart-grid" x1={LEFT} x2={WIDTH - RIGHT} y1={plot.y(value)} y2={plot.y(value)} /><text className="chart-axis-label" x={LEFT - 12} y={plot.y(value) + 4} textAnchor="end">{numberText(value)}</text></g>;
+        return <g key={`y-${tick}`}><line className="chart-grid" x1={LEFT} x2={width - RIGHT} y1={plot.y(value)} y2={plot.y(value)} /><text className="chart-axis-label" x={LEFT - 12} y={plot.y(value) + 4} textAnchor="end">{incidentTick(value / tickScale, (plot.high - plot.low) / tickScale / 3)}</text></g>;
       })}
-      {[0, 1, 2, 3, 4].map(tick => {
-        const t = start + duration * tick / 4;
-        return <g key={`x-${tick}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={tick === 0 ? "start" : tick === 4 ? "end" : "middle"}>{clockTime(t, duration < 300_000)}</text></g>;
+      {(width < 600 ? [0, .5, 1] : [0, .25, .5, .75, 1]).map(fraction => {
+        const t = start + duration * fraction;
+        return <g key={`x-${fraction}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"}>{clockTime(t, duration < 300_000)}</text></g>;
       })}
       <g clipPath={`url(#${clipId})`}>
         {candidates.map(candidate => {
-          const a = Math.max(LEFT, x(timeMs(candidate.start))), b = Math.min(WIDTH - RIGHT, x(timeMs(candidate.end)));
-          if (b < LEFT || a > WIDTH - RIGHT || b < a) return null;
+          const a = Math.max(LEFT, x(timeMs(candidate.start))), b = Math.min(width - RIGHT, x(timeMs(candidate.end)));
+          if (b < LEFT || a > width - RIGHT || b < a) return null;
           return <rect key={candidate.id} className={`candidate-time-band ${focusedCandidate?.id === candidate.id ? "focused" : ""}`} x={a} y={TOP} width={Math.max(1.2, b - a)} height={BOTTOM - TOP} pointerEvents="none" />;
         })}
         {baseline && ([["평균 − 3σ", baseline.lower], ["평균", baseline.mean], ["평균 + 3σ", baseline.upper]] as const).map(([name, raw]) => {
           if (typeof raw !== "number") return null;
-          return <g key={name} pointerEvents="none"><line className={`baseline-line ${name === "평균" ? "mean" : ""}`} x1={LEFT} x2={WIDTH - RIGHT} y1={plot.y(raw)} y2={plot.y(raw)} /><text className="baseline-label" x={WIDTH - RIGHT - 4} y={plot.y(raw) - 4} textAnchor="end">{name}</text></g>;
+          return <g key={name} pointerEvents="none"><line className={`baseline-line ${name === "평균" ? "mean" : ""}`} x1={LEFT} x2={width - RIGHT} y1={plot.y(raw)} y2={plot.y(raw)} /><text className="baseline-label" x={width - RIGHT - 4} y={plot.y(raw) - 4} textAnchor="end">{name}</text></g>;
         })}
         {selection && selectionEnd >= selectionX && <rect className="selected-time-band" x={selectionX} y={TOP} width={Math.max(1.5, selectionEnd - selectionX)} height={BOTTOM - TOP} />}
         {plot.bands.map((path, i) => <path key={`band-${i}`} d={path} fill={color} fillOpacity={0.13} />)}
@@ -181,21 +190,21 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         {plot.segments.filter(segment => segment.length === 1).map((segment, i) => <circle key={`dot-${i}`} cx={x(timeMs(segment[0].time))} cy={plot.y(segment[0].value!)} r={2.5} fill={color} />)}
         {Number.isFinite(cursorMs) && cursorMs >= start && cursorMs <= end && <line className="shared-time-cursor" x1={x(cursorMs)} x2={x(cursorMs)} y1={TOP} y2={BOTTOM} />}
       </g>
-      {plot.empty && <text className="empty-chart-label" x={WIDTH / 2} y={TOP + 60} textAnchor="middle">표시할 관측값이 없습니다</text>}
-      <line className="label-rail-base" x1={LEFT} x2={WIDTH - RIGHT} y1={BOTTOM + 22} y2={BOTTOM + 22} />
+      {plot.empty && <text className="empty-chart-label" x={width / 2} y={TOP + 60} textAnchor="middle">표시할 관측값이 없습니다</text>}
+      <line className="label-rail-base" x1={LEFT} x2={width - RIGHT} y1={BOTTOM + 22} y2={BOTTOM + 22} />
       <text className="chart-rail-label" x={LEFT - 12} y={BOTTOM + 26} textAnchor="end">LABEL 1</text>
       {labels.map((range, i) => {
         const rawLeft = x(timeMs(range.start));
         const rawRight = x(timeMs(range.end));
-        if (rawRight < LEFT || rawLeft > WIDTH - RIGHT) return null;
+        if (rawRight < LEFT || rawLeft > width - RIGHT) return null;
         const left = Math.max(LEFT, rawLeft);
-        const right = Math.min(WIDTH - RIGHT, rawRight);
+        const right = Math.min(width - RIGHT, rawRight);
         const previousEnd = i > 0 ? x(timeMs(labels[i - 1].end)) : LEFT;
-        const nextStart = i + 1 < labels.length ? x(timeMs(labels[i + 1].start)) : WIDTH - RIGHT;
+        const nextStart = i + 1 < labels.length ? x(timeMs(labels[i + 1].start)) : width - RIGHT;
         // Share only the gap between adjacent intervals. A wide invisible target
         // must never cover the neighbouring interval, even at full-LOT scale.
         const hitLeft = Math.max(LEFT, left - 4, (previousEnd + left) / 2);
-        const hitRight = Math.min(WIDTH - RIGHT, right + 4, (right + nextStart) / 2);
+        const hitRight = Math.min(width - RIGHT, right + 4, (right + nextStart) / 2);
         const hitWidth = Math.max(0, hitRight - hitLeft);
         const visibleWidth = Math.min(hitWidth, Math.max(2, right - left));
         const visibleLeft = Math.max(hitLeft, Math.min(left, hitRight - visibleWidth));

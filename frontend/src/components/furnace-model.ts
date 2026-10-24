@@ -218,11 +218,12 @@ export function overviewForViewport(width: number, height: number, fov = 40, shi
 
 export function workViewForViewport(width: number, height: number, zoneId = 'Z3', fov = 40, shiftX = 0, shiftY = 0) {
   const zone = FURNACE_ZONES.find(item => item.id === zoneId) ?? FURNACE_ZONES[3]
-  // Keep neighbouring equipment in frame, including around the short entry/exit zones.
-  const halfWidth = Math.max(7, zone.width * 1.4)
+  // Fit short housings to their own height, rather than to a heating tower.
+  const compact = !['Z3', 'Z4', 'Z5', 'Z6'].includes(zone.id)
+  const halfWidth = compact ? Math.max(3.3, zone.width * 1.15) : Math.max(7, zone.width * 1.4)
   const centreY = zone.height / 2 + 0.25
   return fitBounds(width, height, fov, shiftX, shiftY, [zone.x, centreY, 0], [0, 0.65, 14],
-    [[zone.x - halfWidth, 0.1, -2.8], [zone.x + halfWidth, Math.max(11.8, zone.height + 1.8), 3.2]], 26)
+    [[zone.x - halfWidth, 0.1, -2.8], [zone.x + halfWidth, compact ? zone.height + 1.1 : Math.max(11.8, zone.height + 1.8), 3.2]], compact ? 13 : 26)
 }
 
 export function partViewForViewport(width: number, height: number, position: Position3, radius: number,

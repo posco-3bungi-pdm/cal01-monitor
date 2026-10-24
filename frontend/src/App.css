@@ -781,9 +781,6 @@ details.analysis-rule p { margin-top: 10px; }
 .immersive .temperature-control > .temperature-toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 .temperature-tooltip { position: absolute; right: 0; top: calc(100% + 9px); z-index: 110; width: 265px; max-width: 70vw; padding: 9px 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--panel); color: var(--text); font-size: 12px; line-height: 1.65; box-shadow: 0 7px 22px #0002; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .12s; }
 .temperature-control:hover .temperature-tooltip, .temperature-control:has(button:focus-visible) .temperature-tooltip { opacity: 1; visibility: visible; }
-.immersive[data-scene-close="true"] .playback-control { opacity: .24; }
-.immersive .playback-control { transition: opacity .2s ease; }
-.immersive[data-scene-close="true"] .playback-control:hover, .immersive[data-scene-close="true"] .playback-control:focus-within { opacity: 1; }
 .immersive:has(.zone-navigation.has-readouts) .channel-inspector,
 .immersive:has(.zone-navigation.has-readouts) .part-inspector { bottom: 310px; max-height: calc(100dvh - 398px); }
 .immersive:has(.zone-navigation.has-readouts) .workspace-drawer { bottom: 310px; }
@@ -876,7 +873,6 @@ details.analysis-rule p { margin-top: 10px; }
   .cp-reading { padding: 8px; }
   .immersive .cp-reading .main-reading > strong { font-size: 23px; }
 }
-@media (hover: none) { .immersive[data-scene-close="true"] .playback-control { opacity: .8; } }
 @media (max-width: 760px) { .data-mode-control > button { padding: 6px; font-size: 11px; } .history-search-dialog { padding: 18px; } .immersive .temperature-control > .temperature-toggle { min-height: 34px; padding: 6px; } }
 .scene-settings-heading { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
 .settings-section-label { display: block; color: var(--muted); font-size: 11px; line-height: 1.6; padding-top: 7px; }
@@ -916,20 +912,8 @@ details.analysis-rule p { margin-top: 10px; }
 .pending-alert-open { display: flex; align-items: center; gap: 4px; padding: 8px 6px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; font-size: 12px; }
 .pending-alert-list > summary { display: flex; justify-content: space-between; align-items: center; padding: 9px 14px; border-top: 1px solid var(--border); cursor: pointer; font-size: 12px; }
 .pending-alert-list > div { position: absolute; top: calc(100% + 8px); left: -1px; width: 100%; max-height: min(400px, 45dvh); overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); box-shadow: var(--shadow); }
-.immersive:has(.pending-alert-banner) .channel-inspector,
-.immersive:has(.pending-alert-banner):has(.zone-navigation.has-readouts) .channel-inspector {
-  max-height: max(110px, calc(100dvh - var(--inspection-bottom) - var(--source-card-bottom, 224px) - 18px - var(--pending-alert-height, 110px) - 12px));
-  overflow: auto;
-}
 /* A newly opened product sheet gets its own space; pending items stay visible. */
 .scene-data-control:has(.coil-product-popover) { z-index: 60; }
-.immersive:has(.coil-product-popover) .pending-alert-banner {
-  left: auto; right: 20px; top: auto;
-  bottom: calc(var(--process-dock-bottom) + var(--process-dock-height, 64px) + 16px);
-  width: 262px;
-}
-.immersive:has(.coil-product-popover) .pending-alert-heading { padding: 10px 12px; }
-.immersive:has(.coil-product-popover) .pending-alert-heading small { display: none; }
 .pending-alert-list button { width: 100%; padding: 12px 14px; text-align: left; display: grid; gap: 7px; border-bottom: 1px solid var(--border); color: var(--text); }
 .pending-alert-list button:hover { background: var(--accent-soft); }
 .pending-alert-list button strong { font-size: 13px; }
@@ -998,7 +982,7 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
 .incident-trend text { font-size: 12px; }
 .immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .zone-navigation,
 .immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .playback-control {
-  left: calc((100% - min(510px, 43vw) - 36px) / 2); max-width: calc(100% - min(510px, 43vw) - 64px);
+  left: calc((100% - var(--review-panel-width) - 36px) / 2); max-width: calc(100% - var(--review-panel-width) - 64px);
 }
 @media (max-width: 900px) {
   .immersive:has(.drawer-incident:not([hidden])[data-resized="false"]) .zone-navigation,
@@ -1016,3 +1000,109 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
 .simulation-control progress{width:100%;height:6px;accent-color:var(--accent)}
 .simulation-trends>p{font-size:12px;line-height:1.6;margin:12px 0}
 .simulation-chart-heading{margin:14px 0}
+
+/* Put review work on the right and keep the process controls together. */
+.immersive .workspace-topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.immersive .immersive-navigation { grid-column: auto; grid-row: auto; }
+.immersive .topbar-right { justify-self: end; grid-column: auto; grid-row: auto; }
+.topbar-action { position: relative; }
+.topbar-action.active { color: var(--accent); background: var(--accent-soft); }
+.topbar-action small { position: absolute; top: -2px; right: -2px; border-radius: 7px; padding: 2px 4px; color: var(--red); background: color-mix(in srgb,var(--red) 15%,var(--panel)); font: 10px var(--mono); }
+.immersive .notification-popover { position: fixed; top: 80px; right: 16px; width: min(430px,calc(100vw - 32px)); }
+.immersive .pending-alert-banner { left: auto; right: 20px; top: 224px; }
+.immersive.has-drawer .pending-alert-banner { right: min(calc(var(--active-drawer-width, 62vw) + 32px), calc(100vw - 318px)); }
+.immersive:has(.scene-tools-menu) .pending-alert-banner { right: 320px; }
+.immersive:has(.notification-popover) .pending-alert-banner { top: 342px; }
+.sidebar .main-navigation button[title] { white-space: normal; }
+@media (max-width: 900px) {
+  .immersive .workspace-topbar { display: flex; }
+  .immersive .pending-alert-banner { right: 14px; }
+}
+
+/* Default review panels leave most of the process visible. */
+.immersive { --review-panel-width: clamp(420px, 34vw, 900px); }
+.immersive .workspace-drawer,
+.immersive .workspace-drawer.drawer-incident { width: var(--review-panel-width); right: 18px; left: auto; }
+.workspace-drawer { font-size: 15px; container-type: inline-size; }
+.workspace-drawer .drawer-header h2 { font-size: 21px; }
+.workspace-drawer .panel-footnote, .workspace-drawer .record-help,
+.workspace-drawer .chart-context-line, .workspace-drawer .chart-legend,
+.workspace-drawer .baseline-description { font-size: 13px; color: var(--muted); line-height: 1.7; }
+.workspace-drawer .chart-context-line, .workspace-drawer .chart-row-heading { flex-wrap: wrap; }
+.workspace-drawer .chart-legend { gap: 9px 16px; }
+.workspace-drawer .chart-channel-title strong, .workspace-drawer .chart-reading strong { font-size: 18px; }
+.workspace-drawer .chart-channel-title > span:last-child, .workspace-drawer .chart-reading,
+.workspace-drawer .chart-reading small, .workspace-drawer .incident-status small,
+.workspace-drawer .incident-period, .workspace-drawer .incident-peak-reading > small,
+.workspace-drawer .incident-trend p { font-size: 13px; }
+.workspace-drawer .chart-reading { white-space: normal; flex-wrap: wrap; }
+.workspace-drawer .chart-axis-label { font-size: 14px; }
+.workspace-drawer .chart-rail-label, .workspace-drawer .chart-rail-empty,
+.workspace-drawer .baseline-label { font-size: 12px; fill: var(--muted); }
+.workspace-drawer .chart-rail-label { fill: var(--magenta); }
+.workspace-drawer .baseline-label { fill: var(--red); }
+.workspace-drawer .incident-range-buttons button, .workspace-drawer .incident-actions .subtle-button,
+.workspace-drawer .incident-switch { font-size: 14px; }
+.workspace-drawer .time-navigation strong { font-size: 15px; }
+.workspace-drawer .time-navigation .muted { font-size: 13px; }
+.pending-latest { display: grid; gap: 5px; width: 100%; padding: 0 14px 13px; text-align: left; }
+.pending-latest strong { font-size: 15px; color: var(--red); }
+.pending-latest span, .pending-latest small { font-size: 12px; line-height: 1.5; color: var(--muted); }
+.pending-latest:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+.pending-alert-heading { align-items: flex-start; }
+.pending-alert-heading small { font-size: 12px; }
+.pending-alert-list > summary { font-size: 13px; }
+.pending-latest { animation: new-sign-highlight 1s ease-out; }
+@keyframes new-sign-highlight { from { background: #df6c4d33; } to { background: transparent; } }
+
+/* Approach either bottom bar to restore it; alerts keep their own full contrast. */
+.immersive .zone-navigation,
+.immersive .playback-control { opacity: .3; transition: opacity .25s ease; }
+.immersive[data-bottom-controls-near="true"] .zone-navigation,
+.immersive[data-bottom-controls-near="true"] .playback-control,
+.immersive .zone-navigation:hover, .immersive .zone-navigation:focus-within,
+.immersive .playback-control:hover, .immersive .playback-control:focus-within { opacity: 1; }
+.immersive .replay-track > div { font-size: 12px; }
+.immersive .zone-navigation-hint { font-size: 12px; }
+@media (hover: none) {
+  .immersive .zone-navigation, .immersive .playback-control,
+  .immersive[data-scene-close="true"] .zone-navigation:has(.is-alert) { opacity: 1; }
+}
+@media (max-width: 900px) {
+  .immersive { --review-panel-width: calc(100vw - 28px); }
+  .immersive .workspace-drawer, .immersive .workspace-drawer.drawer-incident { right: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-latest { animation: none; }
+  .immersive .zone-navigation, .immersive .playback-control { transition: none; }
+}
+
+.guide-categories { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.guide-categories button { font-size: 14px; padding: 8px 10px; color: var(--muted); border-radius: 8px; }
+.guide-categories button[aria-current] { color: var(--accent); background: var(--accent-soft); }
+.process-guide .guide-kind, .process-guide-footer { font-size: 13px; }
+.process-guide .guide-explanation > p, .process-guide .guide-check { font-size: 15px; }
+.guide-topic-sections { display: grid; gap: 12px; margin-top: 18px; }
+.guide-topic-sections section { padding: 14px; border: 1px solid var(--border); border-radius: 11px; }
+.guide-topic-sections h3 { font-size: 16px; line-height: 1.6; }
+.guide-topic-sections p, .guide-sources p { font-size: 14px; line-height: 1.85; color: var(--muted); margin-top: 7px; }
+.guide-sources { margin-top: 18px; font-size: 13px; color: var(--muted); line-height: 1.8; }
+.guide-sources a { display: block; margin-top: 8px; color: var(--accent); }
+.guide-practice { margin-top: 22px; padding: 16px; background: var(--panel-alt); border-radius: 12px; font-size: 15px; line-height: 1.8; }
+.guide-practice > div { display: grid; gap: 9px; margin: 14px 0; }
+.guide-practice button { padding: 11px 13px; text-align: left; border: 1px solid var(--border); border-radius: 9px; font: inherit; }
+.guide-practice button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.guide-practice > p { display: grid; gap: 5px; color: var(--warning); }
+.guide-practice > p[data-correct="true"] { color: var(--accent); }
+.guide-maintenance-pattern { margin-top: 18px; padding: 13px; border-radius: 11px; background: var(--panel-alt); }
+.guide-maintenance-pattern figcaption { font-size: 14px; line-height: 1.7; font-weight: 600; }
+.guide-maintenance-pattern svg { display: block; width: 100%; margin-top: 10px; }
+.guide-maintenance-pattern text { fill: var(--muted); font-size: 14px; }
+.guide-maintenance-pattern .maintenance-window { fill: var(--accent-soft); }
+.guide-pattern-grid { fill: none; stroke: var(--border); }
+.guide-pattern-tc { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.guide-pattern-op { fill: none; stroke: var(--chart-2); stroke-width: 2; stroke-dasharray: 6 4; }
+.guide-maintenance-pattern > div { display: flex; gap: 18px; font-size: 13px; color: var(--muted); }
+.guide-maintenance-pattern > div span:first-child { color: var(--accent); }
+.guide-maintenance-pattern > div span:last-child { color: var(--chart-2); }
+.guide-maintenance-pattern > p { font-size: 13px; line-height: 1.7; color: var(--muted); margin-top: 9px; }

@@ -124,10 +124,12 @@ test('returning from a large zoom releases a distant detour when the original Zo
   assert.equal(boxes.get('Z5')!.y, 202)
 })
 
-test('every process selection keeps a contextual distance, including short entry and outlet housings', () => {
+test('low housings zoom closer while heating towers retain their surrounding context', () => {
   for (const zone of FURNACE_ZONES) {
     const fit = workViewForViewport(1280, 720, zone.id)
-    assert.ok(fit.distance >= 26, `${zone.id} is too close`)
+    const compact = !['Z3', 'Z4', 'Z5', 'Z6'].includes(zone.id)
+    assert.ok(compact ? fit.distance < workViewForViewport(1280, 720, 'Z4').distance * .85 : fit.distance >= 26, `${zone.id} does not fit its height`)
+    assert.ok(fit.distance >= 13)
     assert.equal(fit.position[0], fit.target[0])
   }
 })

@@ -5,14 +5,16 @@ import type { DetectionCandidate } from '../review-types'
 import { dateTime, clockTime, numberText, timeMs, timeIso } from '../time'
 import ReadingValue from './ReadingValue'
 import CPInfo from './CPInfo'
+import { incidentAxis, incidentTick } from './incident-axis'
 
 function IncidentTrend({ candidate, data, view, onCursor }: { candidate: DetectionCandidate; data?: ChannelSeries; view: TimeRange; onCursor: (time: string) => void }) {
   const points = data?.points ?? [], lo = timeMs(view.start), span = Math.max(1, timeMs(view.end) - lo)
-  const values = [...points.map(point => point.value), candidate.baseline.lower, candidate.baseline.upper].filter((value): value is number => value != null && Number.isFinite(value))
+  const values = [...points.map(point => point.value), candidate.peak_value, candidate.baseline.lower, candidate.baseline.upper].filter((value): value is number => value != null && Number.isFinite(value))
   if (!values.length) return <p className="incident-no-data">이 구간에 관측값이 없습니다.</p>
-  const low = Math.min(...values), high = Math.max(...values), pad = Math.max((high - low) * .15, Math.abs(high) * .01, high === 0 && low === 0 ? 1 : Number.MIN_VALUE)
+  const axis = incidentAxis(values)
+  const tickScale = candidate.channel_id === 'CP-Z4M' ? 1e-10 : 1
   const x = (time: string) => 60 + (timeMs(time) - lo) / span * 392
-  const y = (value: number) => 158 - (value - low + pad) / (high - low + pad * 2) * 132
+  const y = (value: number) => 158 - (value - axis.min) / (axis.max - axis.min) * 132
   const lines: string[] = []; let current = ''
   for (const point of points) {
     if (point.value == null || !Number.isFinite(point.value) || point.gap_before) { if (current) lines.push(current); current = '' }
@@ -24,7 +26,8 @@ function IncidentTrend({ candidate, data, view, onCursor }: { candidate: Detecti
     onCursor(timeIso(lo + fraction * span))
   }}>
     <defs><clipPath id="incident-plot"><rect x="60" y="18" width="392" height="148" /></clipPath></defs>
-    {[low, (low + high) / 2, high].map((value, index) => <g key={index}><line x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-grid" /><text x="52" y={y(value) + 4} textAnchor="end">{numberText(value)}</text></g>)}
+    {tickScale !== 1 && <text x="12" y="13">e⁻¹⁰</text>}
+    {axis.ticks.map((value, index) => <g key={index}><line x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-grid" /><text x="52" y={y(value) + 4} textAnchor="end">{incidentTick(value / tickScale, (axis.max - axis.min) / tickScale / 2)}</text></g>)}
     <g clipPath="url(#incident-plot)"><rect x={x(candidate.start)} y="18" width={Math.max(2, x(candidate.end) - x(candidate.start))} height="148" className="incident-range" />
       {[candidate.baseline.lower, candidate.baseline.upper].map((value, index) => value != null && <line key={index} x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-reference" />)}
       {lines.map((line, index) => <path key={index} d={line} className="incident-line" />)}
@@ -43,7 +46,7 @@ export default function IncidentDetails({ candidate, zoneCandidates, channel, da
 }) {
   const [writing, setWriting] = useState(false), [note, setNote] = useState(''), [failure, setFailure] = useState('')
   return <div className="incident-details" data-preserve-outside={writing && note.trim() ? 'true' : undefined}>
-    <div className="incident-status"><span>{candidate.resolved ? '조치 완료' : candidate.open_request ? '점검 진행 중' : candidate.acknowledged ? '읽음 · 미조치' : '확인 필요'}</span><small>과거 LOT {candidate.lot_no} · 고장 확정 아님</small></div>
+    <div className="incident-status"><span>{candidate.resolved ? '조치 완료' : candidate.open_request ? '점검 진행 중' : candidate.acknowledged ? '읽음 · 미조치' : '이상 징후 감지'}</span><small>과거 LOT {candidate.lot_no} · 고장 확정 아님</small></div>
     {zoneCandidates.length > 1 && <label className="incident-switch">{candidate.channel_id.startsWith('CP-') ? 'Z4 CP' : `${candidate.zone_id} 온도·제어출력`} 미조치 {zoneCandidates.length}건<select value={candidate.id} onChange={event => { const item = zoneCandidates.find(item => item.id === event.target.value); if (item) onSelect(item) }}>{zoneCandidates.map(item => <option key={item.id} value={item.id}>{item.channel_id} · {dateTime(item.start, true)}</option>)}</select></label>}
     <h3>{candidate.zone_id} · {candidate.channel_id}</h3><p className="incident-period">{dateTime(candidate.start, true)} — {candidate.start.slice(0, 10) === candidate.end.slice(0, 10) ? clockTime(candidate.end, true) : dateTime(candidate.end, true)}</p>
     {candidate.channel_id.startsWith('CP-') && <CPInfo />}

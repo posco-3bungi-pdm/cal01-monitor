@@ -22,11 +22,13 @@ const values = Object.fromEntries(channels.map(channel => [channel.id, channel.i
 const baseline = { count: 120, mean: 760, std: 5, lower: 745, upper: 775, status: 'ready' as const }
 const candidate: DetectionCandidate = { id: 'example-candidate', run_id: 'example-run', dataset_id: 'example-data', lot_no: 'EXAMPLE01', mode: 'historical', channel_id: 'TC-Z3', zone_id: 'Z3', start: '2026-10-01T08:10:00', end: '2026-10-01T08:12:00', peak_at: '2026-10-01T08:11:00', peak_value: 740, peak_z: -4, point_count: 5, baseline, acknowledged: false, acknowledged_at: null, acknowledged_by: null }
 const alarmExample = new URLSearchParams(location.search).get('alarms')
+if (alarmExample === 'narrow') values['TC-Z4'] = 861.1
 const cpCandidate: DetectionCandidate = { ...candidate, id: 'example-cp', channel_id: 'CP-Z4', zone_id: 'Z4', peak_value: .46, baseline: { ...baseline, mean: .45, std: .002, lower: .444, upper: .456 } }
 const temperatureCandidate: DetectionCandidate = { ...candidate, id: 'example-temperature', channel_id: 'TC-Z4', zone_id: 'Z4' }
 const outputCandidate: DetectionCandidate = { ...candidate, id: 'example-output', channel_id: 'OP-Z4', zone_id: 'Z4', peak_value: 56, baseline: { ...baseline, mean: 50, std: 1, lower: 47, upper: 53 } }
+const narrowCandidate: DetectionCandidate = { ...temperatureCandidate, peak_value: 861.24, baseline: { ...baseline, mean: 860.4, std: .25, lower: 859.65, upper: 861.15 } }
 const exampleCandidates = alarmExample === 'cp' ? [cpCandidate] : alarmExample === 'z4' ? [temperatureCandidate, outputCandidate]
-  : alarmExample === 'both' ? [cpCandidate, temperatureCandidate, outputCandidate] : [candidate]
+  : alarmExample === 'both' ? [cpCandidate, temperatureCandidate, outputCandidate] : alarmExample === 'narrow' ? [narrowCandidate] : [candidate]
 const person = { username: user.username, display_name: user.display_name }
 const requests: FieldRequest[] = (['requested', 'accepted', 'completed', 'closed'] as const).map((status, index) => ({ id: `example-request-${index}`, candidate_id: candidate.id, run_id: candidate.run_id, dataset_id: candidate.dataset_id, lot_no: candidate.lot_no, channel_id: candidate.channel_id, zone_id: candidate.zone_id, start: candidate.start, end: candidate.end, title: `예시 요청 ${index + 1} · Z3 온도 변화 확인`, message: '[관측한 변화]\nTC-Z3 변화 관측\n\n[함께 확인한 조건]\nTC·OP 비교 필요\n\n[점검할 내용]\n해당 시각 운전 기록 확인', status, revision: 1, requested_by: { username: 'example-operator', display_name: '예시 요청자' }, assigned_to: status === 'requested' ? null : person, created_at: '2026-10-01T00:15:00Z', updated_at: '2026-10-01T00:20:00Z', result: status === 'completed' || status === 'closed' ? '예시 점검 결과 · 실제 작업 기록 아님' : '' }))
 const run = { id: candidate.run_id, dataset_id: candidate.dataset_id, lot_no: candidate.lot_no, mode: 'historical', status: 'completed', config: { channels: ['TC-Z3'], threshold: 3, ddof: 0, max_gap_seconds: 60, min_valid_samples: 30 }, stats: { 'TC-Z3': baseline }, summary: { source_count: 120, candidate_count: 1, exceedance_count: 5, analyzed_channels: ['TC-Z3'], skipped_channels: {}, interpretation: '예시 분석' }, created_by: person, created_at: '2026-10-01T00:14:00Z' }
@@ -79,7 +81,14 @@ window.fetch = async (input, init) => {
     case '/api/detection/candidates': return reply({ candidates: exampleCandidates })
     case '/api/field-requests': return reply({ requests })
     case '/api/notifications': return reply({ notifications: [{ id: 1, kind: 'request', request_id: 'example-request-1', candidate_id: candidate.id, title: '예시 점검 요청 · 실제 알림 아님', actor: person, created_at: '2026-10-01T00:15:00Z' }], last_id: 1, has_more: false })
-    case '/api/series': return reply({ start, end, mode: 'raw', aggregation_seconds: 0, source_count: 3, label_intervals: [], series: (url.searchParams.get('channels') ?? '').split(',').map(id => ({ channel_id: id, unit: channels.find(channel => channel.id === id)?.unit, points: [start, candidate.peak_at, end].map(time => ({ time, value: values[id] ?? null })) })) })
+    case '/api/series': {
+      const from = url.searchParams.get('start') ?? start, to = url.searchParams.get('end') ?? end
+      const narrowPoints = Array.from({ length: 61 }, (_, index) => {
+        const time = new Date(Date.parse(from + 'Z') + (Date.parse(to + 'Z') - Date.parse(from + 'Z')) * index / 60).toISOString().slice(0, 23)
+        return { time, value: 861.1 + Math.sin(index / 7) * .14 }
+      })
+      return reply({ start: from, end: to, mode: 'raw', aggregation_seconds: 0, source_count: alarmExample === 'narrow' ? 61 : 3, label_intervals: [], series: (url.searchParams.get('channels') ?? '').split(',').map(id => ({ channel_id: id, unit: channels.find(channel => channel.id === id)?.unit, points: alarmExample === 'narrow' ? narrowPoints : [start, candidate.peak_at, end].map(time => ({ time, value: values[id] ?? null })) })) })
+    }
     case '/api/records': return reply({ records: [], count: 0, counts_by_kind: { operation: 0, plan: 0, detection: 0, maintenance: 0, parts: 0 } })
     default: return reply({ detail: `예시에서 지원하지 않는 기능: ${url.pathname}` }, 400)
   }

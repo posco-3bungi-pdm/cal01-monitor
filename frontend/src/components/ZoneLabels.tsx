@@ -64,7 +64,7 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
           const action = selected ? '전체 보기로 돌아가기' : '구역 확대'
           return <button type="button" key={zone.id} data-zone-nav={zone.id}
             className={`zone-nav-button${alert ? ' is-alert' : ''}`}
-            aria-label={`${zone.label}${pending ? ` · 확인 필요 ${status.count}개` : alert ? ' · 확인한 이상 후보' : ''} · ${action}`}
+            aria-label={`${zone.label}${pending ? ` · 이상 감지 ${status.count}개` : alert ? ' · 확인한 이상 후보' : ''} · ${action}`}
             aria-pressed={selected}
             title={`${zone.label} · ${action}${alert ? ' · 고장 확정 아님' : ''}`}
             onPointerEnter={event => { if (event.pointerType !== 'touch') onPreviewZone?.(zone.id) }}
@@ -74,7 +74,7 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
           </button>
         })}
         {onSelectChannel && channels.some(channel => channel.id.startsWith('CP-')) && <button type="button" data-zone-nav="CP" className={`zone-cp-button${cpPending ? ' is-alert' : ''}`}
-          aria-label={`CP 두 채널 계측${cpPending ? ` · 확인 필요 ${cpPending}개` : ''} · ${cpSelected ? '전체 보기로 돌아가기' : '계측 장치 확대'}`}
+          aria-label={`CP 두 채널 계측${cpPending ? ` · 이상 감지 ${cpPending}개` : ''} · ${cpSelected ? '전체 보기로 돌아가기' : '계측 장치 확대'}`}
           aria-pressed={cpSelected} disabled={disabled} onClick={() => {
             if (cpPending && !cpSelected && onInspectZoneAlert) onInspectZoneAlert('CP')
             else if (onToggleCP) onToggleCP()
@@ -84,7 +84,7 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
         </button>}
       </div>
       <p className="zone-navigation-hint">구역을 누르면 확대 · 다시 누르면 전체 보기
-        {alertZones.size > 0 && <span className="zone-navigation-status">붉은색: 점검 후보 · 고장 확정 아님</span>}
+        {alertZones.size > 0 && <span className="zone-navigation-status">붉은색: 이상 징후 · 고장 확정 아님</span>}
       </p>
       {showReadouts && <span className="zone-navigation-legend">공정 위 계측 · {measuredAt ? clockTime(measuredAt, true) : '관측 없음'}</span>}
     </nav>
@@ -98,12 +98,12 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
           bridge.current.requestFrame?.()
         }}>
         <button type="button" className="zone-attention-button zone-attention-pulse" data-scene-ui
-          aria-label={`${zone.label} · 이상 후보 확인 필요 ${status.count}개 · 상세 보기`}
+          aria-label={`${zone.label} · 이상 징후 감지 ${status.count}개 · 상세 보기`}
           aria-pressed={zone.id === 'CP' ? cpSelected : selectedZone === zone.id && !cpSelected}
           title="점검이 필요한 변화입니다. 구역 선택은 알림 확인이나 해결 처리가 아닙니다."
           onClick={event => select(zone.id, event.detail === 0)}>
           <span className="zone-attention-heading"><AlertTriangle size={16} aria-hidden="true" /><strong>{zone.label}</strong></span>
-          <span className="zone-attention-detail">확인 필요 · {status.count}개</span>
+          <span className="zone-attention-detail">이상 감지 · {status.count}개</span>
         </button>
       </div>
     })}

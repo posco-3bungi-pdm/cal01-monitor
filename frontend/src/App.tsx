@@ -1,14 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { emptyInspection, inspectionState } from './components/inspection-state';
-import type { FormEvent } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
   Activity, ArrowRight, Box, Check, ChevronDown, Database, Eye,
-  EyeOff, FileSpreadsheet, Layers3, LoaderCircle, LogOut, Moon,
+  EyeOff, FileSpreadsheet, Layers3, LoaderCircle, LogOut, Moon, ScanLine,
   Move3D, PanelLeftClose, PanelLeftOpen, RefreshCw, Save, ShieldCheck, Sun,
   UserRound, X, AlertCircle, BookOpen, Play, Pause, ClipboardList,
-  FileUp, Gauge, Thermometer, Tags, SkipForward, Settings2, Droplets, BrainCircuit, LocateFixed, Search,
+  FileUp, Gauge, Thermometer, SkipForward, Settings2, Droplets, BrainCircuit, Search,
 } from "lucide-react";
 import { api, ApiError, queryString, refreshCsrf } from "./api";
 import type { Channel, CurrentFrame, Dataset, EquipmentLayout, Lot, Placement, SeriesResponse, Theme, TimeRange, User } from "./types";
@@ -26,6 +26,7 @@ import FieldRequestsPanel from "./components/FieldRequestsPanel";
 import WorkspaceDrawer from "./components/WorkspaceDrawer";
 import type { CandidateLocation, DetectionCandidate, DetectionRun, FieldRequest } from "./review-types";
 import { usePlayback } from "./usePlayback";
+import { useBottomControls } from './useBottomControls';
 import CsvImportDialog from "./components/CsvImportDialog";
 import { PART_CATALOG } from "./components/part-catalog";
 import ModelSelectionPanel from "./components/ModelSelectionPanel";
@@ -35,8 +36,8 @@ import { measurementGroupId, summarizeMeasurementAttention } from "./components/
 import CPInfo from './components/CPInfo';
 import ProcessGuide from "./components/ProcessGuide";
 import ResponseGuide from "./components/ResponseGuide";
-import { sceneChannelIds, toggleSceneLabelGroup } from "./components/scene-label-groups";
-import type { SceneLabelGroup, SceneLabelState } from "./components/scene-label-groups";
+import { sceneChannelIds } from "./components/scene-label-groups";
+import type { SceneLabelState } from "./components/scene-label-groups";
 import HistorySearchDialog from "./components/HistorySearchDialog";
 import { sceneMotion } from "./components/scene-motion";
 import FullscreenButton from "./components/FullscreenButton";
@@ -214,6 +215,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const [requestFocusRevision, setRequestFocusRevision] = useState(0);
   const [responseCandidate, setResponseCandidate] = useState<DetectionCandidate | null>(null);
   const workspaceRoot = useRef<HTMLDivElement>(null);
+  useBottomControls(workspaceRoot);
   const guideContext = useRef<GuideContext | null>(null);
   const chartTarget = useRef<HTMLDivElement>(null);
   const firstLotKey = useRef("");
@@ -576,10 +578,6 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     action();
   }
 
-  function chooseSceneLabels(group: SceneLabelGroup) {
-    sceneAction(() => setSceneLabels(previous => toggleSceneLabelGroup(previous, group)), true);
-  }
-
   function toggleCPInspector() {
     const close = cpViewActive;
     dismissTransientPanels();
@@ -789,7 +787,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const fatalAuth = [datasetsQuery.error, channelsQuery.error, lotsQuery.error, frameQuery.error, seriesQuery.error].some(error => error instanceof ApiError && error.status === 401);
   if (fatalAuth) return <div className="session-expired"><ShieldCheck size={36} /><h1>다시 로그인해 주세요.</h1><p>로그인이 만료됐습니다. 저장된 자료는 서버에 남아 있습니다.</p><button className="primary-button" onClick={() => { queryClient.clear(); onLogout(); }}>로그인 화면으로<ArrowRight size={16} /></button></div>;
 
-  return <div ref={workspaceRoot} data-scene-close={sceneClose} className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${guideStep ? "has-guide" : ""} ${history && analysisModel === "zscore" && visibleCandidates.length > 0 && guideIndex === null ? "has-candidate" : ""}`}>
+  return <div ref={workspaceRoot} data-scene-close={sceneClose} style={{ '--active-drawer-width': drawer ? `${drawerWidths[drawer] ?? 0}px` : undefined } as CSSProperties} className={`workspace immersive ${sidebarOpen ? "" : "sidebar-collapsed"} ${drawer ? "has-drawer" : ""} ${guideStep ? "has-guide" : ""} ${history && analysisModel === "zscore" && visibleCandidates.length > 0 && guideIndex === null ? "has-candidate" : ""}`}>
     <PlaybackShortcuts enabled={history && !!lot && !editing && !analysisRunning && guideIndex === null && !importOpen && !requestCandidate && !manualRequestOpen && !historySearchOpen}
       onToggle={() => { if (lot) playback.running ? playback.pause() : playback.play(cursor ?? lot.start); }}
       onStep={seconds => { if (lot) playback.seek(timeIso(Math.max(timeMs(lot.start), Math.min(timeMs(lot.end), timeMs(cursor ?? lot.start) + seconds * 1000))), playback.running); }} />
@@ -800,6 +798,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <button className={section === "equipment" ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={18} /><span>설비 관제</span><ArrowRight size={14} /></button>
         <button className={section === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={18} /><span>채널 확인</span><ArrowRight size={14} /></button>
         <button onClick={() => { if (window.innerWidth <= 760) setSidebarOpen(false); openRequests(); }}><ClipboardList size={18} /><span>팀 확인 요청</span><ArrowRight size={14} /></button>
+        <button onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null} title="소둔로 공정의 흐름과 설비·계측 용어를 단계별로 살펴봅니다."><BookOpen size={18} /><span>소둔로 공정 가이드</span><ArrowRight size={14} /></button>
       </nav>
       <div className="sidebar-source" hidden={!history}>
         <div className="sidebar-section-label">불러온 자료</div>
@@ -827,12 +826,13 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         <div className="breadcrumb"><button className="icon-button" onClick={() => { const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next); }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
           <button aria-label="예측 모델 선택" data-hint="분석 모델 선택" title={history ? "과거 분석 · Z-score" : liveModel === "randomforest" ? "RandomForestClassifier · 구역 예측" : liveModel === "zscore" ? "도착한 값 · Z-score" : "모델 예측 꺼짐"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
-          <button aria-label="설비 전체 화면" data-hint="설비 전체 화면" className={drawer === null ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={15} /><span>설비</span></button>
+          <ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} />
           <button aria-label="채널 그래프 열기" data-hint="채널 그래프" title="채널 그래프 열고 닫기" className={drawer === "channels" ? "active" : ""} aria-expanded={drawer === "channels"} onClick={() => openDrawer("channels")}><Activity size={15} /><span>그래프</span></button>
-          <button aria-label="과거 LOT 이상 후보 열기" data-hint="저장된 분석 보기 · 배지는 재생 중 발생한 미조치 수" aria-expanded={drawer === "analysis"} className={drawer === "analysis" ? "active" : ""} onClick={() => openDrawer("analysis")}><AlertCircle size={15} /><span>이상 후보</span>{visibleCandidates.length > 0 && <small>{visibleCandidates.length}</small>}</button>
-          <button aria-label="팀 확인 요청함 열기" data-hint="팀 점검 요청" aria-expanded={drawer === "requests"} className={drawer === "requests" ? "active" : ""} onClick={() => openDrawer("requests")}><ClipboardList size={15} /><span>요청함</span></button>
         </nav>
-        <div className="topbar-right"><FullscreenButton onError={text => setMessage({ kind: "error", text })} /><TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /><button aria-label="공정 읽기 열고 닫기" title="공정 읽기" className={`subtle-button guide-toggle ${guideStep ? "is-active" : ""}`} onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null}><BookOpen size={14} /><span>공정 읽기</span></button><ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} /></div>
+        <div className="topbar-right"><FullscreenButton onError={text => setMessage({ kind: "error", text })} />
+          <button className={`topbar-action icon-button${drawer === 'analysis' ? ' active' : ''}`} aria-label="과거 LOT 이상 후보 열기" data-hint="저장된 분석 보기 · 배지는 재생 중 발생한 미조치 수" aria-expanded={drawer === 'analysis'} onClick={() => openDrawer('analysis')}><AlertCircle size={19} />{visibleCandidates.length > 0 && <small>{visibleCandidates.length}</small>}</button>
+          <button className={`topbar-action icon-button${drawer === 'requests' ? ' active' : ''}`} aria-label="팀 확인 요청함 열기" data-hint="팀 점검 요청" aria-expanded={drawer === 'requests'} onClick={() => openDrawer('requests')}><ClipboardList size={19} /></button>
+          <TeamNotifications username={user.username} onOpen={dismissTransientPanels} onOpenCandidate={location => void openCandidateLocation(location)} onOpenRequests={openRequests} /></div>
       </header>
       <main className="main-content">
         {history ? <section className="scene-data-control" aria-label="현재 보고 있는 자료">
@@ -884,24 +884,22 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               <button aria-label="홀로그램 표현" data-hint="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
               <button aria-label="금속 설비 표현" data-hint="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
             </div>
-            <button className="icon-button" aria-label="채널 측정값 표시" data-hint="공정 계측 표시·숨기기" title="공정 위 전체 계측값 표시·숨기기" disabled={!history && !simulation.engaged} aria-pressed={showLabels} onClick={() => sceneAction(() => setSceneLabels(previous => ({ group: 'all', shown: !previous.shown })))}><Tags size={20} /></button>
-            <div className="temperature-control"><button className="subtle-button temperature-toggle" aria-label="존 온도를 색으로 표시" aria-describedby="temperature-display-help" disabled={!history && !simulation.engaged} aria-pressed={temperatureColors} onClick={() => sceneAction(() => setTemperatureColors(value => !value))}><Thermometer size={20} /><span>온도 색상</span></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip">TC 관측값 색상 · 설명용<br />실제 강판 표면온도·경보 등급 아님</span></div>
+            <button className="icon-button" aria-label={showInterior ? '외함 보기' : '내부 보기'} data-hint={showInterior ? '외함 보기' : '내부 보기'} aria-pressed={showInterior} onClick={() => sceneAction(() => setShowInterior(value => !value))}><ScanLine size={20} /></button>
+            <div className="temperature-control"><button className="subtle-button temperature-toggle" aria-label="코일 색상 · 구역 TC 색상 전환" aria-describedby="temperature-display-help" disabled={!history && !simulation.engaged} aria-pressed={temperatureColors} onClick={() => sceneAction(() => setTemperatureColors(value => !value))}><Thermometer size={20} /><span>코일 색상</span></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip">공정 안 강판의 색을 구역 TC로 표시합니다.<br />실제 코일 표면온도·강종 고유색·경보 등급이 아닌 설명용 색상입니다.</span></div>
             <div className="scene-tools">
               <button className="scene-tools-trigger icon-button" aria-label="화면 설정" data-hint="화면 설정" title="화면 설정" aria-expanded={sceneToolsOpen} onClick={() => { const next = !sceneToolsOpen; dismissTransientPanels(); setSceneToolsOpen(next); }}><Settings2 size={21} /></button>
               {sceneToolsOpen && <div className="scene-tools-menu" role="region" aria-label="화면 설정 항목">
                 <div className="scene-settings-heading"><strong>화면 설정</strong><button className="icon-button" aria-label="화면 설정 닫기" onClick={() => { setSceneToolsOpen(false); setShowDiagnostics(false); }}><X size={16} /></button></div>
-                <span className="settings-section-label">계측창 표시 · 같은 항목을 다시 누르면 숨김</span>
-                <div className="label-groups" role="group" aria-label="값을 표시할 채널">{(['all', 'TC', 'OP', 'CP'] as const).map(group => <button key={group} disabled={!history && !simulation.engaged} aria-pressed={showLabels && sceneLabels.group === group} onClick={() => chooseSceneLabels(group)} title={group === 'TC' ? '온도 계열 · CLN-IN 포함' : undefined}>{({ all: '전체', TC: 'TC', OP: 'OP', CP: 'CP' })[group]}</button>)}</div>
-                <button className="subtle-button" onClick={() => sceneAction(() => setSceneLabels(previous => ({ ...previous, shown: false })), true)}><EyeOff size={16} />계측창 모두 숨기기</button>
                 <span className="settings-section-label">설비 살펴보기</span>
-                <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} onClick={() => sceneAction(() => setMotionPlaying(value => !value), true)}><Droplets size={16} />세정·건조 동작 {motionPlaying ? "끄기" : "보기"}</button>
+                <button className={`subtle-button ${motionPlaying ? "is-active" : ""}`} aria-pressed={motionPlaying} disabled={!!reducedMotion || editing} onClick={() => {
+                  const next = !motionPlaying;
+                  sceneAction(() => { setMotionPlaying(next); if (next) { setShowInterior(true); setSceneFocus(previous => ({ zoneId: 'CLN', mode: 'work', serial: (previous?.serial ?? 0) + 1 })); } }, true);
+                }}><Droplets size={16} />세정·건조 동작 {motionPlaying ? "끄기" : "보기"}</button>
                 <p className="scene-help-note">강판 이동과 세정·건조는 설명용 동작입니다.</p>
                 {reducedMotion && <p>기기의 동작 줄이기 설정에 따라 재생을 껐습니다.</p>}
-                <button className={`subtle-button ${showInterior ? "is-active" : ""}`} aria-pressed={showInterior} onClick={() => sceneAction(() => setShowInterior(value => !value), true)}><Layers3 size={16} />{showInterior ? "외함 보기" : "내부 보기"}</button>
-                <button className="subtle-button" onClick={() => sceneAction(() => { setSceneLabels({ group: 'CP', shown: true }); selectSceneChannel("CP-Z4", true); }, true)}><LocateFixed size={16} />CP-Z4 위치 찾기</button>
                 <div className="scene-part-picker"><ThemedSelect label="확인할 설비 부품" value={selectedPartId ?? ""}
-                  onChange={value => sceneAction(() => value ? selectPart(value, true) : setSelectedPartId(null), true)}
-                  options={[{ value: "", label: "장비·부품 보기" }, ...PART_CATALOG.map(part => ({ value: part.id, label: part.name }))]} /></div>
+                  onChange={value => sceneAction(() => value ? selectPart(value) : setSelectedPartId(null))}
+                  options={[{ value: "", label: "장비·부품 보기" }, ...PART_CATALOG.map(part => ({ value: part.id, label: `${part.zoneId} · ${part.name}` }))]} /></div>
                 <details className="advanced-scene-tools"><summary>고급 도구</summary>
                   <button className="subtle-button diagnostics-preview-trigger" onPointerEnter={event => { if (event.pointerType !== 'touch') setShowDiagnostics(true); }} onPointerLeave={() => setShowDiagnostics(false)} onFocus={event => { if (event.currentTarget.matches(':focus-visible')) setShowDiagnostics(true); }} onBlur={() => setShowDiagnostics(false)} aria-label="그래픽 성능 확인 · 커서를 올린 동안 표시"><Gauge size={16} /><span>그래픽 성능 확인<small>커서를 올린 동안만 표시</small></span></button>
                   {user.can_edit_layout && !editing && <button className="subtle-button" onClick={() => sceneAction(beginEditing, true)} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}
