@@ -6,6 +6,7 @@ import { api } from '../api'
 import type { MaterialGrade } from '../types'
 import { GUIDE_CATEGORIES, GUIDE_STEPS, searchGuide } from '../guide-data'
 import type { GuideStep } from '../guide-data'
+import { gradeGuide } from '../grade-guide'
 
 function GuidePractice({ practice }: { practice: NonNullable<GuideStep['practice']> }) {
   const [answer, setAnswer] = useState<number | null>(null)
@@ -29,10 +30,21 @@ function MaintenancePattern() {
 
 function GradeDictionary() {
   const catalog = useQuery({ queryKey: ['material-grades'], queryFn: ({ signal }) => api<{ grades: MaterialGrade[] }>('/api/material-grades', { signal }), staleTime: 300_000 })
+  const [selected, setSelected] = useState('SPCC')
+  const grade = catalog.data?.grades.find(item => item.grade === selected) ?? catalog.data?.grades[0]
+  const notes = grade ? gradeGuide[grade.grade] : undefined
   return <section className="guide-grade-dictionary" aria-label="강종별 제품 사전">
     {catalog.isPending && <p role="status">제품 사전을 불러오는 중…</p>}
     {catalog.isError && <p role="alert">제품 사전을 불러오지 못했습니다. <button className="text-button" onClick={() => void catalog.refetch()}>다시 시도</button></p>}
-    {catalog.data?.grades.map(grade => <details key={grade.grade}><summary><strong>{grade.grade}</strong><span>{grade.characteristics}</span></summary><p>{grade.family} · {grade.description}</p>{grade.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a>)}</details>)}
+    {!!catalog.data?.grades.length && <div className="guide-grade-picker" role="group" aria-label="설명할 강종 선택">{catalog.data.grades.map(item => <button key={item.grade} aria-pressed={grade?.grade === item.grade} onClick={() => setSelected(item.grade)}>{item.grade}</button>)}</div>}
+    {grade && <article className="guide-grade-card" aria-label={`${grade.grade} 용도와 품질`}>
+      <header><strong>{grade.grade}</strong><span>{grade.family} · {grade.characteristics}</span></header>
+      <dl><dt>어디에 쓰이나요?</dt><dd>{notes?.use ?? grade.description}</dd>
+        {notes && <><dt>어떤 품질이 중요한가요?</dt><dd>{notes.quality}</dd><dt>공정 기록은 어떻게 보나요?</dt><dd>{notes.process}</dd><dt>함께 확인할 자료</dt><dd>{notes.records}</dd></>}
+      </dl>
+      <p className="guide-grade-scope">일반적인 용도와 확인 관점입니다. 이 코일의 합격 기준·소둔 조건은 주문 규격과 승인된 현장 기준으로 확인합니다.</p>
+      <details><summary>제품 설명의 참고 자료</summary>{grade.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a>)}</details>
+    </article>}
   </section>
 }
 

@@ -11,11 +11,11 @@ import { anchorOccluded, labelOccluders } from './scene-occlusion'
 import { layoutReadouts, READOUT_WIDTH, READOUT_HEIGHT } from './scene-label-layout'
 import type { LabelAnchor, LabelRect } from './scene-label-layout'
 import { PROCESS_READOUT_WIDTH, PROCESS_READOUT_HEIGHT } from './process-readouts'
-import { layoutAnchoredReadouts, followAnchoredReadout } from './anchored-readout-layout'
+import { layoutAnchoredReadouts, followAnchoredReadout, leaderPoints } from './anchored-readout-layout'
 import type { AnchoredSeat } from './anchored-readout-layout'
 
 type LabelEntry = { node: HTMLDivElement; position: Position3; offset: [number, number]; selected: boolean }
-export type ChannelLabelBridge = RefObject<{ entries: Map<string, LabelEntry>; leaders: Map<string, SVGGElement>; revision: number; invalidate?: () => void; status?: HTMLDivElement | null }>
+export type ChannelLabelBridge = RefObject<{ entries: Map<string, LabelEntry>; leaders: Map<string, SVGGElement>; revision: number; invalidate?: () => void; status?: HTMLDivElement | null; reflow?: boolean }>
 export function useChannelLabelBridge(): ChannelLabelBridge {
   return useRef({ entries: new Map(), leaders: new Map(), revision: 0 })
 }
@@ -110,10 +110,14 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
     matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
     const key = `${size.width}:${size.height}`
     const groups = [...bridge.current.entries.keys()].sort().join(',')
-    if (matrix.equals(lastMatrix) && lastRevision.current === bridge.current.revision && key === lastSize.current && !settling.current) return
+    const reflow = bridge.current.reflow
+    if (matrix.equals(lastMatrix) && lastRevision.current === bridge.current.revision && key === lastSize.current && !settling.current && !reflow) return
     lastMatrix.copy(matrix)
     lastRevision.current = bridge.current.revision
     if (key !== lastSize.current || groups !== lastGroups.current) { processTargets.current.clear(); processDisplay.current.clear() }
+    // A finished camera move re-seats every card from scratch. Seats kept
+    // through a zoom are detours, so the cards glide back to a tidy layout.
+    if (reflow) { bridge.current.reflow = false; processTargets.current.clear() }
     lastSize.current = key
     lastGroups.current = groups
     settling.current = false
@@ -168,11 +172,9 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
           const button = node.querySelector('button')
           if (!button) continue
           button.style.left = '0px'; button.style.top = '0px'
-          const edgeX = anchor.x < box.x + box.width / 2 ? box.x : box.x + box.width
-          const edgeY = Math.max(box.y + 16, Math.min(box.y + box.height - 16, anchor.y))
           const leader = bridge.current.leaders.get(anchor.id)
           if (leader) {
-            leader.querySelector('polyline')?.setAttribute('points', `${anchor.x},${anchor.y} ${edgeX + (edgeX === box.x ? -14 : 14)},${edgeY} ${edgeX},${edgeY}`)
+            leader.querySelector('polyline')?.setAttribute('points', leaderPoints(anchor.x, anchor.y, box))
             const circle = leader.querySelector('circle')
             circle?.setAttribute('cx', String(anchor.x)); circle?.setAttribute('cy', String(anchor.y))
           }

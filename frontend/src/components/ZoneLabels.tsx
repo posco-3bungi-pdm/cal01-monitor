@@ -12,6 +12,8 @@ import type { ZoneAttentionMap } from './zone-attention'
 import { placeAttentionBox } from './zone-attention'
 import type { AttentionBox } from './zone-attention'
 import './ZoneLabels.css'
+import CoilArrivalNotice from './CoilArrivalNotice'
+import type { CoilArrival } from '../coil-arrival'
 
 type ZoneLabelBridge = {
   elements: Map<string, HTMLDivElement>
@@ -26,7 +28,7 @@ export function useZoneLabelBridge(): ZoneLabelBridgeRef {
 
 // Keep one attention indicator per measurement group: a card when readings
 // are shown, otherwise a separate alert badge above the process.
-export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZones, attention, gesture,
+export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZones, attention, gesture, coilArrival, onCoilArrivalDone,
   channels = [], showReadouts = false, onToggleReadouts, onSelectChannel, cpSelected = false, onToggleCP, onInspectZoneAlert, disabled = false, measuredAt = null, onPreviewZone, onPreviewLeave, readoutZones = [] }: {
   zones: readonly FurnaceZone[]; target: HTMLElement | null; bridge: ZoneLabelBridgeRef
   theme: Theme; selectedZone: string; alertZones: ReadonlySet<string>
@@ -35,6 +37,7 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
   onToggleReadouts?: () => void; onSelectChannel?: (id: string) => void; disabled?: boolean; measuredAt?: string | null
   cpSelected?: boolean; onToggleCP?: () => void; onPreviewZone?: (zoneId: string) => void; onPreviewLeave?: () => void; readoutZones?: string[]
   onInspectZoneAlert?: (groupId: string) => void
+  coilArrival?: CoilArrival | null; onCoilArrivalDone?: (id: string) => void
 }) {
   const dock = useRef<HTMLElement>(null)
   useLayoutEffect(() => {
@@ -52,7 +55,8 @@ export function ZoneLabels({ zones, target, bridge, theme, selectedZone, alertZo
   const cpPending = attention.CP?.count ?? 0
   const warningGroups = [...zones.map(zone => ({ id: zone.id, label: zone.label })), { id: 'CP', label: 'Z4 · CP' }]
   return createPortal(<>
-    <nav ref={dock} className={`zone-navigation${showReadouts ? ' has-readouts' : ''}`} data-scene-ui data-theme={theme} aria-label="공정 구역 선택">
+    <nav ref={dock} className={`zone-navigation${showReadouts ? ' has-readouts' : ''}`} data-coil-arrival={Boolean(coilArrival)} data-scene-ui data-theme={theme} aria-label="공정 구역 선택">
+      {coilArrival && onCoilArrivalDone && <CoilArrivalNotice key={coilArrival.id} arrival={coilArrival} onDone={onCoilArrivalDone} />}
       <div className="zone-navigation-row">
         {onToggleReadouts && <button type="button" className="zone-readout-toggle" aria-label="전체 계측값 표시·숨기기" aria-pressed={showReadouts}
           disabled={disabled} onClick={onToggleReadouts} title="공정 위 전체 계측값 표시·숨기기"><Tags size={18} /></button>}

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { emptyInspection, inspectionState } from './components/inspection-state';
 import type { CSSProperties, FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +52,7 @@ import { zoneForChannel } from "./components/furnace-model";
 import { measurementName } from "./components/process-readouts";
 
 import { useCsvSimulation } from './useCsvSimulation';
+import { useCoilArrival } from './useCoilArrival';
 import LiveSimulationCharts from './LiveSimulationCharts';
 import { liveCoilRange } from './live-trends';
 import { observationRangeText } from './time';
@@ -240,6 +241,17 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const savedRevision = useRef(0);
   const reducedMotion = useReducedMotion();
   const guideStep = guideIndex === null ? null : GUIDE_STEPS[guideIndex];
+  const [leftOverlayWidth, setLeftOverlayWidth] = useState(300);
+  useLayoutEffect(() => {
+    const root = workspaceRoot.current;
+    const panels = root ? [...root.querySelectorAll<HTMLElement>('.sidebar:not([hidden]), .guide-panel')] : [];
+    if (!panels.length) return;
+    const measure = () => setLeftOverlayWidth(Math.max(...panels.map(panel => panel.getBoundingClientRect().right - (root?.getBoundingClientRect().left ?? 0))));
+    const observer = new ResizeObserver(measure);
+    panels.forEach(panel => observer.observe(panel)); measure();
+    window.addEventListener('resize', measure);
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure); };
+  }, [sidebarOpen, Boolean(guideStep)]);
 
   const datasetsQuery = useQuery({
     queryKey: ["datasets", user.username], queryFn: ({ signal }) => api<{ datasets: Dataset[] }>("/api/datasets", { signal }),
@@ -279,6 +291,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   const simulation = useCsvSimulation(simulationDatasetId, simulationRange);
   const liveObservedRange = useMemo(() => liveCoilRange(simulation.trends), [simulation.trends]);
   const simulationLot = simulationLots.find(item => String(item.lot_no) === simulation.frame?.lot_no);
+  const arrivalFrame = useMemo(() => simulation.frame ? { ...simulation.frame, grade: simulationLot?.grade || simulation.frame.grade } : null, [simulation.frame, simulationLot?.grade]);
+  const coilArrival = useCoilArrival(`${simulationDatasetId}:${simulation.runId}`, arrivalFrame, !history);
   const liveReview = useLiveReview(`${simulationDatasetId}:${simulation.runId}`, simulation.firstFrame?.time, simulation.frame?.time, !history);
   const reviewLot = liveReview.following ? simulationLot : simulationLots.find(item => timeMs(item.start) <= liveReview.position && timeMs(item.end) >= liveReview.position)
     ?? [...simulationLots].filter(item => timeMs(item.start) <= liveReview.position).sort((a, b) => timeMs(b.start) - timeMs(a.start))[0];
@@ -925,7 +939,12 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     </aside>
     <div className="workspace-main">
       <header className="workspace-topbar">
-        <div className="breadcrumb"><button className="icon-button" onClick={() => { const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next); }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
+        <div className="breadcrumb"><button className="icon-button" onClick={() => {
+          const next = !sidebarOpen; dismissTransientPanels(); setSidebarOpen(next);
+          // Opening the menu narrows the scene, so show the whole process in what remains.
+          const current = channels.find(item => item.id === selectedChannel);
+          if (next) setSceneFocus(previous => ({ zoneId: current ? zoneForChannel(current) : 'Z3', mode: 'full', serial: (previous?.serial ?? 0) + 1 }));
+        }} aria-label={sidebarOpen ? "메뉴 접기" : "메뉴 펼치기"}><PanelLeftOpen size={20} /></button><Brand compact /><div className="data-mode-control" role="group" aria-label="자료 모드"><button aria-pressed={history} disabled={editing || analysisRunning} onClick={() => changeDataMode('history')}>과거 기록</button><button aria-pressed={!history} disabled={editing || analysisRunning} onClick={() => changeDataMode('live')}>실시간</button><button className="icon-button" aria-label="과거 기록 검색" title="과거 기록 검색" disabled={editing || analysisRunning || !datasets.length} onClick={openHistorySearch}><Search size={18} /></button></div></div>
         <nav className="immersive-navigation" aria-label="설비 위에서 열기">
           <button aria-label="예측 모델 선택" data-hint="분석 모델 선택" title={history ? "과거 분석 · Z-score" : liveModel === "randomforest" ? "RandomForestClassifier · 구역 예측" : liveModel === "zscore" ? "도착한 값 · Z-score" : "모델 예측 꺼짐"} aria-expanded={drawer === "models"} className={drawer === "models" ? "active" : ""} onClick={() => openDrawer("models")}><BrainCircuit size={17} /><span>모델</span></button>
           <ThemeButton theme={theme} onToggle={() => { setSceneToolsOpen(false); setShowDiagnostics(false); onThemeToggle(); }} />
@@ -1028,7 +1047,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 simulationActive={sceneMovement.cleaning}
                 overlayOpen={drawer !== null || sidebarOpen || importOpen || historySearchOpen || requestCandidate !== null || manualRequestOpen || guideStep !== null}
                 overlaySide={drawer ? "right" : guideStep || sidebarOpen ? "left" : null}
-                overlayWidth={drawer ? drawerWidths[drawer] : undefined}
+                overlayWidth={drawer ? drawerWidths[drawer] : sidebarOpen || guideStep ? leftOverlayWidth : undefined}
+                coilArrival={coilArrival.arrival} onCoilArrivalDone={coilArrival.dismiss}
                 showLabels={editing || !!guideStep} visibleLabelIds={editing || guideStep ? visibleIds : sceneLabelIds} showDiagnostics={showDiagnostics && sceneToolsOpen}
                 showZoneReadouts={showLabels && !editing && !guideStep && !selectedPartId} onPreviewZone={previewSceneZone} onPreviewLeave={leaveReadingPreview} readoutsDisabled={!history && !simulation.engaged} onCloseViewChange={setSceneClose}
                 cpReadoutsSelected={cpViewActive} onToggleCPReadouts={toggleCPInspector} onCPViewChange={setCpViewActive}
