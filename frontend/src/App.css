@@ -370,6 +370,15 @@ summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .scene-tools[open] > summary { color: var(--accent); }
 .scene-tools-menu { position: absolute; top: calc(100% + 8px); right: 0; width: 280px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 210px); overflow-y: auto; display: grid; gap: 9px; padding: 14px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow); }
 .scene-tools-menu > button { justify-content: flex-start; width: 100%; }
+.scene-part-picker { min-width: 0; border-top: 1px solid var(--border); padding-top: 12px; }
+.scene-part-picker > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 14px; }
+.scene-part-picker > header .text-button { padding: 3px; font-size: 12px; }
+.scene-part-list { display: grid; gap: 4px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.scene-part-list > button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; text-align: left; font-size: 13px; line-height: 1.5; }
+.scene-part-list > button > span { flex: 0 0 44px; color: var(--muted); font: 11px var(--mono); }
+.scene-part-list > button > strong { flex: 1; font-weight: 500; }
+.scene-part-list > button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.scene-part-list > button > svg { flex: 0 0 auto; }
 .scene-tools-menu p, .display-help { color: var(--muted); font-size: 13px; line-height: 1.8; }
 .display-help { padding-top: 8px; border-top: 1px solid var(--border); }
 .display-help summary { color: var(--text); padding: 4px 0; }

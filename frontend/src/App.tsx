@@ -935,9 +935,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 }}><Droplets size={16} />세정·건조 동작 {motionPlaying ? "끄기" : "보기"}</button>
                 <p className="scene-help-note">강판 이동과 세정·건조는 설명용 동작입니다.</p>
                 {reducedMotion && <p>기기의 동작 줄이기 설정에 따라 재생을 껐습니다.</p>}
-                <div className="scene-part-picker"><ThemedSelect label="확인할 설비 부품" value={selectedPartId ?? ""}
-                  onChange={value => sceneAction(() => value ? selectPart(value) : setSelectedPartId(null))}
-                  options={[{ value: "", label: "장비·부품 보기" }, ...PART_CATALOG.map(part => ({ value: part.id, label: `${part.zoneId} · ${part.name}` }))]} /></div>
+                <section className="scene-part-picker" aria-label="장비·부품 보기">
+                  <header><strong>장비·부품 보기</strong><button className="text-button" disabled={!selectedPartId} onClick={() => setSelectedPartId(null)}>선택 해제</button></header>
+                  <p className="scene-help-note">선택한 부품은 원래 재질로 보여줍니다. 목록에서 다른 부품도 계속 살펴보세요.</p>
+                  <div className="scene-part-list" role="group" aria-label="확인할 설비 부품">{PART_CATALOG.map(part => <button key={part.id} type="button" aria-pressed={selectedPartId === part.id} onClick={() => selectPart(part.id, true)}><span>{part.zoneId}</span><strong>{part.name}</strong>{selectedPartId === part.id && <Check size={15} aria-hidden="true" />}</button>)}</div>
+                </section>
                 <details className="advanced-scene-tools"><summary>고급 도구</summary>
                   <button className="subtle-button diagnostics-preview-trigger" onPointerEnter={event => { if (event.pointerType !== 'touch') setShowDiagnostics(true); }} onPointerLeave={() => setShowDiagnostics(false)} onFocus={event => { if (event.currentTarget.matches(':focus-visible')) setShowDiagnostics(true); }} onBlur={() => setShowDiagnostics(false)} aria-label="그래픽 성능 확인 · 커서를 올린 동안 표시"><Gauge size={16} /><span>그래픽 성능 확인<small>커서를 올린 동안만 표시</small></span></button>
                   {user.can_edit_layout && !editing && <button className="subtle-button" onClick={() => sceneAction(beginEditing, true)} disabled={!layoutQuery.data || guideStep !== null}><Move3D size={16} />채널 위치 편집</button>}

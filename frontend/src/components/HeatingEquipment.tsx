@@ -38,8 +38,8 @@ function Instances({ geometry, entries, color, appearance, selected = false, rou
     mesh.current.computeBoundingSphere()
   }, [entries])
   return <instancedMesh ref={mesh} args={[geometry, undefined, entries.length]}>
-    {appearance === 'hologram' || selected
-      ? <HologramMaterial color="#54c6df" opacity={0.48} selected={selected} />
+    {appearance === 'hologram' && !selected
+      ? <HologramMaterial color="#54c6df" opacity={0.48} />
       : <meshStandardMaterial color={color} roughness={roughness} metalness={roughness > 0.9 ? 0 : 0.6} />}
   </instancedMesh>
 }

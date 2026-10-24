@@ -214,14 +214,17 @@ function ShaftSeal({ appearance, selected }: { appearance: FurnaceAppearance; se
 
 function ORing({ appearance, selected }: { appearance: FurnaceAppearance; selected: boolean }) {
   const spread = selected ? 0.22 : 0.045
+  const fittingAppearance = selected ? 'hologram' : appearance
   return <group>
-    {[-1, 1].map(side => <group key={side} position={[0, 0, side * spread]}>
-      <Cylinder position={[0, 0, side * 0.13]} radius={0.105} length={0.22} appearance={appearance} />
-      <mesh><ringGeometry args={[0.11, 0.27, 32]} />{appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#9aaeb5" metalness={0.7} side={THREE.DoubleSide} />}</mesh>
-      {Array.from({ length: 6 }, (_, index) => <Cylinder key={index}
-        position={[Math.cos(index * Math.PI / 3) * 0.21, Math.sin(index * Math.PI / 3) * 0.21, side * 0.035]}
-        radius={0.025} length={0.06} appearance={appearance} color="#5f7784" />)}
-    </group>)}
+    <PartSelectionContext.Provider value={false}>
+      {[-1, 1].map(side => <group key={side} position={[0, 0, side * spread]}>
+        <Cylinder position={[0, 0, side * 0.13]} radius={0.105} length={0.22} appearance={fittingAppearance} />
+        <mesh><ringGeometry args={[0.11, 0.27, 32]} />{fittingAppearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#9aaeb5" metalness={0.7} side={THREE.DoubleSide} />}</mesh>
+        {Array.from({ length: 6 }, (_, index) => <Cylinder key={index}
+          position={[Math.cos(index * Math.PI / 3) * 0.21, Math.sin(index * Math.PI / 3) * 0.21, side * 0.035]}
+          radius={0.025} length={0.06} appearance={fittingAppearance} color="#5f7784" />)}
+      </group>)}
+    </PartSelectionContext.Provider>
     <mesh><torusGeometry args={[0.153, 0.025, 12, 36]} />
       {appearance === 'hologram' ? <HologramMaterial color="#68cadd" opacity={0.48} /> : <meshStandardMaterial color="#242c2c" roughness={0.88} />}</mesh>
   </group>
@@ -251,7 +254,9 @@ export default function ProcessEquipment({
       appearance={appearance} radius={0.05} />
     {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => {
       const selected = selectedPartId === part.id
-      const partAppearance = selected ? 'hologram' : appearance
+      // Reveal the original metal, rubber and glass surfaces of the selected
+      // assembly, while the surrounding hologram remains transparent.
+      const partAppearance = selected ? 'realistic' : appearance
       return <PartSelectionContext.Provider key={part.id} value={selected}>
         <group name={`PART_${part.id}`} position={part.position}
           userData={{ partCode: part.partCode, representativePosition: true, selected }}
