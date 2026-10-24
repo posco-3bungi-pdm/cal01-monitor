@@ -8,7 +8,7 @@ from django.db import DatabaseError, InterfaceError, connection
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 from django.views.decorators.cache import never_cache
 
 from .presentation import USERNAME as PRESENTATION_USERNAME, enter_presentation, is_presentation_viewer, issue_ticket, presentation_enabled
@@ -36,12 +36,12 @@ def csrf(request):
     return JsonResponse({"csrfToken": get_token(request)})
 
 
-@require_GET
+@require_http_methods(["GET", "HEAD"])
 def health(request):
     return JsonResponse({"service": "cal01-monitor", "version": "0.1.0"})
 
 
-@require_GET
+@require_http_methods(["GET", "HEAD"])
 def ready(request):
     available = False
     try:

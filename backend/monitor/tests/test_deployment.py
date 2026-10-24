@@ -210,6 +210,13 @@ class ReadinessTests(TestCase):
         self.assertEqual(response["Cache-Control"], "no-store")
         self.assertEqual(self.client.post("/api/ready").status_code, 405)
 
+    def test_health_and_ready_accept_head_for_status_badges(self):
+        # 상태 배지 서비스(shields.io website)는 HEAD로 확인함. 405면 down으로 읽음
+        (self.root / "index.html").write_text("build", encoding="utf-8")
+        self.assertEqual(self.client.head("/api/health").status_code, 200)
+        self.assertEqual(self.client.head("/api/ready").status_code, 200)
+        self.assertEqual(self.client.post("/api/health").status_code, 405)
+
     def test_missing_build_returns_generic_failure_without_querying_database(self):
         with self.assertNumQueries(0):
             response = self.client.get("/api/ready")
