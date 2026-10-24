@@ -27,6 +27,13 @@ export function dateTime(value: string | number, seconds = false): string {
   return `${date} ${clockTime(ms, seconds)}`;
 }
 
+export function observationRangeText(start: string, end: string): string {
+  const first = timeMs(start), latest = timeMs(end)
+  if (!Number.isFinite(first) || !Number.isFinite(latest)) return '관측 대기'
+  const sameDate = new Date(first).toISOString().slice(0, 10) === new Date(latest).toISOString().slice(0, 10)
+  return `${dateTime(first, true)} ~ ${sameDate ? clockTime(latest, true) : dateTime(latest, true)}`
+}
+
 export function numberText(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return "—";
   if (value !== 0 && Math.abs(value) < 0.01) {

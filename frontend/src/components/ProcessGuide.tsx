@@ -1,7 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Check, ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { GUIDE_CATEGORIES, GUIDE_STEPS } from '../guide-data'
+import { BookOpen, Check, ChevronLeft, ChevronRight, Search, X } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../api'
+import type { MaterialGrade } from '../types'
+import { GUIDE_CATEGORIES, GUIDE_STEPS, searchGuide } from '../guide-data'
 import type { GuideStep } from '../guide-data'
 
 function GuidePractice({ practice }: { practice: NonNullable<GuideStep['practice']> }) {
@@ -24,32 +27,50 @@ function MaintenancePattern() {
   </figure>
 }
 
+function GradeDictionary() {
+  const catalog = useQuery({ queryKey: ['material-grades'], queryFn: ({ signal }) => api<{ grades: MaterialGrade[] }>('/api/material-grades', { signal }), staleTime: 300_000 })
+  return <section className="guide-grade-dictionary" aria-label="강종별 제품 사전">
+    {catalog.isPending && <p role="status">제품 사전을 불러오는 중…</p>}
+    {catalog.isError && <p role="alert">제품 사전을 불러오지 못했습니다. <button className="text-button" onClick={() => void catalog.refetch()}>다시 시도</button></p>}
+    {catalog.data?.grades.map(grade => <details key={grade.grade}><summary><strong>{grade.grade}</strong><span>{grade.characteristics}</span></summary><p>{grade.family} · {grade.description}</p>{grade.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a>)}</details>)}
+  </section>
+}
+
 export default function ProcessGuide({ index, onStep, onClose }: {
   index: number; onStep: (index: number) => void; onClose: () => void
 }) {
   const reduced = useReducedMotion()
   const step = GUIDE_STEPS[index]
   const category = step.category ?? 'process'
+  const [query, setQuery] = useState('')
+  const matches = searchGuide(query)
+  const topicSteps = GUIDE_STEPS.map((item, stepIndex) => ({ item, stepIndex })).filter(({ item }) => (item.category ?? 'process') === category)
+  const topicPosition = topicSteps.findIndex(item => item.stepIndex === index)
+  function choose(stepIndex: number) { setQuery(''); onStep(stepIndex) }
   const scroll = useRef<HTMLDivElement>(null)
   useEffect(() => { scroll.current?.scrollTo({ top: 0 }) }, [step.id])
   return <section className="guide-panel process-guide" aria-label="공정과 채널 읽기 가이드">
     <header className="guide-panel-top"><span><BookOpen size={17} />소둔로 공정 가이드</span><button className="icon-button" onClick={onClose} aria-label="공정 읽기 닫기"><X size={18} /></button></header>
-    <nav className="guide-categories" aria-label="가이드 주제">{GUIDE_CATEGORIES.map(item => <button key={item.id} aria-current={category === item.id ? 'page' : undefined} onClick={() => onStep(GUIDE_STEPS.findIndex(candidate => (candidate.category ?? 'process') === item.id))}>{item.label}</button>)}</nav>
+    <nav className="guide-categories" aria-label="가이드 주제">{GUIDE_CATEGORIES.map(item => <button key={item.id} aria-current={category === item.id ? 'page' : undefined} onClick={() => choose(GUIDE_STEPS.findIndex(candidate => (candidate.category ?? 'process') === item.id))}>{item.label}</button>)}</nav>
+    <div className="guide-search"><Search size={17} aria-hidden="true" /><input aria-label="공정 가이드 검색" placeholder="용어·센서 검색 · 예: CP, 재가동" value={query} onChange={event => setQuery(event.target.value)} />{query && <button className="icon-button" aria-label="가이드 검색 지우기" onClick={() => setQuery('')}><X size={16} /></button>}</div>
     <div className="guide-step-navigation" aria-label="공정 읽기 이동">
-      <button className="subtle-button" aria-label="공정 읽기 이전 단계" disabled={index === 0} onClick={() => onStep(index - 1)}><ChevronLeft size={16} />이전</button>
-      <span aria-live="polite">{index + 1} / {GUIDE_STEPS.length}</span>
-      <button className="primary-button compact" aria-label={index < GUIDE_STEPS.length - 1 ? '공정 읽기 다음 단계' : '공정 읽기 마치기'} onClick={() => index < GUIDE_STEPS.length - 1 ? onStep(index + 1) : onClose()}>{index < GUIDE_STEPS.length - 1 ? '다음' : '마치기'}<ChevronRight size={16} /></button>
+      <button className="subtle-button" aria-label="공정 읽기 이전 단계" disabled={topicPosition === 0} onClick={() => choose(topicSteps[topicPosition - 1].stepIndex)}><ChevronLeft size={16} />이전</button>
+      <span aria-live="polite">{topicPosition + 1} / {topicSteps.length}</span>
+      <button className="primary-button compact" aria-label={topicPosition < topicSteps.length - 1 ? '공정 읽기 다음 단계' : '공정 읽기 다음 주제'} onClick={() => choose(topicPosition < topicSteps.length - 1 ? topicSteps[topicPosition + 1].stepIndex : (index + 1) % GUIDE_STEPS.length)}>{topicPosition < topicSteps.length - 1 ? '다음' : '다음 주제'}<ChevronRight size={16} /></button>
     </div>
     <div ref={scroll} className="process-guide-scroll">
-      <details className="guide-outline"><summary>전체 단계 보기</summary><nav aria-label="공정 읽기 단계">{GUIDE_STEPS.map((item, stepIndex) => <button key={item.id} aria-current={index === stepIndex ? 'step' : undefined} onClick={() => onStep(stepIndex)}><span>{stepIndex + 1}</span>{item.title}</button>)}</nav></details>
+      {query.trim() ? <section className="guide-search-results" aria-label="가이드 검색 결과"><p role="status">검색 결과 {matches.length}개</p>{matches.map(({ step: match, index: matchIndex }) => <button key={match.id} onClick={() => choose(matchIndex)}><small>{GUIDE_CATEGORIES.find(item => item.id === (match.category ?? 'process'))?.label}</small><strong>{match.title}</strong></button>)}{!matches.length && <p>다른 용어나 센서 코드로 검색해 주세요.</p>}</section> : <>
+      <details className="guide-outline" key={category}><summary>{GUIDE_CATEGORIES.find(item => item.id === category)?.label} 목차 · {topicSteps.length}개</summary><nav aria-label="공정 읽기 단계">{topicSteps.map(({ item, stepIndex }, localIndex) => <button key={item.id} aria-current={index === stepIndex ? 'step' : undefined} onClick={() => choose(stepIndex)}><span>{localIndex + 1}</span>{item.title}</button>)}</nav></details>
       <AnimatePresence mode="wait" initial={false}><motion.div key={step.id} className="guide-explanation" initial={reduced ? false : { opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={reduced ? undefined : { opacity: 0, x: -12 }} transition={{ duration: 0.16 }}>
         <span className="guide-kind">{step.kind === 'practice' ? '설명용 연습' : step.kind === 'reading' ? '기록 읽는 방법' : '설비 공정 이해'}</span><h2>{step.title}</h2><p>{step.body}</p>
         {step.pattern && <MaintenancePattern />}
         {step.sections && <div className="guide-topic-sections">{step.sections.map(section => <section key={section.title}><h3>{section.title}</h3><p>{section.body}</p></section>)}</div>}
+        {step.id === 'grade-products' && <GradeDictionary />}
         <div className="guide-check"><Check size={17} /><div><strong>화면에서 확인</strong><p>{step.check}</p></div></div>
         {step.practice && <GuidePractice key={step.id} practice={step.practice} />}
         {step.sources && <details className="guide-sources"><summary>참고 자료와 적용 범위</summary><p>일반 공정 설명의 참고 자료다. CAL01의 존 역할·태그 연결은 제공 자료를 바탕으로 한 화면 설명이며 현장 운전 기준과 구분한다.</p>{step.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title} ↗</a>)}</details>}
       </motion.div></AnimatePresence>
+      </>}
     </div>
     <footer className="process-guide-footer">종료 시 이전 LOT·시각으로 복귀 · 교육 진행은 저장하지 않음</footer>
   </section>
