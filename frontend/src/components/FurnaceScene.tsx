@@ -30,6 +30,7 @@ import type { ChannelLabelBridge } from './ChannelLabels'
 import { CpChannelProbe } from './CpChannelProbe'
 import { ProcessReadouts } from './ProcessReadouts'
 import { processReadoutGroups } from './process-readouts'
+import { StripTemperatureLegend, StripTemperatureMaterial } from './StripTemperatureDisplay'
 
 export type FurnaceSceneProps = {
   channels: Channel[]
@@ -529,7 +530,7 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   const workPart = useRef<string | null>(null)
   const workChannel = useRef<string | null>(null)
   const gesture = useContext(GestureContext)
-  const { camera, size, scene, invalidate } = useThree()
+  const { camera, size, scene } = useThree()
   const motion = useRef(0)
   const proximityTarget = useMemo(() => new THREE.Vector3(), [])
   const wasClose = useRef(false)
@@ -560,22 +561,6 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
   const ribbonGeometry = useMemo(() => createStripGeometry(strip.points), [strip])
   const zoneTemperatures = useMemo(() => new Map(FURNACE_ZONES.map(zone =>
     [zone.id, temperatureForZone(zone.id, values)])), [values])
-  useLayoutEffect(() => {
-    const positions = ribbonGeometry.getAttribute('position')
-    const colors = new Float32Array(positions.count * 3)
-    const cold = new THREE.Color('#aab9c0')
-    const hot = new THREE.Color('#ffab52')
-    const color = new THREE.Color()
-    for (let index = 0; index < positions.count; index += 1) {
-      const x = positions.getX(index)
-      const zone = FURNACE_ZONES.reduce((closest, current) =>
-        Math.abs(current.x - x) < Math.abs(closest.x - x) ? current : closest)
-      color.copy(cold).lerp(hot, Math.pow(heatLevel(zoneTemperatures.get(zone.id) ?? null), 2))
-      color.toArray(colors, index * 3)
-    }
-    ribbonGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    invalidate()
-  }, [ribbonGeometry, zoneTemperatures, invalidate])
   const setView = (mode: 'work' | 'full', zoneId: string, animate: boolean,
     partId: string | null | undefined = props.selectedPartId,
     channelId: string | null = selectedChannel) => {
@@ -672,9 +657,9 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
       </HeatHazeLayer>}
       <RollerBank rollers={strip.rollers} motion={motion} onSelect={selectNearest} />
       <mesh geometry={ribbonGeometry} name="CONTINUOUS_STEEL_STRIP" castShadow onClick={selectNearest}>
-        {appearance === 'hologram' && !props.temperatureColors
-          ? <HologramMaterial color={theme === 'dark' ? '#b0f9ff' : '#005b75'} opacity={0.8} />
-          : <SteelSurfaceMaterial simulationActive={Boolean(props.simulationActive || props.motionPlaying)} motion={motion} temperatureColors={Boolean(props.temperatureColors)} />}
+        {props.temperatureColors ? <StripTemperatureMaterial values={values} />
+          : appearance === 'hologram' ? <HologramMaterial color={theme === 'dark' ? '#b0f9ff' : '#005b75'} opacity={0.8} />
+          : <SteelSurfaceMaterial simulationActive={Boolean(props.simulationActive || props.motionPlaying)} motion={motion} />}
       </mesh>
       <StripTravelMarks points={strip.points} motion={motion} />
       <HeatingEquipment showInterior={showInterior} appearance={appearance}
@@ -832,6 +817,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     <ChannelLabels target={zoneLabelTarget} bridge={channelLabelBridge} channels={labelChannels}
       positions={labelPositions} values={props.values} selected={props.selectedChannel} theme={props.theme}
       measuredAt={props.measuredAt ?? null} gesture={gesture} onSelect={props.onSelectChannel} />
+    {props.temperatureColors && <StripTemperatureLegend />}
     <div data-scene-ui className="scene-view-controls" style={{ position: 'absolute', top: 140, right: 14, display: 'flex', gap: 5, zIndex: 22 }}>
       <button type="button" style={buttonStyle} data-hint="선택한 구역을 정면에서 보기" onClick={() => setViewCommand(previous => ({ mode: 'work', serial: previous.serial + 1 }))}>
         <Focus size={16} />작업 보기</button>

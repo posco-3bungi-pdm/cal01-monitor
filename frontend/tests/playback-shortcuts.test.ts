@@ -38,6 +38,16 @@ test('browser and operating-system shortcuts keep their modifier combinations', 
   }
 })
 
+test('live review buttons accept time arrows while keeping native space and modifier actions', () => {
+  const liveButton = { targetIsInteractive: true, targetIsStepButton: true }
+  assert.deepEqual(key('ArrowLeft', liveButton), { type: 'step', seconds: -5 })
+  assert.deepEqual(key('ArrowRight', { ...liveButton, shiftKey: true }), { type: 'step', seconds: 30 })
+  assert.equal(key(' ', liveButton), null)
+  assert.equal(key('ArrowLeft', { ...liveButton, ctrlKey: true }), null)
+  assert.equal(key('ArrowRight', { ...liveButton, dialogOpen: true }), null)
+  assert.equal(key('ArrowRight', { targetIsInteractive: true, targetIsStepButton: false }), null)
+})
+
 test('camera height, WASD movement and unrelated keys are untouched', () => {
   for (const name of ['ArrowUp', 'ArrowDown', 'w', 'a', 's', 'd', 'q', 'e', 'Enter', 'Escape', 'Tab']) {
     assert.equal(key(name), null)

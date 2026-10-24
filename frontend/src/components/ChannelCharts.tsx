@@ -29,6 +29,8 @@ type Props = {
   sourceCount?: number;
   candidates?: DetectionCandidate[];
   focusedCandidate?: DetectionCandidate;
+  highlightRange?: TimeRange | null;
+  markers?: Record<string, { time: string; value: number; label: string }>;
   onSelectChannel: (channel: string) => void;
   onSelection: (range: TimeRange | null) => void;
   onView: (range: TimeRange) => void;
@@ -62,7 +64,7 @@ function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?:
   return { lines, bands, y, low, high, segments, empty: segments.length === 0 };
 }
 
-function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, candidates, focusedCandidate, live, onSelect, onSelection, onCursor, onLabelZoom }: {
+function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, candidates, focusedCandidate, live, highlightRange, marker, onSelect, onSelection, onCursor, onLabelZoom }: {
   live?: boolean;
   channel: Channel;
   data?: ChannelSeries;
@@ -75,6 +77,8 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   aggregated: boolean;
   candidates: DetectionCandidate[];
   focusedCandidate?: DetectionCandidate;
+  highlightRange?: TimeRange | null;
+  marker?: { time: string; value: number; label: string };
   onSelect: () => void;
   onSelection: (range: TimeRange | null) => void;
   onCursor: (time: string) => void;
@@ -115,7 +119,7 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   }
 
   function pointerDown(event: PointerEvent<SVGSVGElement>) {
-    if (live || event.button !== 0 || (event.target as Element).closest("[data-label]")) return;
+    if (event.button !== 0 || (event.target as Element).closest("[data-label]")) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const y = (event.clientY - rect.top) / rect.height * HEIGHT;
     if (y > BOTTOM + 4) return;
@@ -157,7 +161,7 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
     </div>
     {baseline && <div className="baseline-description">이번 LOT 원자료 전체 기준 · 평균 {numberText(baseline.mean)} · 평균 − 3σ {numberText(baseline.lower)} · 평균 + 3σ {numberText(baseline.upper)} {channel.unit ?? ""}</div>}
     <svg ref={svg} viewBox={`0 0 ${width} ${HEIGHT}`} style={{ height: HEIGHT }} className={`series-svg ${dragging ? "is-dragging" : ""}`}
-      role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start)}부터 ${dateTime(view.end)}까지. ${live ? "실시간 시연" : "드래그해 구간 선택"}`}
+      role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start)}부터 ${dateTime(view.end)}까지. 드래그해 구간 선택, 클릭해 관측 시각 선택`}
       onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
       onPointerCancel={() => {
         if (gesture.current) onSelection(gesture.current.original);
@@ -175,6 +179,8 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         return <g key={`x-${fraction}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"}>{clockTime(t, duration < 300_000)}</text></g>;
       })}
       <g clipPath={`url(#${clipId})`}>
+        {highlightRange && <g pointerEvents="none"><rect className="live-event-band" x={x(timeMs(highlightRange.start))} y={TOP} width={Math.max(2, x(timeMs(highlightRange.end)) - x(timeMs(highlightRange.start)))} height={BOTTOM - TOP} />
+          <text className="live-event-band-label" x={Math.max(LEFT + 5, x(timeMs(highlightRange.start)) + 5)} y={TOP + 14}>감지 구간</text></g>}
         {candidates.map(candidate => {
           const a = Math.max(LEFT, x(timeMs(candidate.start))), b = Math.min(width - RIGHT, x(timeMs(candidate.end)));
           if (b < LEFT || a > width - RIGHT || b < a) return null;
@@ -189,6 +195,7 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         {plot.lines.map((path, i) => <path key={i} d={path} fill="none" stroke={color} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />)}
         {plot.segments.filter(segment => segment.length === 1).map((segment, i) => <circle key={`dot-${i}`} cx={x(timeMs(segment[0].time))} cy={plot.y(segment[0].value!)} r={2.5} fill={color} />)}
         {Number.isFinite(cursorMs) && cursorMs >= start && cursorMs <= end && <line className="shared-time-cursor" x1={x(cursorMs)} x2={x(cursorMs)} y1={TOP} y2={BOTTOM} />}
+        {marker && <g className="live-observation-marker" pointerEvents="none"><circle cx={x(timeMs(marker.time))} cy={plot.y(marker.value)} r={4} /><title>{marker.label} · {clockTime(marker.time, true)} · {numberText(marker.value)}</title></g>}
       </g>
       {plot.empty && <text className="empty-chart-label" x={width / 2} y={TOP + 60} textAnchor="middle">표시할 관측값이 없습니다</text>}
       <line className="label-rail-base" x1={LEFT} x2={width - RIGHT} y1={BOTTOM + 22} y2={BOTTOM + 22} />
@@ -248,20 +255,26 @@ export default function ChannelCharts(props: Props) {
     props.onView(clampRange(center - half, center + half));
   }
 
+  const selectionToolbar = selection && <div className="selection-toolbar">
+    <div><span className="selection-dot" /><strong>선택한 구간</strong><span>{dateTime(selection.start, true)} — {dateTime(selection.end, true)}</span></div>
+    <div className="button-row"><button className="primary-button compact" onClick={() => zoomTo(selection)}><Maximize2 size={14} />이 구간 확대</button><button className="subtle-button" onClick={() => props.onSelection(null)}>선택 해제</button></div>
+  </div>;
+
   return <section className="panel trends-panel" aria-labelledby="trends-heading">
     <div className="panel-heading chart-panel-heading">
       <div><span className="eyebrow">CHANNEL TRENDS</span><h2 id="trends-heading">{props.live ? "도착한 채널값" : "같은 시각의 채널값"} <span className="count-tag">{channels.length}</span></h2></div>
-      {!props.live && <div className="chart-tools">
+      <div className="chart-tools">
         <button className="icon-button" aria-label="그래프 시간 범위 넓게 보기" title="시간 범위 넓게" onClick={() => adjustView(1.6)} disabled={!zoomed}><Minus size={16} /></button>
         <button className="icon-button" aria-label="그래프 시간 범위 좁게 보기" title="시간 범위 좁게" onClick={() => adjustView(0.65)}><Plus size={16} /></button>
-        <button className="subtle-button" onClick={() => props.onView(fullRange)} disabled={!zoomed}><RotateCcw size={14} />LOT 전체</button>
-      </div>}
+        {!props.live && <button className="subtle-button" onClick={() => props.onView(fullRange)} disabled={!zoomed}><RotateCcw size={14} />LOT 전체</button>}
+      </div>
     </div>
     <div className="chart-context-line">
       <span>{dateTime(view.start)} <span className="muted">—</span> {dateTime(view.end)}</span>
       <span className="muted">{props.sourceCount !== undefined ? `${props.sourceCount.toLocaleString()}개 원자료` : ""}{props.aggregationSeconds !== undefined ? ` · ${props.aggregationSeconds === 0 ? "원자료 그대로" : `${props.aggregationSeconds}초 단위 요약`}` : ""}</span>
     </div>
-    <div className="chart-legend">{!props.live && <span><i className="legend-yellow" />드래그한 구간</span>}<span><i className="legend-label" />CSV 행의 LABEL=1</span>{(props.candidates?.length ?? 0) > 0 && <span><i className="legend-candidate" />이번 분석의 통계적 후보</span>}{!props.live && <span><Crosshair size={12} />클릭한 시각 → 3D 채널값</span>}</div>
+    <div className="chart-legend"><span><i className="legend-yellow" />선택한 구간</span>{props.labelIntervals.length > 0 && <span><i className="legend-label" />CSV 원본 LABEL=1</span>}{props.highlightRange && <span><i className="legend-candidate" />모델 감지 구간</span>}{(props.candidates?.length ?? 0) > 0 && <span><i className="legend-candidate" />이번 분석의 통계적 후보</span>}<span><Crosshair size={12} />클릭한 시각 → 3D 계측값</span></div>
+    {props.live && selectionToolbar}
     {loading && <div className="loading-bar" role="status" aria-label="채널 데이터 불러오는 중" />}
     {channels.length === 0 ? <div className="empty-state">위에서 표시할 채널을 선택해 주세요.</div> :
       loading && series.length === 0 ? <div className="data-loading" role="status"><LoaderCircle size={19} className="spin" />채널값을 불러오는 중</div> :
@@ -271,13 +284,11 @@ export default function ChannelCharts(props: Props) {
           labels={props.labelIntervals} aggregated={(props.aggregationSeconds ?? 0) > 0}
           candidates={(props.candidates ?? []).filter(candidate => candidate.channel_id === channel.id)}
           focusedCandidate={props.focusedCandidate?.channel_id === channel.id ? props.focusedCandidate : undefined}
+          highlightRange={props.highlightRange} marker={props.markers?.[channel.id]}
           onSelect={() => props.onSelectChannel(channel.id)} onSelection={props.onSelection} onCursor={props.onCursor}
           onLabelZoom={range => { props.onSelectChannel(channel.id); props.onSelection(range); zoomTo(range); }} />)}
       </div>}
-    {selection && <div className="selection-toolbar">
-      <div><span className="selection-dot" /><strong>선택한 구간</strong><span>{dateTime(selection.start, true)} — {dateTime(selection.end, true)}</span></div>
-      <div className="button-row"><button className="primary-button compact" onClick={() => zoomTo(selection)}><Maximize2 size={14} />이 구간 확대</button><button className="subtle-button" onClick={() => props.onSelection(null)}>선택 해제</button></div>
-    </div>}
-    <p className="panel-footnote">원자료에 기록된 시각을 그대로 표시합니다. {props.aggregationSeconds ? "선은 요약 평균, 옅은 음영은 최솟값~최댓값입니다. " : ""}분홍 표시는 CSV 행의 LABEL=1을 모든 채널에 같은 시각으로 표시한 것입니다. 노란 선택 구간과는 별개이며, 채널값이 비어 있어도 라벨은 표시합니다.</p>
+    {!props.live && selectionToolbar}
+    <p className="panel-footnote">{props.live ? '수신한 기록만 표시합니다. 드래그로 구간을 선택한 뒤 확대할 수 있습니다.' : '원자료에 기록된 시각을 그대로 표시합니다.'} {props.aggregationSeconds ? "선은 요약 평균, 옅은 음영은 최솟값~최댓값입니다. " : ""}{props.labelIntervals.length > 0 && '분홍 표시는 CSV 원본의 LABEL=1이며 모델의 감지 구간과 별개입니다.'}</p>
   </section>;
 }

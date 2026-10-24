@@ -10,6 +10,7 @@ export type ZonePrediction = {
 export type ModelEvent = {
   id: string; zone_id: string; model_id: string; kind: 'RandomForest' | 'Z-score';
   start: string; end: string; channel_ids: string[]; probability: number | null; evidence?: string; lot_no?: string;
+  point_count?: number;
 };
 export type ModelPredictions = {
   through_source_row: number; through: string; lot_no: string; predictions: ZonePrediction[];

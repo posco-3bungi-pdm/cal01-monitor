@@ -4,15 +4,15 @@ import type { TimeRange } from './types';
 import type { SimulationFrame } from './live-simulation';
 import { releaseRows } from './live-simulation';
 
-type Snapshot = { key: string; frames: SimulationFrame[]; count: number };
-const emptySnapshot = (key: string): Snapshot => ({ key, frames: [], count: 0 });
+type Snapshot = { key: string; frames: SimulationFrame[]; count: number; firstFrame: SimulationFrame | null };
+const emptySnapshot = (key: string): Snapshot => ({ key, frames: [], count: 0, firstFrame: null });
 
 export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
   const key = `${datasetId}:${range?.start ?? ''}:${range?.end ?? ''}`;
   const [snapshot, setSnapshot] = useState<Snapshot>(() => emptySnapshot(key));
   const [engaged, setEngaged] = useState(false), [running, setRunning] = useState(false);
   const [runId, setRunId] = useState(0);
-  const [speed, setSpeed] = useState(1), [loading, setLoading] = useState(false), [error, setError] = useState('');
+  const [loading, setLoading] = useState(false), [error, setError] = useState('');
   const queue = useRef<SimulationFrame[]>([]), next = useRef<string | null>(null);
   const hasMore = useRef(true), pending = useRef(false), active = useRef(false), currentKey = useRef(key);
   const received = useRef(0), epoch = useRef(0), controller = useRef<AbortController | null>(null), credit = useRef(0);
@@ -31,6 +31,7 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
     if (!result.arrived.length) return;
     received.current += result.arrived.length;
     setSnapshot(previous => ({ key, count: received.current,
+      firstFrame: previous.key === key && previous.firstFrame ? previous.firstFrame : result.arrived[0],
       frames: [...(previous.key === key ? previous.frames : []), ...result.arrived].slice(-1801) }));
   }, [key]);
 
@@ -56,24 +57,23 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
     if (!running) return;
     let last = performance.now();
     const timer = window.setInterval(() => {
-      const now = performance.now(), elapsed = Math.min(1000, now - last); last = now;
-      if (document.hidden) return;
+      const now = performance.now(), elapsed = Math.max(0, now - last); last = now;
       if (!queue.current.length) {
         credit.current = 0;
         if (hasMore.current) void fetchPage(); else if (!pending.current) setRunning(false);
         return;
       }
-      credit.current += elapsed * speed;
+      credit.current += elapsed;
       const count = Math.floor(credit.current / 1000);
       if (count > 0) {
         const available = queue.current.length; publish(count);
-        credit.current = count >= available ? 0 : credit.current - count * 1000;
+        credit.current = Math.max(0, credit.current - Math.min(count, available) * 1000);
       }
       if (queue.current.length < 250 && hasMore.current) void fetchPage();
       if (!queue.current.length && !hasMore.current && !pending.current) setRunning(false);
     }, 100);
     return () => window.clearInterval(timer);
-  }, [running, speed, publish, fetchPage]);
+  }, [running, publish, fetchPage]);
 
   const play = useCallback(() => {
     if (!datasetId || !range) return;
@@ -84,6 +84,6 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
   const pause = useCallback(() => { active.current = false; setRunning(false); }, []);
   const visible = snapshot.key === key ? snapshot : emptySnapshot(key);
   return { ...visible, frame: visible.frames.at(-1) ?? null, engaged: snapshot.key === key && engaged,
-    runId, running, speed, setSpeed, loading, error, play, pause, reset,
+    runId, running, loading, error, play, pause, reset,
     ended: visible.count > 0 && !running && !hasMore.current && queue.current.length === 0 && !pending.current };
 }

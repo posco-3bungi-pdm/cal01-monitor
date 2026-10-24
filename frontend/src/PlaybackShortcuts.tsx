@@ -5,9 +5,10 @@ type Props = {
   enabled: boolean
   onToggle: () => void
   onStep: (seconds: number) => void
+  arrowButtonScope?: string
 }
 
-export default function PlaybackShortcuts({ enabled, onToggle, onStep }: Props) {
+export default function PlaybackShortcuts({ enabled, onToggle, onStep, arrowButtonScope }: Props) {
   const callbacks = useRef({ onToggle, onStep })
   callbacks.current = { onToggle, onStep }
 
@@ -22,6 +23,7 @@ export default function PlaybackShortcuts({ enabled, onToggle, onStep }: Props) 
         isComposing: event.isComposing, ctrlKey: event.ctrlKey, metaKey: event.metaKey,
         altKey: event.altKey, shiftKey: event.shiftKey, repeat: event.repeat,
         targetIsInteractive: Boolean(element?.closest(PLAYBACK_INTERACTIVE_TARGETS)), dialogOpen,
+        targetIsStepButton: Boolean(arrowButtonScope && element?.closest(arrowButtonScope) && element?.closest('button:not([role])')),
       })
       if (!action) return
       event.preventDefault()
@@ -30,6 +32,6 @@ export default function PlaybackShortcuts({ enabled, onToggle, onStep }: Props) 
     }
     window.addEventListener('keydown', keyDown)
     return () => window.removeEventListener('keydown', keyDown)
-  }, [enabled])
+  }, [enabled, arrowButtonScope])
   return null
 }
