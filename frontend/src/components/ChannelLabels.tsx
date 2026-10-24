@@ -141,7 +141,7 @@ export function ChannelLabelProjection({ bridge, occlude, occlusionRevision, pro
       const root = node?.closest('.immersive')
       if (host && root) {
         const bounds = host.getBoundingClientRect()
-        for (const panel of root.querySelectorAll<HTMLElement>('.scene-data-control, .coil-product-popover, .scene-view-controls, .channel-inspector, .scene-tools, .equipment-alert, .scene-alert-chip, .pending-alert-banner, .scene-toolbar, .workspace-drawer:not([hidden])')) {
+        for (const panel of root.querySelectorAll<HTMLElement>('.scene-data-control, .coil-product-popover, .scene-view-controls, .channel-inspector, .part-inspector, .scene-tools, .equipment-alert, .scene-alert-chip, .pending-alert-banner, .scene-toolbar, .workspace-drawer:not([hidden])')) {
           const rect = panel.getBoundingClientRect()
           if (rect.width && rect.height) exclusions.push({ x: rect.left - bounds.left - 4, y: rect.top - bounds.top - 4, width: rect.width + 8, height: rect.height + 8 })
         }

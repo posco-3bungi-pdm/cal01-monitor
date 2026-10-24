@@ -4,6 +4,7 @@ export type PlaybackKeyContext = {
   key: string
   enabled: boolean
   targetIsInteractive?: boolean
+  targetIsStepButton?: boolean
   dialogOpen?: boolean
   isComposing?: boolean
   defaultPrevented?: boolean
@@ -27,9 +28,10 @@ export const PLAYBACK_INTERACTIVE_TARGETS = [
 ].join(',')
 
 export function playbackShortcut(context: PlaybackKeyContext): PlaybackShortcut | null {
+  const arrow = context.key === 'ArrowLeft' || context.key === 'ArrowRight'
   if (!context.enabled || context.defaultPrevented || context.isComposing
     || context.ctrlKey || context.metaKey || context.altKey
-    || context.targetIsInteractive || context.dialogOpen) return null
+    || (context.targetIsInteractive && !(arrow && context.targetIsStepButton)) || context.dialogOpen) return null
   if (context.key === ' ' || context.key === 'Spacebar') {
     return context.repeat || context.shiftKey ? null : { type: 'toggle' }
   }

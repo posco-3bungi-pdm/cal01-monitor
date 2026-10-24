@@ -20,11 +20,6 @@
 .zone-navigation .zone-cp-button { min-width: 52px; flex: 0 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px; border: 1px solid #667181; border-left: 3px solid #9485a7; border-radius: 10px; background: #25313f; color: #decdf1; font: 600 13px ui-monospace,monospace; }
 .zone-navigation.has-readouts .zone-cp-button { min-width: 122px; }
 .zone-navigation[data-theme="light"] .zone-cp-button { background: #f0edf5; color: #644a7d; border-color: #d3cadb; border-left-color: #9485a7; }
-.immersive[data-scene-close="true"] .zone-navigation { opacity: .28; }
-.immersive[data-scene-close="true"] .zone-navigation:has(.is-alert) { opacity: .85; }
-.immersive[data-scene-close="true"] .zone-navigation:hover,
-.immersive[data-scene-close="true"] .zone-navigation:focus-within { opacity: 1; }
-@media (hover: none) { .immersive[data-scene-close="true"] .zone-navigation { opacity: .8; } }
 .zone-navigation-row { display: flex; gap: 6px; overflow-x: auto; padding: 3px 2px 5px; scrollbar-width: thin; }
 .zone-navigation-hint { text-align: center; color: #9caeb5; font-size: 11px; line-height: 1.5; padding-top: 3px; }
 .zone-navigation-status { display: block; color: #ffaaa0; }

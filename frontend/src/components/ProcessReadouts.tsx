@@ -42,12 +42,12 @@ export function ProcessReadouts({ target, bridge, channels, visibleIds, values, 
         bridge.current.revision++; bridge.current.invalidate?.()
       }}>
       <button type="button" data-scene-ui className={`process-readout${alert ? ' is-alert' : ''}${pending ? ' is-pending' : ''}${focused ? ' is-focused' : ''}`}
-        aria-label={`${group.label} 계측${pending ? ' · 이상 후보 확인 필요' : ''}`}
+        aria-label={`${group.label} 계측${pending ? ' · 이상 징후 감지' : ''}`}
         onPointerEnter={event => { if (event.pointerType !== 'touch') { setActiveLeader(group.id); onPreviewZone?.(group.id) } }}
         onPointerLeave={() => { setActiveLeader(null); onPreviewLeave?.() }}
         onFocus={() => { setActiveLeader(group.id); onPreviewZone?.(group.id) }} onBlur={() => { setActiveLeader(null); onPreviewLeave?.() }}
         onClick={event => { if (gesture.allowClick(event.detail === 0)) { if (pending && onInspectZoneAlert) onInspectZoneAlert(group.id); else onSelect(group.channels[0].id) } }}>
-        <span className="process-readout-heading"><strong>{group.label}</strong>{pending > 0 && <span><AlertTriangle size={12} />확인 필요</span>}</span>
+        <span className="process-readout-heading"><strong>{group.label}</strong>{pending > 0 && <span><AlertTriangle size={12} />이상 감지</span>}</span>
         <span className="process-readout-values">{group.channels.map(channel => <span key={channel.id} data-process-channel={channel.id} title={channel.id}>
           <small>{measurementName(channel.id)}</small><span className="process-reading"><ReadingValue channelId={channel.id} value={values[channel.id]} unit={channel.unit} /></span>
         </span>)}</span>

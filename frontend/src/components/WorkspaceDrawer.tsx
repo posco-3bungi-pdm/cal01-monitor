@@ -69,7 +69,7 @@ export default function WorkspaceDrawer({ open, title, name, onClose, children, 
     panel.current?.focus();
     return () => {
       if (previousFocus.current?.isConnected && previousFocus.current.getClientRects().length) previousFocus.current.focus();
-      else document.querySelector<HTMLButtonElement>('[aria-label="설비 전체 화면"]')?.focus();
+      else document.querySelector<HTMLButtonElement>('[aria-label="채널 그래프 열기"]')?.focus();
     };
   }, [open]);
   return <section ref={panel} className={`workspace-drawer drawer-${name}${resizable ? ' is-resizable' : ''}`} hidden={!open} data-resized={Boolean(size)}

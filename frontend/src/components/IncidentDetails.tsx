@@ -5,14 +5,17 @@ import type { DetectionCandidate } from '../review-types'
 import { dateTime, clockTime, numberText, timeMs, timeIso } from '../time'
 import ReadingValue from './ReadingValue'
 import CPInfo from './CPInfo'
+import { incidentAxis, incidentTick } from './incident-axis'
+import IncidentInvestigation from './IncidentInvestigation'
 
 function IncidentTrend({ candidate, data, view, onCursor }: { candidate: DetectionCandidate; data?: ChannelSeries; view: TimeRange; onCursor: (time: string) => void }) {
   const points = data?.points ?? [], lo = timeMs(view.start), span = Math.max(1, timeMs(view.end) - lo)
-  const values = [...points.map(point => point.value), candidate.baseline.lower, candidate.baseline.upper].filter((value): value is number => value != null && Number.isFinite(value))
+  const values = [...points.map(point => point.value), candidate.peak_value, candidate.baseline.lower, candidate.baseline.upper].filter((value): value is number => value != null && Number.isFinite(value))
   if (!values.length) return <p className="incident-no-data">이 구간에 관측값이 없습니다.</p>
-  const low = Math.min(...values), high = Math.max(...values), pad = Math.max((high - low) * .15, Math.abs(high) * .01, high === 0 && low === 0 ? 1 : Number.MIN_VALUE)
+  const axis = incidentAxis(values)
+  const tickScale = candidate.channel_id === 'CP-Z4M' ? 1e-10 : 1
   const x = (time: string) => 60 + (timeMs(time) - lo) / span * 392
-  const y = (value: number) => 158 - (value - low + pad) / (high - low + pad * 2) * 132
+  const y = (value: number) => 158 - (value - axis.min) / (axis.max - axis.min) * 132
   const lines: string[] = []; let current = ''
   for (const point of points) {
     if (point.value == null || !Number.isFinite(point.value) || point.gap_before) { if (current) lines.push(current); current = '' }
@@ -24,7 +27,8 @@ function IncidentTrend({ candidate, data, view, onCursor }: { candidate: Detecti
     onCursor(timeIso(lo + fraction * span))
   }}>
     <defs><clipPath id="incident-plot"><rect x="60" y="18" width="392" height="148" /></clipPath></defs>
-    {[low, (low + high) / 2, high].map((value, index) => <g key={index}><line x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-grid" /><text x="52" y={y(value) + 4} textAnchor="end">{numberText(value)}</text></g>)}
+    {tickScale !== 1 && <text x="12" y="13">e⁻¹⁰</text>}
+    {axis.ticks.map((value, index) => <g key={index}><line x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-grid" /><text x="52" y={y(value) + 4} textAnchor="end">{incidentTick(value / tickScale, (axis.max - axis.min) / tickScale / 2)}</text></g>)}
     <g clipPath="url(#incident-plot)"><rect x={x(candidate.start)} y="18" width={Math.max(2, x(candidate.end) - x(candidate.start))} height="148" className="incident-range" />
       {[candidate.baseline.lower, candidate.baseline.upper].map((value, index) => value != null && <line key={index} x1="60" x2="452" y1={y(value)} y2={y(value)} className="incident-reference" />)}
       {lines.map((line, index) => <path key={index} d={line} className="incident-line" />)}
@@ -43,13 +47,15 @@ export default function IncidentDetails({ candidate, zoneCandidates, channel, da
 }) {
   const [writing, setWriting] = useState(false), [note, setNote] = useState(''), [failure, setFailure] = useState('')
   return <div className="incident-details" data-preserve-outside={writing && note.trim() ? 'true' : undefined}>
-    <div className="incident-status"><span>{candidate.resolved ? '조치 완료' : candidate.open_request ? '점검 진행 중' : candidate.acknowledged ? '읽음 · 미조치' : '확인 필요'}</span><small>과거 LOT {candidate.lot_no} · 고장 확정 아님</small></div>
+    <div className="incident-status"><span>{candidate.resolved ? '조치 완료' : candidate.open_request ? '점검 진행 중' : candidate.acknowledged ? '읽음 · 미조치' : '이상 징후 감지'}</span><small>과거 LOT {candidate.lot_no} · 고장 확정 아님</small></div>
     {zoneCandidates.length > 1 && <label className="incident-switch">{candidate.channel_id.startsWith('CP-') ? 'Z4 CP' : `${candidate.zone_id} 온도·제어출력`} 미조치 {zoneCandidates.length}건<select value={candidate.id} onChange={event => { const item = zoneCandidates.find(item => item.id === event.target.value); if (item) onSelect(item) }}>{zoneCandidates.map(item => <option key={item.id} value={item.id}>{item.channel_id} · {dateTime(item.start, true)}</option>)}</select></label>}
     <h3>{candidate.zone_id} · {candidate.channel_id}</h3><p className="incident-period">{dateTime(candidate.start, true)} — {candidate.start.slice(0, 10) === candidate.end.slice(0, 10) ? clockTime(candidate.end, true) : dateTime(candidate.end, true)}</p>
     {candidate.channel_id.startsWith('CP-') && <CPInfo />}
     <div className="incident-peak-reading"><small>구간 내 최대 기준 이탈값</small><span><ReadingValue channelId={candidate.channel_id} value={candidate.peak_value} unit={channel?.unit} /></span><small>{dateTime(candidate.peak_at, true)} · |Z| {numberText(Math.abs(candidate.peak_z))}</small></div>
     <div className="incident-range-buttons" role="group" aria-label="이상 그래프 표시 범위"><button onClick={() => onRange('candidate')}>후보 구간</button><button onClick={() => onRange('context')}>앞뒤 5분</button><button onClick={() => onRange('lot')}>LOT 전체</button></div>
     {error ? <p className="form-error" role="alert">그래프를 불러오지 못했습니다.</p> : loading ? <p className="incident-no-data"><LoaderCircle size={16} className="spin" />관측값 불러오는 중</p> : <IncidentTrend candidate={candidate} data={data} view={view} onCursor={onCursor} />}
+    <section className="incident-statistical-reason"><strong>통계적 감지 근거</strong><p>이 LOT에서 {candidate.channel_id}의 비교 기준은 <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.lower} unit={channel?.unit} /> ~ <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.upper} unit={channel?.unit} />입니다. 구간 내 최대 이탈은 |Z| {numberText(Math.abs(candidate.peak_z))}입니다.</p><small>LOT 전체 평균·표준편차 기준 · 목표값이나 운전 허용 한계와는 별도로 확인</small></section>
+    <IncidentInvestigation datasetId={candidate.dataset_id} zoneId={candidate.zone_id} channelIds={[candidate.channel_id]} range={candidate} />
     <div className="incident-actions"><button className="subtle-button" onClick={onGuide}><BookOpen size={15} />대응 가이드</button>{!candidate.acknowledged && <button className="subtle-button" disabled={pending} onClick={onRead}><Check size={15} />읽음 표시</button>}
       {!candidate.resolved && <button className="subtle-button" onClick={() => candidate.open_request ? onOpenRequest(candidate.open_request.id) : onRequest()}><ClipboardList size={15} />{candidate.open_request ? '진행 중인 점검 요청' : '점검 요청'}</button>}
     </div>

@@ -8,6 +8,7 @@ export const HologramThemeContext = createContext<'light' | 'dark'>('dark')
 // A selection changes only the existing part surfaces, never the plant geometry.
 export const PartSelectionContext = createContext(false)
 export const PartFocusContext = createContext(false)
+export const PartXrayContext = createContext(false)
 
 const finiteValue = (value: number | null | undefined): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -184,16 +185,18 @@ const HOLOGRAM_FRAGMENT = /* glsl */`
   }
 `
 
-export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis = false, selected = false }: {
+export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis = false, selected = false, xray = false }: {
   color?: THREE.ColorRepresentation
   opacity?: number
   emphasis?: boolean
   selected?: boolean
+  xray?: boolean
 }) {
   const { invalidate } = useThree()
   const theme = useContext(HologramThemeContext)
   const selectedPart = useContext(PartSelectionContext)
   const partFocus = useContext(PartFocusContext)
+  const partXray = useContext(PartXrayContext)
   // A red warning always wins over cyan selection. No bloom or second draw pass.
   const selection = !emphasis && (selected || selectedPart)
   const palette = theme === 'light'
@@ -214,7 +217,7 @@ export function HologramMaterial({ color = '#6fdce8', opacity = 0.48, emphasis =
     invalidate()
   }, [palette, surfaceOpacity, emphasis, selection, uniforms, invalidate])
   return <shaderMaterial vertexShader={HOLOGRAM_VERTEX} fragmentShader={HOLOGRAM_FRAGMENT}
-    uniforms={uniforms} transparent depthWrite={false} depthTest
+    uniforms={uniforms} transparent depthWrite={false} depthTest={!(xray || partXray)}
     side={THREE.DoubleSide} forceSinglePass toneMapped={false}
     blending={selection && theme === 'dark' ? THREE.AdditiveBlending : THREE.NormalBlending} />
 }
