@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" font-family="Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<defs>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter>
+<filter id="shadow-sm" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.45"/></filter>
+<filter id="inset" x="-10%" y="-10%" width="120%" height="130%"><feOffset dx="0" dy="3"/><feGaussianBlur stdDeviation="3" result="ob"/><feComposite operator="out" in="SourceGraphic" in2="ob" result="inv"/><feFlood flood-color="#000" flood-opacity="0.55" result="col"/><feComposite operator="in" in="col" in2="inv" result="sh"/><feComposite operator="over" in="sh" in2="SourceGraphic"/></filter>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.6 0"/></filter>
+<linearGradient id="plate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a231c"/><stop offset="1" stop-color="#212c23"/></linearGradient>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d110e"/><stop offset="1" stop-color="#161d17"/></linearGradient>
+<radialGradient id="coin" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.35"/></radialGradient>
+</defs>
+<rect width="1200" height="420" rx="22" fill="url(#bg)"/>
+<rect width="1200" height="420" rx="22" filter="url(#grain)" opacity="0.05"/>
+<circle cx="1120" cy="40" r="150" fill="#ffb347" opacity="0.05"/>
+<circle cx="1094" cy="58" r="122" fill="#ffb347" opacity="0.08"/>
+<circle cx="1068" cy="76" r="94" fill="#ffb347" opacity="0.12"/>
+<text x="57" y="50" font-size="20" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">한 건의 업무가 끝까지 가는 길</text>
+<text x="55" y="47" font-size="20" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">한 건의 업무가 끝까지 가는 길</text>
+<text x="56" y="48" font-size="20" fill="#eef4ec" font-weight="bold" text-anchor="start" >한 건의 업무가 끝까지 가는 길</text>
+<rect x="66" y="90" width="238" height="150" rx="18" fill="#080b09" opacity="0.55"/>
+<rect x="56" y="78" width="238" height="150" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<path d="M 57 210 L 57 96 Q 57 79 74 79 L 276 79" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 74 227 L 276 227 Q 293 227 293 210 L 293 96" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<rect x="72" y="96" width="10" height="114" rx="5" fill="#5ec8ff" filter="url(#shadow-sm)"/>
+<rect x="74" y="100" width="3" height="106" rx="1.5" fill="#ffffff" opacity="0.5"/>
+<text x="97" y="124" font-size="19" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">1 데이터 연결</text>
+<text x="95" y="121" font-size="19" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">1 데이터 연결</text>
+<text x="96" y="122" font-size="19" fill="#eef4ec" font-weight="bold" text-anchor="start" >1 데이터 연결</text>
+<rect x="92" y="140" width="186" height="70" rx="10" fill="#080b09" filter="url(#inset)"/>
+<path d="M 102 211 L 268 211" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<circle cx="108" cy="162" r="4" fill="#5ec8ff" filter="url(#shadow-sm)"/>
+<circle cx="108" cy="162" r="4" fill="url(#coin)"/>
+<text x="120" y="167" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >원본 CSV 재생</text>
+<circle cx="108" cy="188" r="4" fill="#5ec8ff" filter="url(#shadow-sm)"/>
+<circle cx="108" cy="188" r="4" fill="url(#coin)"/>
+<text x="120" y="193" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >채널값 수집 (단축키로 속도 조절)</text>
+<rect x="349" y="90" width="238" height="150" rx="18" fill="#080b09" opacity="0.55"/>
+<rect x="339" y="78" width="238" height="150" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<path d="M 340 210 L 340 96 Q 340 79 357 79 L 559 79" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 357 227 L 559 227 Q 576 227 576 210 L 576 96" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<rect x="355" y="96" width="10" height="114" rx="5" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<rect x="357" y="100" width="3" height="106" rx="1.5" fill="#ffffff" opacity="0.5"/>
+<text x="380" y="124" font-size="19" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">2 Z-score와 3D</text>
+<text x="378" y="121" font-size="19" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">2 Z-score와 3D</text>
+<text x="379" y="122" font-size="19" fill="#eef4ec" font-weight="bold" text-anchor="start" >2 Z-score와 3D</text>
+<rect x="375" y="140" width="186" height="70" rx="10" fill="#080b09" filter="url(#inset)"/>
+<path d="M 385 211 L 551 211" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<circle cx="391" cy="162" r="4" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<circle cx="391" cy="162" r="4" fill="url(#coin)"/>
+<text x="403" y="167" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >기준을 벗어난 채널을 3D 위치로</text>
+<circle cx="391" cy="188" r="4" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<circle cx="391" cy="188" r="4" fill="url(#coin)"/>
+<text x="403" y="193" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >채널 그래프, 과거 LOT 이상 후보</text>
+<rect x="632" y="90" width="238" height="150" rx="18" fill="#080b09" opacity="0.55"/>
+<rect x="622" y="78" width="238" height="150" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<path d="M 623 210 L 623 96 Q 623 79 640 79 L 842 79" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 640 227 L 842 227 Q 859 227 859 210 L 859 96" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<rect x="638" y="96" width="10" height="114" rx="5" fill="#ffb347" filter="url(#shadow-sm)"/>
+<rect x="640" y="100" width="3" height="106" rx="1.5" fill="#ffffff" opacity="0.5"/>
+<text x="663" y="124" font-size="19" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">3 현장 확인</text>
+<text x="661" y="121" font-size="19" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">3 현장 확인</text>
+<text x="662" y="122" font-size="19" fill="#eef4ec" font-weight="bold" text-anchor="start" >3 현장 확인</text>
+<rect x="658" y="140" width="186" height="70" rx="10" fill="#080b09" filter="url(#inset)"/>
+<path d="M 668 211 L 834 211" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<circle cx="674" cy="162" r="4" fill="#ffb347" filter="url(#shadow-sm)"/>
+<circle cx="674" cy="162" r="4" fill="url(#coin)"/>
+<text x="686" y="167" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >같은 구간을 붙여 점검 요청</text>
+<circle cx="674" cy="188" r="4" fill="#ffb347" filter="url(#shadow-sm)"/>
+<circle cx="674" cy="188" r="4" fill="url(#coin)"/>
+<text x="686" y="193" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >현장팀이 조치 기록</text>
+<rect x="915" y="90" width="238" height="150" rx="18" fill="#080b09" opacity="0.55"/>
+<rect x="905" y="78" width="238" height="150" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<path d="M 906 210 L 906 96 Q 906 79 923 79 L 1125 79" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 923 227 L 1125 227 Q 1142 227 1142 210 L 1142 96" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<rect x="921" y="96" width="10" height="114" rx="5" fill="#ff5a5f" filter="url(#shadow-sm)"/>
+<rect x="923" y="100" width="3" height="106" rx="1.5" fill="#ffffff" opacity="0.5"/>
+<text x="946" y="124" font-size="19" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">4 결과 공유</text>
+<text x="944" y="121" font-size="19" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">4 결과 공유</text>
+<text x="945" y="122" font-size="19" fill="#eef4ec" font-weight="bold" text-anchor="start" >4 결과 공유</text>
+<rect x="941" y="140" width="186" height="70" rx="10" fill="#080b09" filter="url(#inset)"/>
+<path d="M 951 211 L 1117 211" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<circle cx="957" cy="162" r="4" fill="#ff5a5f" filter="url(#shadow-sm)"/>
+<circle cx="957" cy="162" r="4" fill="url(#coin)"/>
+<text x="969" y="167" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >요청자 확인, 팀 알림</text>
+<circle cx="957" cy="188" r="4" fill="#ff5a5f" filter="url(#shadow-sm)"/>
+<circle cx="957" cy="188" r="4" fill="url(#coin)"/>
+<text x="969" y="193" font-size="12" fill="#eef4ec" font-weight="normal" text-anchor="start" >달력과 기록으로 남김</text>
+<rect x="294" y="150" width="35" height="16" rx="8" fill="#080b09" filter="url(#inset)"/>
+<path d="M 302 167 L 321 167" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<polygon points="325,147 339,158 325,169" fill="#5ec8ff" filter="url(#shadow-sm)"/>
+<rect x="296" y="154" width="22" height="8" rx="4" fill="#5ec8ff" filter="url(#glow)" opacity="0"><animate attributeName="x" from="296" to="303" dur="1.6s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0s" repeatCount="indefinite"/></rect>
+<rect x="296" y="154" width="22" height="8" rx="4" fill="#5ec8ff" filter="url(#glow)" opacity="0"><animate attributeName="x" from="296" to="303" dur="1.6s" begin="0.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0.8s" repeatCount="indefinite"/></rect>
+<text x="311.5" y="142" font-size="11" fill="#9fb39d" font-weight="normal" text-anchor="middle" >채널값</text>
+<rect x="577" y="150" width="35" height="16" rx="8" fill="#080b09" filter="url(#inset)"/>
+<path d="M 585 167 L 604 167" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<polygon points="608,147 622,158 608,169" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<rect x="579" y="154" width="22" height="8" rx="4" fill="#a8ff3e" filter="url(#glow)" opacity="0"><animate attributeName="x" from="579" to="586" dur="1.6s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0s" repeatCount="indefinite"/></rect>
+<rect x="579" y="154" width="22" height="8" rx="4" fill="#a8ff3e" filter="url(#glow)" opacity="0"><animate attributeName="x" from="579" to="586" dur="1.6s" begin="0.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0.8s" repeatCount="indefinite"/></rect>
+<text x="594.5" y="142" font-size="11" fill="#9fb39d" font-weight="normal" text-anchor="middle" >경보 구간</text>
+<rect x="860" y="150" width="35" height="16" rx="8" fill="#080b09" filter="url(#inset)"/>
+<path d="M 868 167 L 887 167" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<polygon points="891,147 905,158 891,169" fill="#ffb347" filter="url(#shadow-sm)"/>
+<rect x="862" y="154" width="22" height="8" rx="4" fill="#ffb347" filter="url(#glow)" opacity="0"><animate attributeName="x" from="862" to="869" dur="1.6s" begin="0s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0s" repeatCount="indefinite"/></rect>
+<rect x="862" y="154" width="22" height="8" rx="4" fill="#ffb347" filter="url(#glow)" opacity="0"><animate attributeName="x" from="862" to="869" dur="1.6s" begin="0.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.15;0.85;1" dur="1.6s" begin="0.8s" repeatCount="indefinite"/></rect>
+<text x="877.5" y="142" font-size="11" fill="#9fb39d" font-weight="normal" text-anchor="middle" >조치 기록</text>
+<rect x="56" y="288" width="1088" height="96" rx="16" fill="#080b09" filter="url(#inset)"/>
+<path d="M 72 385 L 1128 385" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<circle cx="92" cy="336" r="16" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<circle cx="92" cy="336" r="16" fill="url(#coin)"/>
+<text x="125" y="330" font-size="17" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">모델 레지스트리</text>
+<text x="123" y="327" font-size="17" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">모델 레지스트리</text>
+<text x="124" y="328" font-size="17" fill="#eef4ec" font-weight="bold" text-anchor="start" >모델 레지스트리</text>
+<text x="124" y="352" font-size="13" fill="#9fb39d" font-weight="normal" text-anchor="start" >pdm-project 05 노트북이 구역별 모델 9개를 저장 → models/registry.json → 예측 모델 선택에서 읽어 분마다 점수를 냄</text>
+<text x="124" y="372" font-size="12" fill="#9fb39d" font-weight="normal" text-anchor="start" >이름: cal01-&lt;정답 버전&gt;-&lt;입력 태그&gt;-&lt;구역&gt;-&lt;모델&gt;-&lt;학습 범위&gt;-&lt;날짜&gt; · 근거 단계와 걷기 F1을 함께 적음</text>
+<path d="M 741 286 L 741 234" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="10" stroke-linecap="round"/>
+<path d="M 741 286 L 741 234" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="3" stroke-linecap="round"/>
+<path d="M 741 286 L 741 234" fill="none" stroke="#a8ff3e" stroke-opacity="0.35" stroke-width="2"/>
+<rect x="-14" y="-4" width="28" height="8" rx="4" fill="#a8ff3e" filter="url(#glow)"><animateMotion dur="1.8s" repeatCount="indefinite" rotate="auto" path="M 741 286 L 741 234"/></rect>
+<text x="790" y="266" font-size="11.5" fill="#a8ff3e" font-weight="bold" text-anchor="middle" >구역별 모델</text>
+<polygon points="732,240 750,240 741,226" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+</svg>

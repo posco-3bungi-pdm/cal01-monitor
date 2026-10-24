@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" font-family="Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<defs>
+<filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter>
+<filter id="shadow-sm" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.45"/></filter>
+<filter id="inset" x="-10%" y="-10%" width="120%" height="130%"><feOffset dx="0" dy="3"/><feGaussianBlur stdDeviation="3" result="ob"/><feComposite operator="out" in="SourceGraphic" in2="ob" result="inv"/><feFlood flood-color="#000" flood-opacity="0.55" result="col"/><feComposite operator="in" in="col" in2="inv" result="sh"/><feComposite operator="over" in="sh" in2="SourceGraphic"/></filter>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.6 0"/></filter>
+<linearGradient id="plate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a231c"/><stop offset="1" stop-color="#212c23"/></linearGradient>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d110e"/><stop offset="1" stop-color="#161d17"/></linearGradient>
+<radialGradient id="coin" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.35"/></radialGradient>
+</defs>
+<rect width="1200" height="400" rx="22" fill="url(#bg)"/>
+<rect width="1200" height="400" rx="22" filter="url(#grain)" opacity="0.05"/>
+<circle cx="1060" cy="90" r="190" fill="#5ec8ff" opacity="0.05"/>
+<circle cx="1034" cy="108" r="162" fill="#5ec8ff" opacity="0.08"/>
+<circle cx="1008" cy="126" r="134" fill="#5ec8ff" opacity="0.12"/>
+<circle cx="210" cy="390" r="150" fill="#a8ff3e" opacity="0.05"/>
+<circle cx="184" cy="408" r="122" fill="#a8ff3e" opacity="0.08"/>
+<circle cx="158" cy="426" r="94" fill="#a8ff3e" opacity="0.12"/>
+<text x="56" y="78" font-size="15" fill="#9fb39d" font-weight="normal" text-anchor="start" letter-spacing="3">CAL01 MONITOR · 소둔로 관제</text>
+<text x="57" y="136" font-size="40" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">설비의 흐름을 보고,</text>
+<text x="55" y="133" font-size="40" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">설비의 흐름을 보고,</text>
+<text x="56" y="134" font-size="40" fill="#eef4ec" font-weight="bold" text-anchor="start" >설비의 흐름을 보고,</text>
+<text x="57" y="188" font-size="40" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">같은 구간을 함께 확인함</text>
+<text x="55" y="185" font-size="40" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">같은 구간을 함께 확인함</text>
+<text x="56" y="186" font-size="40" fill="#a8ff3e" font-weight="bold" text-anchor="start" >같은 구간을 함께 확인함</text>
+<text x="56" y="226" font-size="16" fill="#9fb39d" font-weight="normal" text-anchor="start" >채널값과 설비 위치를 한 화면에서. 모니터링팀과 현장팀이 같은 기록을 봄</text>
+<rect x="56" y="250" width="225" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<rect x="56" y="250" width="225" height="36" rx="18" fill="none" stroke="#5ec8ff" stroke-opacity="0.55" stroke-width="1.5"/>
+<path d="M 57 268 L 57 268 Q 57 251 74 251 L 263 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 74 285 L 263 285 Q 280 285 280 268 L 280 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<circle cx="74" cy="268" r="7" fill="#5ec8ff" filter="url(#shadow-sm)"/>
+<circle cx="74" cy="268" r="7" fill="url(#coin)"/>
+<text x="90" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >3D 소둔로 · 홀로그램 · 기록 재생</text>
+<rect x="295" y="250" width="264" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<rect x="295" y="250" width="264" height="36" rx="18" fill="none" stroke="#ffb347" stroke-opacity="0.55" stroke-width="1.5"/>
+<path d="M 296 268 L 296 268 Q 296 251 313 251 L 541 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 313 285 L 541 285 Q 558 285 558 268 L 558 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<circle cx="313" cy="268" r="7" fill="#ffb347" filter="url(#shadow-sm)"/>
+<circle cx="313" cy="268" r="7" fill="url(#coin)"/>
+<text x="329.92" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >Z-score 경보 · 현장 요청 · 팀 알림</text>
+<rect x="573" y="250" width="244" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
+<rect x="573" y="250" width="244" height="36" rx="18" fill="none" stroke="#a8ff3e" stroke-opacity="0.55" stroke-width="1.5"/>
+<path d="M 574 268 L 574 268 Q 574 251 591 251 L 800 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<path d="M 591 285 L 800 285 Q 817 285 817 268 L 817 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
+<circle cx="591" cy="268" r="7" fill="#a8ff3e" filter="url(#shadow-sm)"/>
+<circle cx="591" cy="268" r="7" fill="url(#coin)"/>
+<text x="607.9200000000001" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >구역별 모델 9개 (v6 registry)</text>
+<rect x="40" y="308" width="1124" height="64" rx="16" fill="#080b09" filter="url(#inset)"/>
+<path d="M 56 373 L 1148 373" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<line x1="48" y1="340" x2="1158" y2="340" stroke="#000000" stroke-opacity="0.55" stroke-width="3" stroke-dasharray="6 6"/>
+<line x1="48" y1="342" x2="1158" y2="342" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5" stroke-dasharray="6 6"/>
+<rect x="56" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="56" y="318" width="92" height="44" rx="10" fill="#5ec8ff" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.00s" repeatCount="indefinite"/></rect>
+<path d="M 66 319 L 138 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="103.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">CLN</text>
+<text x="101.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">CLN</text>
+<text x="102.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >CLN</text>
+<rect x="156" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="156" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.45s" repeatCount="indefinite"/></rect>
+<path d="M 166 319 L 238 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="203.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z1</text>
+<text x="201.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z1</text>
+<text x="202.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z1</text>
+<rect x="256" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="256" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.90s" repeatCount="indefinite"/></rect>
+<path d="M 266 319 L 338 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="303.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z2</text>
+<text x="301.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z2</text>
+<text x="302.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z2</text>
+<rect x="356" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="356" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="1.35s" repeatCount="indefinite"/></rect>
+<path d="M 366 319 L 438 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="403.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z3</text>
+<text x="401.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z3</text>
+<text x="402.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z3</text>
+<rect x="456" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="456" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="1.80s" repeatCount="indefinite"/></rect>
+<path d="M 466 319 L 538 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="503.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z4</text>
+<text x="501.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z4</text>
+<text x="502.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z4</text>
+<rect x="556" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="556" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="2.25s" repeatCount="indefinite"/></rect>
+<path d="M 566 319 L 638 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="603.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z5</text>
+<text x="601.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z5</text>
+<text x="602.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z5</text>
+<rect x="656" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="656" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="2.70s" repeatCount="indefinite"/></rect>
+<path d="M 666 319 L 738 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="703.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z6</text>
+<text x="701.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z6</text>
+<text x="702.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z6</text>
+<rect x="756" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="756" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="3.15s" repeatCount="indefinite"/></rect>
+<path d="M 766 319 L 838 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="803.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z7</text>
+<text x="801.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z7</text>
+<text x="802.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z7</text>
+<rect x="856" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="856" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="3.60s" repeatCount="indefinite"/></rect>
+<path d="M 866 319 L 938 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="903.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z8</text>
+<text x="901.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z8</text>
+<text x="902.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z8</text>
+<rect x="956" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="956" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="4.05s" repeatCount="indefinite"/></rect>
+<path d="M 966 319 L 1038 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="1003.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z9</text>
+<text x="1001.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z9</text>
+<text x="1002.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z9</text>
+<rect x="1056" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
+<rect x="1056" y="318" width="92" height="44" rx="10" fill="#5ec8ff" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="4.50s" repeatCount="indefinite"/></rect>
+<path d="M 1066 319 L 1138 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
+<text x="1103.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">OUT</text>
+<text x="1101.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">OUT</text>
+<text x="1102.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >OUT</text>
+<g><animateMotion dur="6s" repeatCount="indefinite" path="M 48 340 L 1158 340"/><circle r="9" fill="#a8ff3e" filter="url(#glow)"/><circle r="9" fill="url(#coin)"/></g>
+</svg>
