@@ -6,6 +6,8 @@ import { clockTime, dateTime, numberText, timeIso, timeMs } from "../time";
 import type { ChannelBaseline, DetectionCandidate } from "../review-types";
 import { incidentAxis, incidentTick } from './incident-axis';
 import ReadingValue from './ReadingValue';
+import { LIVE_Z_MIN_SAMPLES, LIVE_Z_THRESHOLD } from '../live-trends';
+import type { LiveScorePoint, LiveScores } from '../live-trends';
 
 const LEFT = 72;
 const RIGHT = 22;
@@ -31,14 +33,18 @@ type Props = {
   focusedCandidate?: DetectionCandidate;
   highlightRange?: TimeRange | null;
   markers?: Record<string, { time: string; value: number; label: string }>;
+  liveScores?: Record<string, LiveScores>;
+  retainedExtrema?: boolean;
+  onFullRange?: () => void;
+  fullRangeLabel?: string;
   onSelectChannel: (channel: string) => void;
   onSelection: (range: TimeRange | null) => void;
   onView: (range: TimeRange) => void;
   onCursor: (time: string) => void;
 };
 
-function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?: ChannelBaseline) {
-  const values = [...points.flatMap(point => [point.value, point.min, point.max]), baseline?.mean, baseline?.lower, baseline?.upper].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?: ChannelBaseline, livePoints: LiveScorePoint[] = []) {
+  const values = [...points.flatMap(point => [point.value, point.min, point.max]), ...livePoints.flatMap(point => [point.lower, point.upper]), baseline?.mean, baseline?.lower, baseline?.upper].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   const axis = incidentAxis(values.length ? values : [0, 1]);
   const low = axis.min;
   const high = axis.max;
@@ -64,7 +70,7 @@ function plotData(points: SeriesPoint[], x: (time: number) => number, baseline?:
   return { lines, bands, y, low, high, segments, empty: segments.length === 0 };
 }
 
-function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, candidates, focusedCandidate, live, highlightRange, marker, onSelect, onSelection, onCursor, onLabelZoom }: {
+function ChartRow({ channel, data, index, view, selection, cursor, selected, labels, aggregated, candidates, focusedCandidate, live, highlightRange, marker, liveScores, onSelect, onSelection, onCursor, onLabelZoom }: {
   live?: boolean;
   channel: Channel;
   data?: ChannelSeries;
@@ -79,6 +85,7 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   focusedCandidate?: DetectionCandidate;
   highlightRange?: TimeRange | null;
   marker?: { time: string; value: number; label: string };
+  liveScores?: LiveScores;
   onSelect: () => void;
   onSelection: (range: TimeRange | null) => void;
   onCursor: (time: string) => void;
@@ -102,15 +109,33 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
   const x = (time: number) => LEFT + (time - start) / duration * plotWidth;
   const points = data?.points ?? [];
   const baseline = focusedCandidate?.baseline;
-  const plot = useMemo(() => plotData(points, x, baseline), [points, start, end, baseline, width]);
+  const scorePoints = useMemo(() => liveScores?.points.filter(point => timeMs(point.time) >= start && timeMs(point.time) <= end) ?? [], [liveScores, start, end]);
+  const plot = useMemo(() => plotData(points, x, baseline, scorePoints), [points, start, end, baseline, scorePoints, width]);
   const color = COLORS[index % COLORS.length];
   const cursorMs = cursor ? timeMs(cursor) : Number.NaN;
+  const scoreTime = Number.isFinite(cursorMs) ? Math.max(start, Math.min(end, cursorMs)) : end;
+  const score = liveScores?.points.filter(point => timeMs(point.time) <= scoreTime).at(-1);
+  const exceedances = liveScores?.intervals.filter(interval => timeMs(interval.end) >= start && timeMs(interval.start) <= end) ?? [];
   const nearest = Number.isFinite(cursorMs) ? points.reduce<SeriesPoint | null>((best, point) =>
     point.value === null ? best : !best || Math.abs(timeMs(point.time) - cursorMs) < Math.abs(timeMs(best.time) - cursorMs) ? point : best, null) : null;
   const selectionX = selection ? Math.max(LEFT, x(timeMs(selection.start))) : 0;
   const selectionEnd = selection ? Math.min(width - RIGHT, x(timeMs(selection.end))) : 0;
   const clipId = `chart-clip-${channel.id.replace(/[^a-zA-Z0-9]/g, "-")}`;
   const tickScale = channel.id === 'CP-Z4M' ? 1e-10 : 1;
+  const fractions = end === start ? [0] : width < 600 ? [0, .5, 1] : [0, .25, .5, .75, 1];
+  const ticks = fractions.map(fraction => ({ fraction, time: start + (end - start) * fraction }))
+    .filter((tick, index, all) => index === 0 || clockTime(tick.time, true) !== clockTime(all[index - 1].time, true));
+
+  function liveReference(field: 'lower' | 'mean' | 'upper') {
+    let connected = false;
+    return scorePoints.map(point => {
+      const value = point[field];
+      if (value === null || !Number.isFinite(value)) { connected = false; return ''; }
+      const path = `${connected && !point.gap_before ? 'L' : 'M'}${x(timeMs(point.time)).toFixed(2)},${plot.y(value).toFixed(2)}`;
+      connected = true;
+      return path;
+    }).join(' ');
+  }
 
   function pointerTime(event: PointerEvent<SVGSVGElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -159,9 +184,17 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
       </button>
       <div className="chart-reading">{nearest ? <>{aggregated && <span>요약 평균</span>}<ReadingValue channelId={channel.id} value={nearest.value} unit={channel.unit} /><small>{clockTime(nearest.time, true)}</small></> : <span>{points.length ? "그래프를 눌러 시각 선택" : "이 구간에 관측값 없음"}</span>}</div>
     </div>
+    {liveScores && <div className={`live-zscore-reading ${score?.z != null && Math.abs(score.z) > LIVE_Z_THRESHOLD ? 'is-exceeded' : ''}`}>
+      <span>Z-score <strong>{score?.z != null ? `${score.z > 0 ? '+' : ''}${numberText(score.z)}` : '—'}</strong> · 기준 ±{LIVE_Z_THRESHOLD}</span>
+      <span>{score?.status === 'ready' ? `${clockTime(score.time, true)}${timeMs(score.time) < start ? ' (직전 보존 시각)' : ''} · 앞선 ${score.previousCount.toLocaleString()}개 기준`
+        : score?.status === 'constant' ? '이전 값의 변동이 없어 계산 대기'
+        : score?.status === 'missing' ? '관측값 없음'
+        : `기준 수집 중 · ${score?.previousCount ?? 0}/${LIVE_Z_MIN_SAMPLES}개`}</span>
+      {score?.lower != null && score?.upper != null && <small>이 시각의 통계 범위 {numberText(score.lower)} ~ {numberText(score.upper)} {channel.unit ?? ''}</small>}
+    </div>}
     {baseline && <div className="baseline-description">이번 LOT 원자료 전체 기준 · 평균 {numberText(baseline.mean)} · 평균 − 3σ {numberText(baseline.lower)} · 평균 + 3σ {numberText(baseline.upper)} {channel.unit ?? ""}</div>}
     <svg ref={svg} viewBox={`0 0 ${width} ${HEIGHT}`} style={{ height: HEIGHT }} className={`series-svg ${dragging ? "is-dragging" : ""}`}
-      role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start)}부터 ${dateTime(view.end)}까지. 드래그해 구간 선택, 클릭해 관측 시각 선택`}
+      role="group" aria-label={`${channel.id} 채널, ${dateTime(view.start, live)}부터 ${dateTime(view.end, live)}까지. 드래그해 구간 선택, 클릭해 관측 시각 선택`}
       onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
       onPointerCancel={() => {
         if (gesture.current) onSelection(gesture.current.original);
@@ -174,11 +207,16 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
         const value = plot.low + (plot.high - plot.low) * tick / 3;
         return <g key={`y-${tick}`}><line className="chart-grid" x1={LEFT} x2={width - RIGHT} y1={plot.y(value)} y2={plot.y(value)} /><text className="chart-axis-label" x={LEFT - 12} y={plot.y(value) + 4} textAnchor="end">{incidentTick(value / tickScale, (plot.high - plot.low) / tickScale / 3)}</text></g>;
       })}
-      {(width < 600 ? [0, .5, 1] : [0, .25, .5, .75, 1]).map(fraction => {
-        const t = start + duration * fraction;
-        return <g key={`x-${fraction}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"}>{clockTime(t, duration < 300_000)}</text></g>;
+      {ticks.map(({ fraction, time: t }) => {
+        return <g key={`x-${fraction}`}><line className="chart-grid vertical" x1={x(t)} x2={x(t)} y1={TOP} y2={BOTTOM} /><text className="chart-axis-label" x={x(t)} y={HEIGHT - 12} textAnchor={fraction === 0 ? "start" : fraction === 1 ? "end" : "middle"}>{clockTime(t, live || duration < 300_000)}</text></g>;
       })}
       <g clipPath={`url(#${clipId})`}>
+        {exceedances.map(interval => <g key={`${interval.lot}-${interval.start}`} data-label="true" role="button" tabIndex={0}
+          aria-label={`${channel.id} Z-score 임계치 초과 ${dateTime(interval.start, true)}부터 ${dateTime(interval.end, true)}까지 확대`}
+          onClick={() => onLabelZoom(interval)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onLabelZoom(interval); } }}>
+          <rect className="live-zscore-band" x={Math.max(LEFT, x(timeMs(interval.start)))} y={TOP} width={Math.max(3, Math.min(width - RIGHT, x(timeMs(interval.end))) - Math.max(LEFT, x(timeMs(interval.start))))} height={BOTTOM - TOP} />
+          <title>{clockTime(interval.start, true)} ~ {clockTime(interval.end, true)} · 최대 |Z| {numberText(Math.abs(interval.peakZ))} · {interval.count}개</title>
+        </g>)}
         {highlightRange && <g pointerEvents="none"><rect className="live-event-band" x={x(timeMs(highlightRange.start))} y={TOP} width={Math.max(2, x(timeMs(highlightRange.end)) - x(timeMs(highlightRange.start)))} height={BOTTOM - TOP} />
           <text className="live-event-band-label" x={Math.max(LEFT + 5, x(timeMs(highlightRange.start)) + 5)} y={TOP + 14}>감지 구간</text></g>}
         {candidates.map(candidate => {
@@ -190,10 +228,12 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
           if (typeof raw !== "number") return null;
           return <g key={name} pointerEvents="none"><line className={`baseline-line ${name === "평균" ? "mean" : ""}`} x1={LEFT} x2={width - RIGHT} y1={plot.y(raw)} y2={plot.y(raw)} /><text className="baseline-label" x={width - RIGHT - 4} y={plot.y(raw) - 4} textAnchor="end">{name}</text></g>;
         })}
+        {liveScores && (['lower', 'mean', 'upper'] as const).map(field => <path key={`live-${field}`} className={`live-stat-line ${field === 'mean' ? 'mean' : ''}`} d={liveReference(field)} fill="none" pointerEvents="none" />)}
         {selection && selectionEnd >= selectionX && <rect className="selected-time-band" x={selectionX} y={TOP} width={Math.max(1.5, selectionEnd - selectionX)} height={BOTTOM - TOP} />}
         {plot.bands.map((path, i) => <path key={`band-${i}`} d={path} fill={color} fillOpacity={0.13} />)}
         {plot.lines.map((path, i) => <path key={i} d={path} fill="none" stroke={color} strokeWidth={1.6} vectorEffect="non-scaling-stroke" />)}
         {plot.segments.filter(segment => segment.length === 1).map((segment, i) => <circle key={`dot-${i}`} cx={x(timeMs(segment[0].time))} cy={plot.y(segment[0].value!)} r={2.5} fill={color} />)}
+        {scorePoints.filter(point => point.z !== null && Math.abs(point.z) > LIVE_Z_THRESHOLD && point.value !== null).map(point => <circle key={`z-${point.sourceRow}`} className="live-zscore-point" cx={x(timeMs(point.time))} cy={plot.y(point.value!)} r={2.5} pointerEvents="none" />)}
         {Number.isFinite(cursorMs) && cursorMs >= start && cursorMs <= end && <line className="shared-time-cursor" x1={x(cursorMs)} x2={x(cursorMs)} y1={TOP} y2={BOTTOM} />}
         {marker && <g className="live-observation-marker" pointerEvents="none"><circle cx={x(timeMs(marker.time))} cy={plot.y(marker.value)} r={4} /><title>{marker.label} · {clockTime(marker.time, true)} · {numberText(marker.value)}</title></g>}
       </g>
@@ -226,6 +266,9 @@ function ChartRow({ channel, data, index, view, selection, cursor, selected, lab
       })}
       {!labels.length && <text className="chart-rail-empty" x={LEFT + 8} y={BOTTOM + 26}>이 구간에 LABEL=1 없음</text>}
     </svg>
+    {exceedances.length > 0 && <div className="live-exceedance-list"><span>임계치 초과 {exceedances.length.toLocaleString()}구간 · 눌러서 확대</span>
+      {exceedances.slice(-3).map(interval => <button key={`${interval.lot}-${interval.start}`} className="subtle-button" onClick={() => onLabelZoom(interval)}>{clockTime(interval.start, true)} ~ {clockTime(interval.end, true)} · |Z| 최대 {numberText(Math.abs(interval.peakZ))}</button>)}
+    </div>}
   </article>;
 }
 
@@ -266,14 +309,15 @@ export default function ChannelCharts(props: Props) {
       <div className="chart-tools">
         <button className="icon-button" aria-label="그래프 시간 범위 넓게 보기" title="시간 범위 넓게" onClick={() => adjustView(1.6)} disabled={!zoomed}><Minus size={16} /></button>
         <button className="icon-button" aria-label="그래프 시간 범위 좁게 보기" title="시간 범위 좁게" onClick={() => adjustView(0.65)}><Plus size={16} /></button>
-        {!props.live && <button className="subtle-button" onClick={() => props.onView(fullRange)} disabled={!zoomed}><RotateCcw size={14} />LOT 전체</button>}
+        <button className="subtle-button" onClick={() => props.onFullRange ? props.onFullRange() : props.onView(fullRange)} disabled={!zoomed}><RotateCcw size={14} />{props.fullRangeLabel ?? (props.live ? '누적 전체' : 'LOT 전체')}</button>
       </div>
     </div>
     <div className="chart-context-line">
-      <span>{dateTime(view.start)} <span className="muted">—</span> {dateTime(view.end)}</span>
-      <span className="muted">{props.sourceCount !== undefined ? `${props.sourceCount.toLocaleString()}개 원자료` : ""}{props.aggregationSeconds !== undefined ? ` · ${props.aggregationSeconds === 0 ? "원자료 그대로" : `${props.aggregationSeconds}초 단위 요약`}` : ""}</span>
+      <span>{dateTime(view.start, props.live)} <span className="muted">—</span> {dateTime(view.end, props.live)}</span>
+      <span className="muted">{props.sourceCount !== undefined ? `${props.sourceCount.toLocaleString()}개 원자료` : ""}{props.retainedExtrema ? ' · 시각·극값 보존 표시' : props.aggregationSeconds !== undefined ? ` · ${props.aggregationSeconds === 0 ? "원자료 그대로" : `${props.aggregationSeconds}초 단위 요약`}` : ""}</span>
     </div>
     <div className="chart-legend"><span><i className="legend-yellow" />선택한 구간</span>{props.labelIntervals.length > 0 && <span><i className="legend-label" />CSV 원본 LABEL=1</span>}{props.highlightRange && <span><i className="legend-candidate" />모델 감지 구간</span>}{(props.candidates?.length ?? 0) > 0 && <span><i className="legend-candidate" />이번 분석의 통계적 후보</span>}<span><Crosshair size={12} />클릭한 시각 → 3D 계측값</span></div>
+    {props.liveScores && <div className="chart-legend"><span><i className="legend-live-stat" />이전 관측 평균 ±3σ</span><span><i className="legend-live-exceedance" />|Z| &gt; 3 · 눌러서 확대</span></div>}
     {props.live && selectionToolbar}
     {loading && <div className="loading-bar" role="status" aria-label="채널 데이터 불러오는 중" />}
     {channels.length === 0 ? <div className="empty-state">위에서 표시할 채널을 선택해 주세요.</div> :
@@ -285,6 +329,7 @@ export default function ChannelCharts(props: Props) {
           candidates={(props.candidates ?? []).filter(candidate => candidate.channel_id === channel.id)}
           focusedCandidate={props.focusedCandidate?.channel_id === channel.id ? props.focusedCandidate : undefined}
           highlightRange={props.highlightRange} marker={props.markers?.[channel.id]}
+          liveScores={props.liveScores?.[channel.id]}
           onSelect={() => props.onSelectChannel(channel.id)} onSelection={props.onSelection} onCursor={props.onCursor}
           onLabelZoom={range => { props.onSelectChannel(channel.id); props.onSelection(range); zoomTo(range); }} />)}
       </div>}

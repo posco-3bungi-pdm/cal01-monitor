@@ -5,7 +5,7 @@ export type GuideStep = {
   channel?: string
   check: string
   kind?: 'equipment' | 'reading' | 'practice'
-  category?: 'process' | 'measurements' | 'maintenance' | 'equipment' | 'practice'
+  category?: 'process' | 'measurements' | 'signs' | 'quality' | 'maintenance' | 'equipment'
   sections?: { title: string; body: string }[]
   pattern?: 'stop-restart'
   practice?: { question: string; options: { label: string; correct: boolean; feedback: string }[] }
@@ -13,9 +13,9 @@ export type GuideStep = {
 }
 
 export const GUIDE_CATEGORIES = [
-  { id: 'process', label: '공정 흐름' }, { id: 'measurements', label: 'TC·OP·CP' },
-  { id: 'maintenance', label: '정비 구분' }, { id: 'practice', label: '설명용 연습' },
-  { id: 'equipment', label: '장치 사전' },
+  { id: 'process', label: '공정 흐름' }, { id: 'measurements', label: '운전·센서' },
+  { id: 'signs', label: '이상 징후' }, { id: 'quality', label: '강종·품질' },
+  { id: 'maintenance', label: '정비·조업' }, { id: 'equipment', label: '설비·용어' },
 ] as const
 const processSources = [{ title: 'JFE 재단 · 연속소둔 공정', url: 'https://www.jfe-21st-cf.or.jp/chapter_3/3c_5.html' },
   { title: 'Eurotherm · 연속소둔 온도 제어', url: 'https://www.eurotherm.com/in/temperature-control-applications-in/continuous-annealing-and-galvanizing-lines/' }]
@@ -27,7 +27,7 @@ const processSources = [{ title: 'JFE 재단 · 연속소둔 공정', url: 'http
 // 058 shutdown / 061 restart: explicit team decision supplied by the user.
 // Zone names and temperature/output units follow the educational dataset's
 // assumptions; they do not establish the original equipment's physical layout.
-export const GUIDE_STEPS: GuideStep[] = [
+const CORE_GUIDE_STEPS: GuideStep[] = [
   {
     id: 'annealing-purpose',
     kind: 'equipment',
@@ -143,7 +143,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     id: 'review-practice',
-    category: 'practice',
+    category: 'signs',
     kind: 'practice',
     title: '연습 상황: 온도가 갑자기 낮아졌다면',
     body: '먼저 해당 시각의 실제 관측값과 관측 공백을 확인한다. 값이 있으면 같은 구역의 TC·OP와 강종·LOT, 앞뒤 조업·정비 기록을 비교한다. 정지·재가동·설정 변경으로 설명되는지 검토하고, 원인이 불분명하면 확인할 내용과 구간을 적어 점검을 요청한다. 과거 자료의 이상 후보는 현재 설비의 고장 확정이나 정지 지시가 아니다.',
@@ -156,7 +156,7 @@ export const GUIDE_STEPS: GuideStep[] = [
     ] },
   },
   {
-    id: 'missing-value-practice', kind: 'practice', category: 'practice', title: '연습 상황: 값이 사라졌다면', channel: 'OP-Z3',
+    id: 'missing-value-practice', kind: 'practice', category: 'signs', title: '연습 상황: 값이 사라졌다면', channel: 'OP-Z3',
     body: '설명용 상황이다. TC-Z3에는 —가 보이고 OP-Z3에는 0이 기록되어 있다. 이 둘은 같은 뜻이 아니다.',
     check: '관측 시각과 공백, 원자료를 먼저 확인한다. 실제 경보·요청이나 정비 이력은 생성하지 않는다.',
     practice: { question: '현재 화면으로 알 수 있는 것은?', options: [
@@ -165,3 +165,77 @@ export const GUIDE_STEPS: GuideStep[] = [
     ] },
   },
 ]
+
+const TOPIC_GUIDE_STEPS: GuideStep[] = [
+  { id: 'normal-transitions', category: 'process', kind: 'reading', title: '정상적인 운전 전환 읽기',
+    body: '코일 연결, 강종·두께 변경, 설정값·라인 속도 조정 때는 여러 값이 함께 바뀔 수 있다. 전환 시각과 작업 기록을 먼저 맞추고, 출력 변화 뒤 온도가 따라오는 과정을 확인한다.',
+    sections: [{ title: '전환 전 → 전환 중 → 안정화', body: '같은 구역의 앞뒤 추세를 비교한다. 이웃 존도 함께 바뀌는지, 전환 후 현장 기준에 맞게 안정화됐는지 확인한다. 서로 다른 강종이나 운전 조건의 평균을 그대로 정상 기준으로 쓰지 않는다.' }],
+    check: 'LOT·강종·속도·설정값·운전 모드의 변경 시각을 확보한다. 화면에 없는 조건은 조업 기록으로 확인한다.' },
+  { id: 'graph-reading', category: 'measurements', kind: 'reading', title: '그래프의 시각·단위·비교선', channel: 'TC-Z3',
+    body: '가로축은 관측 시각, 세로축은 선택 채널의 값이다. 같은 시각의 TC·OP·CP를 비교하되 각 단위와 축 범위를 먼저 읽는다. 선이 크게 움직여 보여도 실제 변화량은 작을 수 있다.',
+    sections: [
+      { title: '점과 구간 선택', body: '그래프를 눌러 한 시각을 확인하고, 드래그해 구간을 선택한 뒤 「이 구간 확대」로 앞뒤 변화를 살핀다. 여러 채널은 같은 시간 범위로 비교한다.' },
+      { title: '색 띠와 통계선', body: 'CSV의 LABEL=1 표시, 모델이 감지한 구간, 사용자가 선택한 구간은 의미가 다르다. LOT 평균 ±3σ는 통계적 비교선이며 제품의 허용 온도나 안전 한계가 아니다.' },
+      { title: '0과 관측 없음', body: '0은 기록된 숫자이고 —는 관측값 없음이다. 작은 지수 표기의 CP를 0으로 읽지 않는다. 집계 그래프와 마지막 관측값은 시각·집계 간격이 같을 때 비교한다.' },
+    ], check: '채널 코드 → 단위 → 관측 시각 → 축 범위 → 선택 구간 순서로 읽는다.' },
+  { id: 'sign-patterns', category: 'signs', kind: 'reading', title: '정상 전환·확인 필요·보고 필요',
+    body: '이 구분은 사람이 기록과 현장 상태를 함께 검토하기 위한 읽기 순서다. 감지 결과만으로 원인이나 고장을 확정하지 않는다.',
+    sections: [
+      { title: '정상적인 전환으로 설명되는 경우', body: '확인된 정지·강종변경 시각과 여러 채널의 변화가 맞고, 이후 안정화도 기준에 부합하는지 본다. 모양이 비슷하다는 이유만으로 다른 구간까지 정상 처리하지 않는다.' },
+      { title: '추가 확인이 필요한 경우', body: '한 존만 급변하거나 값이 고정·누락되는 경우, 출력 변화에 비해 온도 반응이 설명되지 않는 경우다. 설정 변경·계측 상태·인접 채널·실제 작업 시각을 대조한다.' },
+      { title: '담당자에게 보고할 경우', body: '현장 관리 기준 이탈, 현장 경보·품질 영향, 설명되지 않는 변화의 지속·반복을 확인하면 정해진 보고 절차를 따른다. 채널·시각·변화량·관련 LOT·확인한 기록을 함께 전달한다.' },
+    ], check: '이상 구간의 앞뒤 기록을 먼저 열고, 확인된 사실과 아직 확인하지 못한 원인을 나누어 적는다.' },
+  { id: 'cause-review', category: 'signs', kind: 'reading', title: '원인 확인과 팀 협업',
+    body: '통계적 이탈은 어디를 먼저 볼지 알려주는 단서다. 원인은 운전 조건, 정비 이력, 계측 상태와 제품 결과를 함께 대조해 좁힌다.',
+    sections: [
+      { title: '조업팀에 확인', body: '라인 속도, 설정값, 운전 모드, 강종·두께 변경, 실제 정지·재가동 시각을 요청한다.' },
+      { title: '정비·계측 담당자에 확인', body: '작업한 장치·부품, 실제 작업 시작·종료, 센서 교정·교체, 통신 공백과 현장 점검 결과를 확인한다. 계획 일정만으로 작업이 실행됐다고 판단하지 않는다.' },
+      { title: '품질 담당자에 확인', body: '해당 LOT의 강종·주문 조건, 소재 추적 정보와 검사 결과를 확인한다. 온도 추세만으로 불량이나 합격을 확정하지 않는다.' },
+    ], check: '점검 요청에 구역·채널·구간·관측한 변화·필요 자료를 적는다. 미연결 이력은 「정비 없음」이 아니다.' },
+  { id: 'grade-products', category: 'quality', kind: 'reading', title: '강종별 용도와 필요한 품질',
+    body: '같은 온도 변화도 강종과 제품 목적에 따라 의미가 달라진다. 아래 제품 사전에서 강종별 용도와 특성을 읽고, 실제 LOT의 주문 규격·성적서를 함께 확인한다.',
+    check: 'LOT에 연결된 강종과 원자료 또는 담당자 연결 여부를 확인한다. 강종 미기록이면 LOT 번호만으로 추측하지 않는다.' },
+  { id: 'annealing-quality', category: 'quality', kind: 'reading', title: '소둔 조건과 품질의 관계',
+    body: '가열·유지·냉각의 열 이력은 조직과 제품 특성에 영향을 준다. 온도 하나만으로 소둔 결과를 판단할 수 없으며, 강종·두께·이동 속도와 체류 시간도 함께 확인한다.',
+    sections: [
+      { title: '강도와 성형성', body: '냉간압연 후 열처리는 재결정과 조직 변화를 통해 강도·연성·성형성에 영향을 준다. 강종마다 필요한 결과가 다르므로 더 뜨겁거나 더 오래 가열하는 것이 항상 좋은 조건은 아니다.' },
+      { title: '표면과 분위기', body: '세정 상태와 노내 분위기 등도 표면 품질에 영향을 줄 수 있다. TC·OP·CP와 세정·분위기 기록을 함께 보고 실제 제품 검사로 확인한다.' },
+      { title: '품질과 연결하는 자료', body: 'LOT·코일 식별, 강종·치수, 제품 기준, 속도·설정값·관측값, 검사 시각과 결과를 연결한다. 화면 TC가 노내 온도인지 강판 온도인지도 먼저 확인한다.' },
+    ], check: '관측 평균을 제품 목표 온도로 사용하지 않는다. 제품별 소둔 조건과 합격 기준은 승인된 현장 기준을 확인한다.', sources: processSources },
+  { id: 'maintenance-records', category: 'maintenance', kind: 'reading', title: '정기수리·돌발정비·계획정지',
+    body: '정기수리는 계획에 따른 보수, 돌발정비는 예기치 않은 문제에 대한 작업이다. 계획정지는 조업 일정상 멈추는 상태로, 그 자체가 설비 고장을 뜻하지 않는다.',
+    sections: [
+      { title: '계획과 실제 시간을 구분', body: '날짜만 있는 계획에는 정확한 작업 구간이 없다. 실제 작업 시작·종료와 대상 장치를 확보하고 감지 구간과 겹치는지 확인한다.' },
+      { title: '강종변경과 재가동', body: '강종·속도·설정 변경 및 재가동 직후에는 전환 추세가 나타날 수 있다. 기록된 전환 범위와 안정화 기준을 대조하고, 범위 밖의 지속 변화는 별도로 확인한다.' },
+      { title: '정비 중에도 확인할 것', body: '센서 분리·교체로 생긴 공백인지 실제 운전값인지 구분한다. 이력을 찾지 못한 상태는 작업이 없었다는 증거가 아니다. 원인·조치·복구 확인을 구분해 기록한다.' },
+    ], check: '실제 작업 시간 + 대상 부품 + 전후 추세 + 복구 결과를 함께 확인한다.' },
+  { id: 'zone-dictionary', category: 'equipment', kind: 'equipment', title: '설비 위치와 센서 코드',
+    body: '하단 구역 버튼으로 위치를 살펴보고 화면 설정의 장비·부품 보기에서 부품을 차례로 선택한다. 선택한 부품은 주변 설비와 구분해서 표시된다.',
+    sections: [
+      { title: 'CLN-IN / Z1·Z2', body: '세정 입측 / 건조 구역. CLN-IN과 TC-Z1·Z2는 서로 다른 측정 위치다.' },
+      { title: 'Z3~Z6 / CP', body: '가열·균열 구역. TC-Z3처럼 TC 뒤의 Z 번호는 구역을 나타낸다. CP-Z4·CP-Z4M은 Z4 관련 별도 계측이다.' },
+      { title: 'Z7~Z9 / OUT', body: '과시효 관련 / 출측 냉각 구역. OP-Z9는 제공되지 않는다. OUT1·OUT2는 서로 다른 관측값이다. 세부 설치 위치는 현장 도면으로 확인한다.' },
+    ], check: '화면 모형의 위치와 실제 현장 설치 위치를 구분한다. 부품 선택 후 관련 채널과 현장 태그를 대조한다.' },
+  { id: 'term-dictionary', category: 'equipment', kind: 'reading', title: '자주 쓰는 용어와 약어',
+    body: '검색창에 코드나 용어를 입력해 해당 설명을 찾을 수 있다.',
+    sections: [
+      { title: 'TC / OP / CP', body: 'TC: 온도 계열 태그. OP: 제어 출력. CP: 탄소 포텐셜. 단위와 정확한 측정 대상은 해당 채널 정의를 확인한다.' },
+      { title: 'LOT / SP', body: 'LOT: 생산·추적 자료를 묶는 식별 단위. SP: 설정값(Set Point). 관측값과 설정값은 서로 다르다.' },
+      { title: '균열(均熱)', body: '온도를 고르게 유지하는 뜻이다. 재료에 금이 가는 균열(crack)과 한자가 다르다.' },
+      { title: '래디언트 튜브 / 복사관', body: '내부 연소로 발생한 열을 복사 등으로 강판에 전달하는 관. 버너와 복사관의 역할을 구분한다.' },
+      { title: '과시효', body: '용질 탄소의 석출 등을 조정하는 열처리 과정. 적용 조건은 제품과 설비에 따라 다르다.' },
+      { title: 'Z-score / σ / 결측', body: 'Z-score는 평균에서 표준편차 단위로 얼마나 떨어졌는지 나타낸다. σ는 표준편차다. 결측은 값이 기록되지 않은 상태이며 숫자 0과 다르다.' },
+    ], check: '약어를 원인이나 정상 판정으로 읽지 않는다. 채널 정의·시각·관련 기록을 함께 확인한다.' },
+]
+
+const allSteps = [...CORE_GUIDE_STEPS, ...TOPIC_GUIDE_STEPS]
+export const GUIDE_STEPS: GuideStep[] = GUIDE_CATEGORIES.flatMap(category => allSteps.filter(step => (step.category ?? 'process') === category.id))
+
+export function searchGuide(query: string) {
+  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return []
+  return GUIDE_STEPS.map((step, index) => ({ step, index })).filter(({ step }) => {
+    const text = [step.title, step.body, step.channel, step.check, ...step.sections?.flatMap(section => [section.title, section.body]) ?? []].join(' ').toLocaleLowerCase()
+    return words.every(word => text.includes(word))
+  })
+}

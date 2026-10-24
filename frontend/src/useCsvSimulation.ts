@@ -3,9 +3,11 @@ import { api, queryString } from './api';
 import type { TimeRange } from './types';
 import type { SimulationFrame } from './live-simulation';
 import { releaseRows } from './live-simulation';
+import { appendLiveTrends, emptyLiveTrends } from './live-trends';
+import type { LiveTrendHistory } from './live-trends';
 
-type Snapshot = { key: string; frames: SimulationFrame[]; count: number; firstFrame: SimulationFrame | null };
-const emptySnapshot = (key: string): Snapshot => ({ key, frames: [], count: 0, firstFrame: null });
+type Snapshot = { key: string; frames: SimulationFrame[]; count: number; firstFrame: SimulationFrame | null; trends: LiveTrendHistory };
+const emptySnapshot = (key: string): Snapshot => ({ key, frames: [], count: 0, firstFrame: null, trends: emptyLiveTrends() });
 
 export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
   const key = `${datasetId}:${range?.start ?? ''}:${range?.end ?? ''}`;
@@ -32,6 +34,7 @@ export function useCsvSimulation(datasetId: string, range: TimeRange | null) {
     received.current += result.arrived.length;
     setSnapshot(previous => ({ key, count: received.current,
       firstFrame: previous.key === key && previous.firstFrame ? previous.firstFrame : result.arrived[0],
+      trends: appendLiveTrends(previous.key === key ? previous.trends : emptyLiveTrends(), result.arrived),
       frames: [...(previous.key === key ? previous.frames : []), ...result.arrived].slice(-1801) }));
   }, [key]);
 

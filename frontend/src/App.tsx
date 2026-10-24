@@ -36,6 +36,9 @@ import ThemedSelect from "./components/ThemedSelect";
 import { measurementGroupId, summarizeMeasurementAttention } from "./components/zone-attention";
 import CPInfo from './components/CPInfo';
 import ProcessGuide from "./components/ProcessGuide";
+import ScreenTutorial from './components/ScreenTutorial';
+import MenuMascot from './components/MenuMascot';
+import { screenTutorial } from './tutorial-data';
 import ResponseGuide from "./components/ResponseGuide";
 import { sceneChannelIds } from "./components/scene-label-groups";
 import type { SceneLabelState } from "./components/scene-label-groups";
@@ -49,6 +52,8 @@ import { measurementName } from "./components/process-readouts";
 
 import { useCsvSimulation } from './useCsvSimulation';
 import LiveSimulationCharts from './LiveSimulationCharts';
+import { liveCoilRange } from './live-trends';
+import { observationRangeText } from './time';
 import { useLiveReview } from './useLiveReview';
 import LiveReviewControls from './LiveReviewControls';
 import ChannelSelectionPanel from './components/ChannelSelectionPanel';
@@ -152,8 +157,11 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     setDrawerWidths(previous => previous[name] === width ? previous : { ...previous, [name]: width });
   }, []);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [tutorialIndex, setTutorialIndex] = useState<number | null>(null);
+  const tutorialContext = useRef<{ drawer: DrawerName; section: 'equipment' | 'channels'; sidebarOpen: boolean; sceneToolsOpen: boolean; focus: HTMLElement | null } | null>(null);
   const [dataMode, setDataMode] = useState<'history' | 'live'>('history');
   const history = dataMode === 'history';
+  const tutorialSteps = useMemo(() => screenTutorial(!history), [history]);
   const [simulationDatasetId, setSimulationDatasetId] = useState('');
   const [historySearchOpen, setHistorySearchOpen] = useState(false);
   const [sceneClose, setSceneClose] = useState(false);
@@ -257,6 +265,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     end: simulationLots.reduce((last, item) => item.end > last ? item.end : last, simulationLots[0].end),
   } : null, [simulationLotsQuery.data]);
   const simulation = useCsvSimulation(simulationDatasetId, simulationRange);
+  const liveObservedRange = useMemo(() => liveCoilRange(simulation.trends), [simulation.trends]);
   const simulationLot = simulationLots.find(item => String(item.lot_no) === simulation.frame?.lot_no);
   const liveReview = useLiveReview(`${simulationDatasetId}:${simulation.runId}`, simulation.firstFrame?.time, simulation.frame?.time, !history);
   const reviewLot = liveReview.following ? simulationLot : simulationLots.find(item => timeMs(item.start) <= liveReview.position && timeMs(item.end) >= liveReview.position)
@@ -428,6 +437,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
   }, [dirty]);
   useEffect(() => {
     const closeOverlay = (event: KeyboardEvent) => {
+      if (tutorialIndex !== null) return;
       if (event.key !== "Escape" || document.fullscreenElement || document.querySelector("dialog[open]")) return;
       if (guideIndex !== null) closeGuide();
       else if (sidebarOpen) setSidebarOpen(false);
@@ -437,7 +447,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     };
     window.addEventListener("keydown", closeOverlay);
     return () => window.removeEventListener("keydown", closeOverlay);
-  }, [guideIndex, sidebarOpen, drawer, sceneToolsOpen]);
+  }, [guideIndex, sidebarOpen, drawer, sceneToolsOpen, tutorialIndex]);
   useEffect(() => {
     const root = workspaceRoot.current;
     if (!root) return;
@@ -711,6 +721,36 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     window.scrollTo({ top: 0, behavior: reducedMotion ? "instant" : "smooth" });
   }
 
+  function moveTutorial(index: number) {
+    const step = tutorialSteps[index];
+    if (!step) return;
+    setTutorialIndex(index);
+    setSidebarOpen(Boolean(step.menu));
+    setDrawer(step.panel ?? null);
+    setSection(step.panel === 'channels' ? 'channels' : 'equipment');
+    setSceneToolsOpen(false);
+  }
+
+  function startTutorial() {
+    if (editing || analysisRunning || guideIndex !== null || requestCandidate || manualRequestOpen || importOpen || historySearchOpen) return;
+    if (workspaceRoot.current?.querySelector('[data-preserve-outside="true"]')) {
+      setMessage({ kind: 'info', text: '작성 중인 내용을 저장하거나 닫은 뒤 튜토리얼을 시작해 주세요.' }); return;
+    }
+    tutorialContext.current = { drawer, section, sidebarOpen, sceneToolsOpen, focus: document.activeElement as HTMLElement | null };
+    moveTutorial(0);
+  }
+
+  function closeTutorial() {
+    const context = tutorialContext.current;
+    setTutorialIndex(null); tutorialContext.current = null;
+    if (!context) return;
+    setDrawer(context.drawer); setSection(context.section); setSidebarOpen(context.sidebarOpen); setSceneToolsOpen(context.sceneToolsOpen);
+    requestAnimationFrame(() => {
+      if (context.focus?.isConnected && context.focus.getClientRects().length) context.focus.focus();
+      else workspaceRoot.current?.querySelector<HTMLButtonElement>('.breadcrumb button')?.focus();
+    });
+  }
+
   function moveGuide(index: number) {
     const step = GUIDE_STEPS[index];
     if (!step) return;
@@ -833,13 +873,15 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
     <PlaybackShortcuts enabled={!history && Number.isFinite(liveReview.latest) && !editing && !analysisRunning && guideIndex === null && !importOpen && !requestCandidate && !manualRequestOpen && !historySearchOpen}
       arrowButtonScope=".live-review-control" onToggle={() => { if (!liveReview.following) liveReview.toggle(); }} onStep={stepLiveReview} />
     <aside className="sidebar" aria-label="작업 메뉴" hidden={!sidebarOpen} onKeyDown={event => { if (event.key === "Escape") setSidebarOpen(false); }}>
-      <div className="sidebar-brand"><Brand compact /><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
+      <div className="sidebar-brand mascot-brand"><strong>연속소둔공정</strong><button className="icon-button sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="메뉴 접기"><PanelLeftClose size={17} /></button></div>
+      <MenuMascot active={sidebarOpen && tutorialIndex === null} />
       <div className="sidebar-section-label">작업 화면</div>
       <nav className="main-navigation">
         <button className={section === "equipment" ? "active" : ""} onClick={() => goToSection("equipment")}><Box size={18} /><span>설비 관제</span><ArrowRight size={14} /></button>
         <button className={section === "channels" ? "active" : ""} onClick={() => goToSection("channels")}><Activity size={18} /><span>채널 확인</span><ArrowRight size={14} /></button>
         <button onClick={() => { if (window.innerWidth <= 760) setSidebarOpen(false); openRequests(); }}><ClipboardList size={18} /><span>팀 확인 요청</span><ArrowRight size={14} /></button>
         <button onClick={() => guideStep ? closeGuide() : startGuide()} disabled={editing || analysisRunning} aria-pressed={guideStep !== null} title="소둔로 공정의 흐름과 설비·계측 용어를 단계별로 살펴봅니다."><BookOpen size={18} /><span>소둔로 공정 가이드</span><ArrowRight size={14} /></button>
+        <button onClick={startTutorial} disabled={editing || analysisRunning || !!guideStep} title="버튼과 구역을 하나씩 따라 보며 화면 사용법을 익힙니다."><Play size={18} /><span>화면 사용 튜토리얼</span><ArrowRight size={14} /></button>
       </nav>
       <div className="sidebar-source" hidden={!history}>
         <div className="sidebar-section-label">불러온 자료</div>
@@ -888,7 +930,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
             <button className="icon-button" aria-label="시연 CSV 불러오기" title="시연 CSV 불러오기" onClick={() => { simulation.pause(); setImportOpen(true); }}><FileUp size={19} /></button></div>
           <ThemedSelect label="시연 CSV" value={simulationDatasetId} onChange={value => { simulation.pause(); setSimulationDatasetId(value); }}
             options={datasets.map(item => ({ value: item.id, label: item.name }))} />
-          <strong>{simulation.frame ? dateTime(simulation.frame.time, true) : simulationDataset ? '첫 관측값을 기다리는 중' : '시연할 CSV를 불러오세요'}</strong>
+          <div className="live-observation-range"><span>관측 시각</span><strong>{liveObservedRange ? observationRangeText(liveObservedRange.start, liveObservedRange.end) : simulationDataset ? '첫 관측값을 기다리는 중' : '시연할 CSV를 불러오세요'}</strong></div>
           <span className="live-lot-material">{simulation.frame ? 'LOT ' + simulation.frame.lot_no + ' · ' + (simulationLot?.grade || simulation.frame.grade || '강종 미연결') : '실제 설비 연결 아님'}</span>
           {simulationLot && <CoilProductInfo key={`${simulationDatasetId}:${simulationLot.lot_no}`} datasetId={simulationDatasetId} lot={simulationLot} disabled={editing || analysisRunning || !!guideStep} onOpen={dismissTransientPanels} />}
           <small>{simulation.count.toLocaleString()}행 수신{simulation.running ? ' 중 · 1초마다 1행' : simulation.ended ? ' 완료' : ''} · 원자료 시각</small>
@@ -908,6 +950,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         {!history && simulationRange && <LiveReviewControls review={liveReview} receiving={simulation.running} ended={simulation.ended}
           onBack={() => reviewLiveTime(Math.max(liveReview.first, liveReview.position - 30_000))} onSeek={reviewLiveTime} onLive={returnToLive} />}
         {guideStep && guideIndex !== null && <ProcessGuide index={guideIndex} onStep={moveGuide} onClose={() => closeGuide()} />}
+        {tutorialIndex !== null && <ScreenTutorial steps={tutorialSteps} index={tutorialIndex} onStep={moveTutorial} onClose={closeTutorial} />}
         <AnimatePresence>{message && <motion.div initial={reducedMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className={`notice ${message.kind}`} role={message.kind === "error" ? "alert" : "status"}>
           {message.kind === "success" ? <Check size={17} /> : <AlertCircle size={17} />}<span>{message.text}</span>{layoutConflict && <button className="text-button" onClick={() => void loadLatestLayout()}>최신 위치 불러오기</button>}<button className="icon-button" onClick={() => setMessage(null)} aria-label="안내 닫기"><X size={15} /></button>
         </motion.div>}</AnimatePresence>
@@ -1026,7 +1069,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
         {history && focusedCandidate && <div className="focused-candidate-actions"><span>선택한 후보 · {focusedCandidate.channel_id} · {dateTime(focusedCandidate.start, true)}</span><button className="primary-button compact" onClick={() => setRequestCandidate(focusedCandidate)}>현장 확인 요청</button></div>}
         <ChannelSelectionPanel key={history ? 'history' : selectedModelEvent?.id ?? 'live'} channels={channels} visibleIds={visibleIds} selectedChannel={selectedChannel} live={!history} onGroup={setChannelGroup}
           onToggle={id => setVisibleIds(previous => previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id])} />
-        {!history ? <><LiveSimulationCharts frames={simulation.frames} firstTime={simulation.firstFrame?.time} cursor={liveReview.time} channels={displayedChannels} selectedChannel={selectedChannel} onSelectChannel={selectChannel}
+        {!history ? <><LiveSimulationCharts frames={simulation.frames} trends={simulation.trends} firstTime={simulation.firstFrame?.time} cursor={liveReview.time} channels={displayedChannels} selectedChannel={selectedChannel} onSelectChannel={selectChannel}
           datasetId={simulationDatasetId} focus={modelGraphRange} focusLot={selectedModelEvent?.lot_no ?? reviewLot?.lot_no} event={selectedModelEvent}
           onRange={changeLiveGraphRange} onCursor={time => liveReview.seek(time)} onLive={returnToLive} onRequest={requestModelInspection} />
           <LivePredictionsPanel model={liveModel} {...liveDetection} selectedEvent={selectedModelEvent} onEvent={focusModelEvent} onRequest={requestModelInspection} onRetry={liveDetection.retry} /></> : lot && view ? <>
