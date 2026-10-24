@@ -12,6 +12,7 @@ from .channels import CHANNEL_BY_ID, CHANNEL_IDS, CHANNELS, ZONE_IDS
 from .models import Dataset, EquipmentLayout, EquipmentLayoutHistory, LotSummary, MeasurementFrame
 from .materials import MATERIAL_GRADES, lot_material
 from .series import make_series, number_or_none, recorded_time
+from .presentation import is_presentation_viewer, require_presentation_dataset, scope_datasets
 
 TIME_BASIS = {"mode": "historical", "time_basis": "source_recorded_clock", "source_timezone": None}
 
@@ -21,6 +22,7 @@ def selected_dataset(request):
         dataset_id = uuid.UUID(request.query_params.get("dataset", ""))
     except (ValueError, AttributeError):
         raise ValidationError({"dataset": "사용할 데이터 묶음을 선택해 주세요."})
+    require_presentation_dataset(request.user, dataset_id)
     return get_object_or_404(Dataset, pk=dataset_id, status=Dataset.Status.READY)
 
 
@@ -41,7 +43,7 @@ def selected_channels(request):
 
 @api_view(["GET"])
 def datasets(request):
-    items = Dataset.objects.filter(status=Dataset.Status.READY).order_by("-created_at")
+    items = scope_datasets(request.user, Dataset.objects.filter(status=Dataset.Status.READY)).order_by("-created_at")
     return Response({"datasets": list(items.values("id", "name", "row_count", "status"))})
 
 
@@ -200,7 +202,10 @@ def validate_placements(data):
 def equipment_layout(request):
     model_version = settings.CAL01_MODEL_VERSION
     if request.method == "GET":
-        layout, _ = EquipmentLayout.objects.get_or_create(model_version=model_version)
+        if is_presentation_viewer(request.user):
+            layout = EquipmentLayout.objects.filter(model_version=model_version).first() or EquipmentLayout(model_version=model_version)
+        else:
+            layout, _ = EquipmentLayout.objects.get_or_create(model_version=model_version)
         return Response(layout_result(layout))
     if not (request.user.is_staff or request.user.has_perm("monitor.change_equipmentlayout")):
         raise PermissionDenied("채널 위치를 수정할 권한이 없습니다.")

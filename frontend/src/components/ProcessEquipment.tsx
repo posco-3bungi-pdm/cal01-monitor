@@ -3,6 +3,10 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { HologramMaterial, IndustrialMaterial, PartSelectionContext, PartXrayContext, type FurnaceAppearance } from './furnace-appearance'
 import { PART_CATALOG } from './part-catalog'
+import { HEATING_PART_VIEWS } from './heating-equipment-data'
+
+// These heating models are rendered separately from the five process components.
+const SEPARATE_HEATING_PART_IDS = new Set<string>(HEATING_PART_VIEWS.map(part => part.id))
 
 type Position = [number, number, number]
 type EquipmentProps = {
@@ -252,7 +256,7 @@ export default function ProcessEquipment({
       appearance={appearance} radius={0.035} color="#778e90" />
     <Pipe points={[[-2.42, 2.14, 3.2], [-2.42, 2.14, 4.0], [-2.62, 2.14, 4.0]]}
       appearance={appearance} radius={0.05} />
-    {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => {
+    {PART_CATALOG.filter(part => !SEPARATE_HEATING_PART_IDS.has(part.id)).map(part => {
       const selected = selectedPartId === part.id
       const selectedAppearance = appearance === 'realistic' ? 'hologram' : 'realistic'
       const partAppearance = selected ? selectedAppearance : appearance

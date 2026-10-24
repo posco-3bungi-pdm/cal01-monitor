@@ -17,6 +17,11 @@ services:
         value: cloud
       - key: CAL01_REQUIRE_RESTORED_DB
         value: "1"
+      - key: CAL01_PRESENTATION_ENABLED
+        value: "1"
+      - key: CAL01_PRESENTATION_DATASET_IDS
+        # Only the 86,400-row presentation simulation; private datasets stay hidden.
+        value: "2c79f856-81ac-43b5-b886-c68f07447f8c"
       - key: CAL01_EXPECTED_DATASET_SHA256
         sync: false
       - key: DJANGO_SECRET_KEY

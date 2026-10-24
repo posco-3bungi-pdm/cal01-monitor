@@ -2,6 +2,7 @@ import os
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
+from uuid import UUID
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -64,6 +65,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "monitor.presentation_middleware.PresentationReadOnlyMiddleware",
     "monitor.upload_limits.CsvUploadLimitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -155,7 +157,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "DEFAULT_PERMISSION_CLASSES": ["monitor.permissions.AuthenticatedPresentationAccess"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
 }
@@ -176,3 +178,16 @@ if CAL01_EXPECTED_DATASET_SHA256 and not re.fullmatch(r"[0-9a-f]{64}", CAL01_EXP
 CAL01_MODEL_VERSION = "cal01-concept-v1"
 CAL01_UPLOAD_MAX_BYTES = 512 * 1024 * 1024
 CAL01_UPLOAD_MAX_ROWS = 500_000
+
+presentation_enabled = os.environ.get("CAL01_PRESENTATION_ENABLED", "0")
+if presentation_enabled not in {"0", "1"}:
+    raise ImproperlyConfigured("CAL01_PRESENTATION_ENABLED must be 0 or 1.")
+CAL01_PRESENTATION_ENABLED = presentation_enabled == "1"
+
+try:
+    CAL01_PRESENTATION_DATASET_IDS = tuple(dict.fromkeys(
+        str(UUID(value.strip()))
+        for value in os.environ.get("CAL01_PRESENTATION_DATASET_IDS", "").split(",") if value.strip()
+    ))
+except ValueError:
+    raise ImproperlyConfigured("CAL01_PRESENTATION_DATASET_IDS must contain only comma-separated dataset UUIDs.") from None

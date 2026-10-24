@@ -5,6 +5,7 @@ export type User = {
   team: string;
   is_admin: boolean;
   can_edit_layout: boolean;
+  read_only?: boolean;
 };
 export type Dataset = { id: string; name: string; row_count: number; status: string };
 export type MaterialGrade = { grade: string; color: string; family: string; characteristics: string; description: string; sources: { title: string; url: string }[] };

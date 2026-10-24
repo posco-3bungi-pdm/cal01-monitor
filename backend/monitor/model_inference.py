@@ -17,6 +17,7 @@ from .model_features import build_features
 from .model_registry import ModelRegistryError, load_selected_model, load_zscore_rule, public_manifest, select_model
 from .models import Dataset, LotSummary, MeasurementFrame
 from .workflow_views import require_team
+from .presentation import require_presentation_dataset
 
 
 _contexts = OrderedDict()
@@ -201,7 +202,7 @@ def infer_closed_minutes(dataset, lot, watermark, model, end_of_stream=False):
 
 @api_view(["GET"])
 def model_manifest(request):
-    require_team(request.user)
+    require_team(request.user, read_only=True)
     try:
         return Response(public_manifest())
     except ModelRegistryError:
@@ -210,7 +211,7 @@ def model_manifest(request):
 
 @api_view(["POST"])
 def model_predictions(request):
-    require_team(request.user)
+    require_team(request.user, read_only=True)
     data = request.data
     if not isinstance(data, dict):
         raise ValidationError("데이터와 도착한 행을 지정해 주세요.")
@@ -227,6 +228,7 @@ def model_predictions(request):
     end = data.get("end_of_stream", False)
     if not isinstance(end, bool):
         raise ValidationError({"end_of_stream": "참·거짓 값으로 보내 주세요."})
+    require_presentation_dataset(request.user, dataset_id)
     dataset = get_object_or_404(Dataset, pk=dataset_id, status=Dataset.Status.READY)
     ignored = dataset.metadata.get("unimported_columns", [])
     if any(isinstance(name, str) and name.endswith(("__MIN", "__MAX", "__STD")) for name in ignored):

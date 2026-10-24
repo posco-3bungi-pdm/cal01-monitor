@@ -17,15 +17,16 @@ function RecordList({ rows, through }: { rows: ContextRecord[]; through?: string
   </li>)}</ul>
 }
 
-export default function IncidentInvestigation({ datasetId, zoneId, channelIds, range, receivedThrough }: {
-  datasetId: string; zoneId: string; channelIds: string[]; range: TimeRange; receivedThrough?: string;
+export default function IncidentInvestigation({ datasetId, zoneId, channelIds, range, receivedThrough, readOnly = false }: {
+  datasetId: string; zoneId: string; channelIds: string[]; range: TimeRange; receivedThrough?: string; readOnly?: boolean;
 }) {
   const window = investigationWindow(range, receivedThrough)
   const query = useQuery({
-    queryKey: ['incident-context', datasetId, range.start, range.end, Boolean(receivedThrough)], enabled: !!datasetId,
+    queryKey: ['incident-context', datasetId, range.start, range.end, Boolean(receivedThrough)], enabled: !!datasetId && !readOnly,
     queryFn: ({ signal }) => api<ContextRecordsResponse>('/api/records?' + queryString({ dataset: datasetId, ...window }), { signal }),
     staleTime: 60_000, refetchInterval: 60_000,
   })
+  if (readOnly) return <section className="incident-investigation" aria-label="발표 자료 범위"><p>관람 화면에는 발표용 데이터만 표시합니다.</p></section>
   const groups = relatedRecords(query.data?.records ?? [], range, receivedThrough)
   const linked = !!query.data && (query.data.records.length > 0 || (query.data.source_exports?.length ?? 0) > 0)
   const status = query.isPending ? '정비·조업 이력 확인 중' : query.error ? '이력 조회 실패 · 정비 여부 미확인' : !linked ? '정비·조업 이력 미연결' : groups.overlapping.length ? `같은 시간의 작업·조업 기록 ${groups.overlapping.length}건` : groups.plans.length ? '정비 계획 있음 · 실제 작업 여부 미확인' : groups.dated.length ? '같은 날짜의 기록 있음 · 발생 시각 미확인' : '겹치는 작업·조업 기록 없음'
@@ -51,7 +52,7 @@ export default function IncidentInvestigation({ datasetId, zoneId, channelIds, r
     </details>
     <details><summary>원인 확인에 필요한 자료·협업</summary><p>아래 자료는 추가 확인 항목입니다. 현재 연결·검증된 것으로 간주하지 않습니다.</p>
       <dl className="investigation-teams">{guide.teams.map(item => <div key={item.team}><dt>{item.team}</dt><dd>{item.data}</dd></div>)}</dl>
-      <p>아래 점검 요청에서 발생 구간과 관측한 변화, 대조한 기록 번호, 아직 없는 자료를 함께 전달하세요.</p>
+      <p>{readOnly ? '팀이 남긴 점검 요청과 결과를 함께 확인하세요.' : '아래 점검 요청에서 발생 구간과 관측한 변화, 대조한 기록 번호, 아직 없는 자료를 함께 전달하세요.'}</p>
     </details>
   </section>
 }
