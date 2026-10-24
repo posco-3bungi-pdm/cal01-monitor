@@ -9,22 +9,28 @@ from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.cache import never_cache
+
+from .presentation import USERNAME as PRESENTATION_USERNAME, enter_presentation, is_presentation_viewer, issue_ticket, presentation_enabled
 
 from config.restored_database import RestoredDatabaseRequired, require_restored_database
 
 
 def user_details(user):
     groups = set(user.groups.values_list("name", flat=True))
+    read_only = is_presentation_viewer(user)
     return {
         "username": user.username,
         "display_name": user.first_name or user.username,
-        "team": "monitoring" if "monitoring" in groups else ("field" if "field" in groups else None),
-        "is_admin": user.is_staff or user.is_superuser,
-        "can_edit_layout": user.is_staff or user.has_perm("monitor.change_equipmentlayout"),
+        "team": "viewer" if read_only else ("monitoring" if "monitoring" in groups else ("field" if "field" in groups else None)),
+        "read_only": read_only,
+        "is_admin": not read_only and (user.is_staff or user.is_superuser),
+        "can_edit_layout": not read_only and (user.is_staff or user.has_perm("monitor.change_equipmentlayout")),
     }
 
 
 @require_GET
+@never_cache
 @ensure_csrf_cookie
 def csrf(request):
     return JsonResponse({"csrfToken": get_token(request)})
@@ -61,6 +67,7 @@ def failure_keys(request, username):
 
 
 @require_POST
+@never_cache
 @csrf_protect
 def login_view(request):
     try:
@@ -74,6 +81,11 @@ def login_view(request):
         return JsonResponse({"detail": "아이디와 비밀번호를 입력해 주세요."}, status=400)
     if not username or len(username) > 150 or len(password) > 1024:
         return JsonResponse({"detail": "아이디 또는 비밀번호를 확인해 주세요."}, status=400)
+    if username.strip().casefold() == PRESENTATION_USERNAME:
+        status, result = enter_presentation(request, password)
+        if status != 200:
+            return JsonResponse(result, status=status)
+        return JsonResponse({"user": user_details(result), "csrfToken": get_token(request)})
     keys = failure_keys(request, username)
     if any(cache.get(key, 0) >= settings.LOGIN_FAILURE_LIMIT for key in keys):
         return JsonResponse({"detail": "로그인 시도가 많습니다. 잠시 후 다시 시도해 주세요."}, status=429)
@@ -92,6 +104,7 @@ def login_view(request):
 
 
 @require_POST
+@never_cache
 @csrf_protect
 def logout_view(request):
     logout(request)
@@ -99,7 +112,17 @@ def logout_view(request):
 
 
 @require_GET
+@never_cache
 def me(request):
     if not request.user.is_authenticated:
         return JsonResponse({"detail": "로그인이 필요합니다."}, status=401)
     return JsonResponse({"user": user_details(request.user)})
+
+
+@require_GET
+@never_cache
+@ensure_csrf_cookie
+def presentation_login(request):
+    if not presentation_enabled():
+        return JsonResponse({"detail": "발표 입장이 꺼져 있습니다."}, status=404)
+    return JsonResponse(issue_ticket(request))

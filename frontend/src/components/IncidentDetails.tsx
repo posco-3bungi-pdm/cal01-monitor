@@ -39,9 +39,9 @@ function IncidentTrend({ candidate, data, view, onCursor }: { candidate: Detecti
 }
 
 export default function IncidentDetails({ candidate, zoneCandidates, channel, data, view, loading, error, pending, onSelect,
-  onRead, onGuide, onRequest, onOpenRequest, onResolve, onRange, onCursor }: {
+  onRead, onGuide, onRequest, onOpenRequest, onResolve, onRange, onCursor, readOnly = false }: {
   candidate: DetectionCandidate; zoneCandidates: DetectionCandidate[]; channel?: Channel; data?: ChannelSeries; view: TimeRange
-  loading: boolean; error: unknown; pending: boolean; onSelect: (item: DetectionCandidate) => void
+  readOnly?: boolean; loading: boolean; error: unknown; pending: boolean; onSelect: (item: DetectionCandidate) => void
   onRead: () => void; onGuide: () => void; onRequest: () => void; onOpenRequest: (id: string) => void
   onResolve: (note: string) => Promise<void>; onRange: (mode: 'candidate' | 'context' | 'lot') => void; onCursor: (time: string) => void
 }) {
@@ -55,11 +55,11 @@ export default function IncidentDetails({ candidate, zoneCandidates, channel, da
     <div className="incident-range-buttons" role="group" aria-label="이상 그래프 표시 범위"><button onClick={() => onRange('candidate')}>후보 구간</button><button onClick={() => onRange('context')}>앞뒤 5분</button><button onClick={() => onRange('lot')}>LOT 전체</button></div>
     {error ? <p className="form-error" role="alert">그래프를 불러오지 못했습니다.</p> : loading ? <p className="incident-no-data"><LoaderCircle size={16} className="spin" />관측값 불러오는 중</p> : <IncidentTrend candidate={candidate} data={data} view={view} onCursor={onCursor} />}
     <section className="incident-statistical-reason"><strong>통계적 감지 근거</strong><p>이 LOT에서 {candidate.channel_id}의 비교 기준은 <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.lower} unit={channel?.unit} /> ~ <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.upper} unit={channel?.unit} />입니다. 구간 내 최대 이탈은 |Z| {numberText(Math.abs(candidate.peak_z))}입니다.</p><small>LOT 전체 평균·표준편차 기준 · 목표값이나 운전 허용 한계와는 별도로 확인</small></section>
-    <IncidentInvestigation datasetId={candidate.dataset_id} zoneId={candidate.zone_id} channelIds={[candidate.channel_id]} range={candidate} />
-    <div className="incident-actions"><button className="subtle-button" onClick={onGuide}><BookOpen size={15} />대응 가이드</button>{!candidate.acknowledged && <button className="subtle-button" disabled={pending} onClick={onRead}><Check size={15} />읽음 표시</button>}
-      {!candidate.resolved && <button className="subtle-button" onClick={() => candidate.open_request ? onOpenRequest(candidate.open_request.id) : onRequest()}><ClipboardList size={15} />{candidate.open_request ? '진행 중인 점검 요청' : '점검 요청'}</button>}
+    <IncidentInvestigation readOnly={readOnly} datasetId={candidate.dataset_id} zoneId={candidate.zone_id} channelIds={[candidate.channel_id]} range={candidate} />
+    <div className="incident-actions"><button className="subtle-button" onClick={onGuide}><BookOpen size={15} />대응 가이드</button>{!readOnly && !candidate.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => { if (!readOnly) onRead(); }}><Check size={15} />읽음 표시</button>}
+      {!candidate.resolved && (candidate.open_request || !readOnly) && <button className="subtle-button" onClick={() => { if (candidate.open_request) onOpenRequest(candidate.open_request.id); else if (!readOnly) onRequest(); }}><ClipboardList size={15} />{candidate.open_request ? '진행 중인 점검 요청' : '점검 요청'}</button>}
     </div>
-    {candidate.resolved ? <section className="incident-resolution"><strong>저장된 조치 기록</strong><p>{candidate.resolution_note}</p><small>{candidate.resolved_by} · {candidate.resolved_at?.replace('T', ' ').slice(0, 19)}</small></section> : candidate.open_request ? <p className="incident-explanation">점검 결과를 등록하고 요청의 최종 확인을 완료하면 강조가 내려갑니다.</p> : !writing ? <button className="primary-button" onClick={() => setWriting(true)}>조치 완료 기록</button> : <form className="incident-resolution-form" onSubmit={async event => { event.preventDefault(); setFailure(''); try { await onResolve(note); setWriting(false); setNote('') } catch (error) { setFailure(error instanceof Error ? error.message : '조치 기록을 저장하지 못했습니다.') } }}>
+    {candidate.resolved ? <section className="incident-resolution"><strong>저장된 조치 기록</strong><p>{candidate.resolution_note}</p><small>{candidate.resolved_by} · {candidate.resolved_at?.replace('T', ' ').slice(0, 19)}</small></section> : candidate.open_request ? <p className="incident-explanation">점검 결과를 등록하고 요청의 최종 확인을 완료하면 강조가 내려갑니다.</p> : readOnly ? null : !writing ? <button className="primary-button" onClick={() => { if (!readOnly) setWriting(true); }}>조치 완료 기록</button> : <form className="incident-resolution-form" onSubmit={async event => { event.preventDefault(); if (readOnly) return; setFailure(''); try { await onResolve(note); setWriting(false); setNote('') } catch (error) { setFailure(error instanceof Error ? error.message : '조치 기록을 저장하지 못했습니다.') } }}>
       <label>확인·조치한 내용<textarea value={note} onChange={event => setNote(event.target.value)} required maxLength={4000} disabled={pending} placeholder="확인 결과와 실제 조치 내용을 기록하십시오." /></label>{failure && <p className="form-error" role="alert">{failure}</p>}
       <div><button type="button" className="subtle-button" disabled={pending} onClick={() => { setWriting(false); setNote(''); setFailure('') }}>취소</button><button className="primary-button" disabled={pending || !note.trim()}>{pending ? '저장 중' : '기록 저장·강조 종료'}</button></div>
     </form>}

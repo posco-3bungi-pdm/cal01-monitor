@@ -15,12 +15,12 @@ export type EquipmentAlertData = {
 };
 
 // Render only from an actual detection event. CSV labels do not activate this component.
-export default function EquipmentAlert({ alert, onAcknowledge, onFocus, onGuide, pending = false }: {
+export default function EquipmentAlert({ alert, onAcknowledge, onFocus, onGuide, pending = false, readOnly = false }: {
   alert: EquipmentAlertData;
   onAcknowledge: (id: string) => void;
   onFocus: (alert: EquipmentAlertData) => void;
   onGuide: () => void;
-  pending?: boolean;
+  pending?: boolean; readOnly?: boolean;
 }) {
   return <>
     {!alert.acknowledged && <div className="warning-edge-pulse" aria-hidden="true" />}
@@ -35,7 +35,7 @@ export default function EquipmentAlert({ alert, onAcknowledge, onFocus, onGuide,
       </div>
       <div className="equipment-alert-actions"><button className="subtle-button" onClick={() => onFocus(alert)}><Crosshair size={16} />구간 보기</button>
         <button className="subtle-button" onClick={onGuide}><BookOpen size={16} />대응 가이드</button>
-        {!alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => onAcknowledge(alert.id)}><Check size={16} />{pending ? "저장 중" : "확인"}</button>}
+        {!readOnly && !alert.acknowledged && <button className="subtle-button" disabled={pending} onClick={() => { if (!readOnly) onAcknowledge(alert.id); }}><Check size={16} />{pending ? "저장 중" : "확인"}</button>}
       </div>
     </section>
   </>;

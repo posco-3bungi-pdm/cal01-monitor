@@ -14,6 +14,7 @@ from .detection_models import AnomalyCandidate, CandidatePoint, DetectionRun
 from .models import Dataset, LotSummary, MeasurementFrame
 from .views import selected_dataset, selected_lot
 from .workflow_views import require_team
+from .presentation import is_presentation_viewer, presentation_dataset_ids
 from .workflow_models import FieldRequest
 from .candidate_actions import record_resolution
 
@@ -95,7 +96,7 @@ def parse_config(data, dataset):
 
 @api_view(["GET", "POST"])
 def runs(request):
-    require_team(request.user)
+    require_team(request.user, read_only=request.method in {"GET", "HEAD", "OPTIONS"})
     if request.method == "GET":
         dataset = selected_dataset(request)
         lot = selected_lot(request, dataset)
@@ -157,7 +158,7 @@ def runs(request):
 
 @api_view(["GET"])
 def candidates(request):
-    require_team(request.user)
+    require_team(request.user, read_only=True)
     dataset = selected_dataset(request)
     lot = selected_lot(request, dataset)
     items = AnomalyCandidate.objects.filter(run__dataset=dataset, run__lot_no=lot.lot_no)
@@ -175,8 +176,10 @@ def candidates(request):
 
 @api_view(["GET"])
 def pending_candidates(request):
-    require_team(request.user)
+    require_team(request.user, read_only=True)
     items = candidate_queryset().filter(resolved=False, run__dataset__status="ready").order_by("acknowledged", "-run__created_at", "start", "id")
+    if is_presentation_viewer(request.user):
+        items = items.filter(run__dataset_id__in=presentation_dataset_ids())
     count = items.count()
     return Response({"candidates": [candidate_result(item) for item in items[:500]], "count": count, "truncated": count > 500})
 

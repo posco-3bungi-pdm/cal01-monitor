@@ -1,15 +1,18 @@
 from django.db.models import Q
 from rest_framework.decorators import api_view
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
 from .models import OperationalRecord
 from .series import recorded_time
 from .views import selected_dataset
+from .presentation import is_presentation_viewer
 
 
 @api_view(["GET"])
 def records(request):
+    if is_presentation_viewer(request.user):
+        raise PermissionDenied("관람 계정에는 실제 조업·정비 기록을 공개하지 않습니다.")
     dataset = selected_dataset(request)
     start = recorded_time(request.query_params.get("start"), "start")
     end = recorded_time(request.query_params.get("end"), "end")

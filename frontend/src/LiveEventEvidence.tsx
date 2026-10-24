@@ -7,9 +7,9 @@ import { observedEventChanges } from './live-evidence'
 import ReadingValue from './components/ReadingValue'
 import IncidentInvestigation from './components/IncidentInvestigation'
 
-export default function LiveEventEvidence({ event, series, channels, aggregated, datasetId, receivedThrough, onRequest }: {
+export default function LiveEventEvidence({ event, series, channels, aggregated, datasetId, receivedThrough, onRequest, readOnly = false }: {
   event: ModelEvent; series: ChannelSeries[]; channels: Channel[]; aggregated: boolean; onRequest: () => void;
-  datasetId: string; receivedThrough?: string;
+  datasetId: string; receivedThrough?: string; readOnly?: boolean;
 }) {
   const rows = observedEventChanges(series, event), forest = event.kind === 'RandomForest'
   return <section className="live-event-evidence" aria-label="선택한 이상 구간과 감지 근거">
@@ -28,7 +28,7 @@ export default function LiveEventEvidence({ event, series, channels, aggregated,
     </div>
     <p className="live-evidence-note">그래프의 붉은 영역은 감지 구간, 점은 구간 내 비교값과 가장 차이 나는 관측값입니다. 관측 변화는 원인 채널의 확정이 아닙니다. {forest ? '분류 점수는 고장 확률이 아닙니다.' : ''}</p>
     {event.evidence && <details className="event-model-basis"><summary>모델 판단 기준</summary><p>{event.evidence}</p></details>}
-    <IncidentInvestigation datasetId={datasetId} zoneId={event.zone_id} channelIds={event.channel_ids} range={event} receivedThrough={receivedThrough} />
-    <button className="subtle-button" onClick={onRequest}><ClipboardList size={16} />이 구간 점검 요청</button>
+    <IncidentInvestigation datasetId={datasetId} zoneId={event.zone_id} channelIds={event.channel_ids} range={event} receivedThrough={receivedThrough} readOnly={readOnly} />
+    {!readOnly && <button className="subtle-button" onClick={() => { if (!readOnly) onRequest() }}><ClipboardList size={16} />이 구간 점검 요청</button>}
   </section>
 }

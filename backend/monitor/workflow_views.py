@@ -11,6 +11,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from .presentation import GROUP as PRESENTATION_GROUP, is_presentation_viewer, presentation_enabled, valid_presentation_user, presentation_dataset_ids
 from .detection_models import AnomalyCandidate
 from .channels import CHANNEL_BY_ID
 from .models import Dataset, LotSummary
@@ -27,15 +28,26 @@ def is_admin(user):
     return user.is_staff or user.is_superuser
 
 
-def require_team(user, team=None):
+def require_team(user, team=None, *, read_only=False):
+    if is_presentation_viewer(user):
+        if read_only and presentation_enabled() and valid_presentation_user(user):
+            return {PRESENTATION_GROUP}
+        raise PermissionDenied("관람 계정은 조회와 시뮬레이션만 사용할 수 있습니다.")
     groups = team_names(user)
     if not is_admin(user) and (team not in groups if team else not groups):
         raise PermissionDenied("이 작업을 할 수 있는 팀 계정이 아닙니다.")
     return groups
 
 
-def request_queryset():
-    return FieldRequest.objects.select_related("candidate__run", "requested_by", "assigned_to")
+def request_queryset(user=None):
+    queryset = FieldRequest.objects.select_related("candidate__run", "requested_by", "assigned_to")
+    if user is not None and is_presentation_viewer(user):
+        public_ids = presentation_dataset_ids()
+        queryset = queryset.filter(
+            Q(candidate__isnull=True, dataset_id__in=public_ids)
+            | Q(candidate__isnull=False, candidate__run__dataset_id__in=public_ids)
+        )
+    return queryset
 
 
 def request_result(item):
@@ -86,9 +98,9 @@ def manual_request_context(data):
 
 @api_view(["GET", "POST"])
 def field_requests(request):
-    require_team(request.user)
+    require_team(request.user, read_only=request.method in {"GET", "HEAD", "OPTIONS"})
     if request.method == "GET":
-        queryset = request_queryset()
+        queryset = request_queryset(request.user)
         status = request.query_params.get("status")
         if status is not None:
             if status not in FieldRequest.Status.values:
@@ -126,7 +138,7 @@ def field_requests(request):
         if receipt:
             if receipt.payload_hash != fingerprint:
                 return Response({"detail": "같은 요청 키로 다른 내용을 보낼 수 없습니다."}, status=409)
-            item = request_queryset().get(pk=receipt.request_id)
+            item = request_queryset(request.user).get(pk=receipt.request_id)
             return Response({"request": request_result(item), "reused": True})
         candidate = None
         if candidate_id:
@@ -135,9 +147,9 @@ def field_requests(request):
                 AnomalyCandidate.objects.select_for_update(of=("self",), no_key=True).select_related("run"),
                 pk=candidate_id,
             )
-            matches = request_queryset().filter(candidate=candidate)
+            matches = request_queryset(request.user).filter(candidate=candidate)
         else:
-            matches = request_queryset().filter(candidate__isnull=True, requested_by=request.user, message=message, **manual)
+            matches = request_queryset(request.user).filter(candidate__isnull=True, requested_by=request.user, message=message, **manual)
         existing = matches.exclude(status=FieldRequest.Status.CLOSED).first()
         if existing:
             return Response({
@@ -164,8 +176,8 @@ def field_requests(request):
 
 @api_view(["GET"])
 def field_request_detail(request, request_id):
-    require_team(request.user)
-    item = get_object_or_404(request_queryset(), pk=request_id)
+    require_team(request.user, read_only=True)
+    item = get_object_or_404(request_queryset(request.user), pk=request_id)
     return Response({
         "request": request_result(item),
         "history": [history_result(event) for event in item.history.select_related("actor")],
@@ -192,7 +204,7 @@ def transition(request, request_id):
     }
     with transaction.atomic():
         # Avoid locking nullable select_related users with PostgreSQL FOR UPDATE.
-        item = get_object_or_404(request_queryset().select_for_update(of=("self",)), pk=request_id)
+        item = get_object_or_404(request_queryset(request.user).select_for_update(of=("self",)), pk=request_id)
         if item.revision != revision:
             return Response({
                 "detail": "다른 팀원이 먼저 수정했습니다. 현재 내용을 확인해 주세요.",
@@ -229,7 +241,9 @@ def transition(request, request_id):
 
 @api_view(["GET"])
 def field_users(request):
-    require_team(request.user)
+    require_team(request.user, read_only=True)
+    if is_presentation_viewer(request.user):
+        return Response({"users": []})
     users = get_user_model().objects.filter(is_active=True, groups__name="field").distinct().order_by("username")
     return Response({"users": [user_summary(user) for user in users]})
 
@@ -246,9 +260,12 @@ def _integer_query(request, name, default, minimum, maximum):
 
 @api_view(["GET"])
 def notifications(request):
-    groups = require_team(request.user)
+    groups = require_team(request.user, read_only=True)
     after = _integer_query(request, "after", 0, 0, 9223372036854775807)
     limit = _integer_query(request, "limit", 100, 1, 100)
+    if is_presentation_viewer(request.user):
+        # Team notifications can contain operational context unrelated to the demo.
+        return Response({"notifications": [], "last_id": after, "has_more": False})
     queryset = Notification.objects.filter(id__gt=after)
     if not is_admin(request.user):
         queryset = queryset.filter(Q(recipient_team="all") | Q(recipient_team__in=groups))
