@@ -3,11 +3,11 @@ services:
     name: cal01-monitor
     runtime: docker
     repo: https://github.com/posco-3bungi-pdm/cal01-monitor
-    branch: fix/32-team-server-ui-namelesspark
+    branch: main
     region: singapore
     plan: 0.5c-512mb
     numInstances: 1
-    autoDeployTrigger: "off"
+    autoDeployTrigger: commit
     dockerfilePath: ./Dockerfile
     dockerContext: .
     preDeployCommand: python manage.py prepare_deployment
