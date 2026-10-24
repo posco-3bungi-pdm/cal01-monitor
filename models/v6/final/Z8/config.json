@@ -1,0 +1,84 @@
+{
+ "model_ids": {
+  "rf_all14": "cal01-v6-final-Z8-rf-all14-20261024",
+  "rf_fold13": "cal01-v6-final-Z8-rf-fold13-20261024",
+  "iso_all14": "cal01-v6-final-Z8-iso-all14-20261024"
+ },
+ "label_version": "v6",
+ "input_tag": "final",
+ "input_tail": "_common_roll10_zpast_opcommon_furnace_control",
+ "zone": "Z8",
+ "zone_sensors": [
+  "TC-Z8",
+  "OP-Z8"
+ ],
+ "data_file": "cal01_base_v6.csv",
+ "data_sha256": "8fd6c740f868005f376457a7e8554655ce08b157bdad5d21cb45cde5c5663570",
+ "switches": {
+  "common": true,
+  "sat": false,
+  "elapsed": false,
+  "roll10": true,
+  "rate": false,
+  "zpast": true,
+  "opcommon": true,
+  "furnace": true,
+  "control": true
+ },
+ "params": {
+  "RandomForest": {
+   "n_estimators": 100,
+   "max_depth": 10,
+   "class_weight": "balanced",
+   "random_state": 42
+  },
+  "IsolationForest": {
+   "n_estimators": 100,
+   "contamination": 0.006961,
+   "random_state": 42
+  }
+ },
+ "label_rule": "DOMAIN_LABEL이 있으면 그 값, 없으면 STAT_LABEL. EXCLUDED 행과 라벨 빈 행은 뺌",
+ "rows": 5603,
+ "label_1_rate": 0.006961,
+ "feature_count": 26,
+ "train_lots_all14": [
+  240001,
+  240024,
+  240037,
+  240038,
+  240044,
+  240058,
+  240061,
+  240069,
+  240091,
+  240108,
+  240114,
+  240117,
+  240121,
+  240133
+ ],
+ "train_lots_fold13": [
+  240001,
+  240024,
+  240037,
+  240038,
+  240044,
+  240058,
+  240061,
+  240069,
+  240091,
+  240108,
+  240114,
+  240117,
+  240121
+ ],
+ "fold13_test_lot": 240133,
+ "fold13_reproduced": true,
+ "fold13_same_minutes": 107,
+ "fold13_total_minutes": 107,
+ "evidence": "팀 판단 0만 있음: 전 구역 검토(v6 S). 1은 통계 후보",
+ "sklearn": "1.9.1",
+ "python": "3.14.8",
+ "created": "20261024"
+}

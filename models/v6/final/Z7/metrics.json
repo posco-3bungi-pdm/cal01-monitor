@@ -1,0 +1,44 @@
+{
+ "source": "cal01_base_v6_Z7_common_roll10_zpast_opcommon_furnace_control_summary.csv",
+ "method": "시간순 걷기, 첫 4 LOT 학습, 시험 10번 합산",
+ "Dummy (전부 0)": {
+  "F1": 0.0,
+  "Precision": 0.0,
+  "Recall": 0.0,
+  "TP": 0,
+  "FP": 0,
+  "FN": 40,
+  "LABEL_1": 40,
+  "rows": 3633
+ },
+ "Z-score (지난 값)": {
+  "F1": 0.4222,
+  "Precision": 0.38,
+  "Recall": 0.475,
+  "TP": 19,
+  "FP": 31,
+  "FN": 21,
+  "LABEL_1": 40,
+  "rows": 3633
+ },
+ "IsolationForest": {
+  "F1": 0.2857,
+  "Precision": 0.2093,
+  "Recall": 0.45,
+  "TP": 18,
+  "FP": 68,
+  "FN": 22,
+  "LABEL_1": 40,
+  "rows": 3633
+ },
+ "RandomForest": {
+  "F1": 0.2895,
+  "Precision": 0.1964,
+  "Recall": 0.55,
+  "TP": 22,
+  "FP": 90,
+  "FN": 18,
+  "LABEL_1": 40,
+  "rows": 3633
+ }
+}

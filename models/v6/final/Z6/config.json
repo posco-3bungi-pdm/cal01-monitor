@@ -13,7 +13,7 @@
   "OP-Z6"
  ],
  "data_file": "cal01_base_v6.csv",
- "data_sha256": "97366f18d4dc9383a29ee05960e6abbbf52d9003bbd7a9b7e3288cfef417e471",
+ "data_sha256": "8fd6c740f868005f376457a7e8554655ce08b157bdad5d21cb45cde5c5663570",
  "switches": {
   "common": true,
   "sat": false,
@@ -34,13 +34,13 @@
   },
   "IsolationForest": {
    "n_estimators": 100,
-   "contamination": 0.041228,
+   "contamination": 0.040692,
    "random_state": 42
   }
  },
  "label_rule": "DOMAIN_LABEL이 있으면 그 값, 없으면 STAT_LABEL. EXCLUDED 행과 라벨 빈 행은 뺌",
  "rows": 5603,
- "label_1_rate": 0.041228,
+ "label_1_rate": 0.040692,
  "feature_count": 30,
  "train_lots_all14": [
   240001,
@@ -77,7 +77,7 @@
  "fold13_reproduced": true,
  "fold13_same_minutes": 107,
  "fold13_total_minutes": 107,
- "evidence": "팀 라벨 있음: 공통 움직임 해제(v2, v3)와 팀 판단(v6)이 이 구역 정답에 들어감",
+ "evidence": "팀 판단 0만 있음: 공통 움직임 해제(v2, v3)와 전 구역 검토(v6 S). 1은 통계 후보",
  "sklearn": "1.9.1",
  "python": "3.14.8",
  "created": "20261024"

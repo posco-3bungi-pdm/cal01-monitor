@@ -1,0 +1,93 @@
+{
+ "zone": "CLN",
+ "zone_sensors": [
+  "CLN-IN"
+ ],
+ "feature_order": [
+  "CLN-IN",
+  "CLN-IN__DIFF",
+  "CLN-IN__MIN",
+  "CLN-IN__MAX",
+  "CLN-IN__STD",
+  "COMMON__OTHERS",
+  "CLN-IN__DEV10",
+  "CLN-IN__STD10",
+  "CLN-IN__ZPAST",
+  "CLN-IN__ZPAST_EDGE",
+  "COMMON__OP_OTHERS",
+  "FURNACE__OTHERS"
+ ],
+ "features": [
+  {
+   "name": "CLN-IN",
+   "rule": "1분 평균 현재값 (cal01_base의 센서 컬럼)"
+  },
+  {
+   "name": "CLN-IN__DIFF",
+   "rule": "바로 앞 1분 값과의 차이"
+  },
+  {
+   "name": "CLN-IN__MIN",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "CLN-IN__MAX",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "CLN-IN__STD",
+   "rule": "1분 안 원기록의 최소, 최대, 표준편차 (cal01_base 집계 컬럼. 표준편차 빈칸은 0)"
+  },
+  {
+   "name": "COMMON__OTHERS",
+   "rule": "내 구역 말고 Z3 ~ Z6 온도 중 최근 5분 안에 지난 값 |Z| > 3이었던 수 (0 ~ 3)"
+  },
+  {
+   "name": "CLN-IN__DEV10",
+   "rule": "직전 10분 평균과의 차이"
+  },
+  {
+   "name": "CLN-IN__STD10",
+   "rule": "직전 10분 표준편차"
+  },
+  {
+   "name": "CLN-IN__ZPAST",
+   "rule": "|현재값 - 지난 평균| / 지난 표준편차. 지난 평균과 표준편차는 같은 LOT에서 현재 분 이전까지의 expanding(min_periods=30), ddof=0. 앞 30분은 0"
+  },
+  {
+   "name": "CLN-IN__ZPAST_EDGE",
+   "rule": "1분 최대, 최소 중 지난 평균에서 더 먼 쪽과 지난 평균의 차이를 지난 표준편차로 나눈 값"
+  },
+  {
+   "name": "COMMON__OP_OTHERS",
+   "rule": "내 구역 말고 Z3 ~ Z6 출력 중 최근 5분 안에 지난 값 |Z| > 3이었던 수"
+  },
+  {
+   "name": "FURNACE__OTHERS",
+   "rule": "Z1 ~ Z8 중 내 구역 말고 최근 5분 안에 센서 하나라도 지난 값 |Z| > 3이었던 구역 수"
+  }
+ ],
+ "context": {
+  "scope": "모든 계산은 같은 LOT 안에서 현재 분 이전까지의 값만 씀 (미래 값 없음)",
+  "unit": "1분 (cal01_base_v4 이상의 1분 묶음)",
+  "min_periods": 30,
+  "ddof": 0,
+  "z_threshold": 3,
+  "window_5": 5,
+  "window_10": 10,
+  "common_sensors": [],
+  "common_ops": [],
+  "furnace_zones": [
+   "Z1",
+   "Z2",
+   "Z3",
+   "Z4",
+   "Z5",
+   "Z6",
+   "Z7",
+   "Z8"
+  ],
+  "drop_rows": "입력에 빈 값이 있는 행(LOT 앞부분)은 03과 같이 뺌",
+  "source_notebook": "notebooks/sayletskin/03_model_f1.ipynb 6번 셀"
+ }
+}
