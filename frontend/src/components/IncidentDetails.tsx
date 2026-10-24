@@ -6,6 +6,7 @@ import { dateTime, clockTime, numberText, timeMs, timeIso } from '../time'
 import ReadingValue from './ReadingValue'
 import CPInfo from './CPInfo'
 import { incidentAxis, incidentTick } from './incident-axis'
+import IncidentInvestigation from './IncidentInvestigation'
 
 function IncidentTrend({ candidate, data, view, onCursor }: { candidate: DetectionCandidate; data?: ChannelSeries; view: TimeRange; onCursor: (time: string) => void }) {
   const points = data?.points ?? [], lo = timeMs(view.start), span = Math.max(1, timeMs(view.end) - lo)
@@ -53,6 +54,8 @@ export default function IncidentDetails({ candidate, zoneCandidates, channel, da
     <div className="incident-peak-reading"><small>구간 내 최대 기준 이탈값</small><span><ReadingValue channelId={candidate.channel_id} value={candidate.peak_value} unit={channel?.unit} /></span><small>{dateTime(candidate.peak_at, true)} · |Z| {numberText(Math.abs(candidate.peak_z))}</small></div>
     <div className="incident-range-buttons" role="group" aria-label="이상 그래프 표시 범위"><button onClick={() => onRange('candidate')}>후보 구간</button><button onClick={() => onRange('context')}>앞뒤 5분</button><button onClick={() => onRange('lot')}>LOT 전체</button></div>
     {error ? <p className="form-error" role="alert">그래프를 불러오지 못했습니다.</p> : loading ? <p className="incident-no-data"><LoaderCircle size={16} className="spin" />관측값 불러오는 중</p> : <IncidentTrend candidate={candidate} data={data} view={view} onCursor={onCursor} />}
+    <section className="incident-statistical-reason"><strong>통계적 감지 근거</strong><p>이 LOT에서 {candidate.channel_id}의 비교 기준은 <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.lower} unit={channel?.unit} /> ~ <ReadingValue channelId={candidate.channel_id} value={candidate.baseline.upper} unit={channel?.unit} />입니다. 구간 내 최대 이탈은 |Z| {numberText(Math.abs(candidate.peak_z))}입니다.</p><small>LOT 전체 평균·표준편차 기준 · 목표값이나 운전 허용 한계와는 별도로 확인</small></section>
+    <IncidentInvestigation datasetId={candidate.dataset_id} zoneId={candidate.zone_id} channelIds={[candidate.channel_id]} range={candidate} />
     <div className="incident-actions"><button className="subtle-button" onClick={onGuide}><BookOpen size={15} />대응 가이드</button>{!candidate.acknowledged && <button className="subtle-button" disabled={pending} onClick={onRead}><Check size={15} />읽음 표시</button>}
       {!candidate.resolved && <button className="subtle-button" onClick={() => candidate.open_request ? onOpenRequest(candidate.open_request.id) : onRequest()}><ClipboardList size={15} />{candidate.open_request ? '진행 중인 점검 요청' : '점검 요청'}</button>}
     </div>

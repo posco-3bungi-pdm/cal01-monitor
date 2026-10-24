@@ -35,7 +35,7 @@ export default function LiveSimulationCharts({ frames, firstTime, cursor, channe
   return <div className="simulation-trends">
     <div className="simulation-chart-heading"><strong>{event ? '감지 구간 확인' : focus ? '이전 수신 기록' : '현재 수신 중인 계측값'}</strong>
       {focus && <button className="subtle-button" onClick={() => { setSelection(null); onLive() }}><Radio size={15} />현재로</button>}</div>
-    {event && <LiveEventEvidence event={event} series={series} channels={channels} aggregated={Boolean(query.data?.aggregation_seconds)} onRequest={() => onRequest(event)} />}
+    {event && <LiveEventEvidence event={event} series={series} channels={channels} datasetId={datasetId} receivedThrough={latest?.time} aggregated={Boolean(query.data?.aggregation_seconds)} onRequest={() => onRequest(event)} />}
     {query.error && focus && <p className="form-error" role="alert">{query.error.message}<button className="text-button" onClick={() => void query.refetch()}>다시 불러오기</button></p>}
     {range && latest ? <ChannelCharts live channels={channels} series={series} view={range}
       fullRange={{ start: timeIso(first), end: latest.time }} selectedChannel={selectedChannel} selection={selection}

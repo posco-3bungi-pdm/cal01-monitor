@@ -19,6 +19,7 @@ import { GUIDE_STEPS } from "./guide-data";
 import DetectionPanel from "./components/DetectionPanel";
 import PendingAttention from "./components/PendingAttention";
 import IncidentDetails from "./components/IncidentDetails";
+import IncidentInvestigation from "./components/IncidentInvestigation";
 import { outstandingCandidates, candidatesInLot, advanceReplayAttention, reachedCandidates } from "./components/attention-state";
 import RequestDialog from "./components/RequestDialog";
 import TeamNotifications from "./components/TeamNotifications";
@@ -919,8 +920,8 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
           <div className="panel-heading scene-toolbar">
             <h2 id="equipment-heading" className="visually-hidden">연속 소둔로 CAL01</h2>
             <div className="segmented-control appearance-control" role="group" aria-label="설비 표현 방식">
-              <button aria-label="홀로그램 표현" data-hint="홀로그램 표현" title="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
-              <button aria-label="금속 설비 표현" data-hint="금속 설비 표현" title="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
+              <button aria-label="홀로그램" data-hint="홀로그램" aria-pressed={appearance === "hologram"} onClick={() => sceneAction(() => setAppearance("hologram"))}><Layers3 size={20} /></button>
+              <button aria-label="금속 설비" data-hint="금속 설비" aria-pressed={appearance === "realistic"} onClick={() => sceneAction(() => setAppearance("realistic"))}><Box size={20} /></button>
             </div>
             <button className="icon-button" aria-label={showInterior ? '외함 보기' : '내부 보기'} data-hint={showInterior ? '외함 보기' : '내부 보기'} aria-pressed={showInterior} onClick={() => sceneAction(() => setShowInterior(value => !value))}><ScanLine size={20} /></button>
             <div className="temperature-control"><button className="icon-button temperature-toggle" aria-label="코일 온도 색상" aria-describedby="temperature-display-help" disabled={!history && !simulation.engaged} aria-pressed={temperatureColors} onClick={() => sceneAction(() => { setTemperatureColors(value => !value); if (!temperatureColors) setShowInterior(true); })}><Palette size={20} /></button><span className="temperature-tooltip" id="temperature-display-help" role="tooltip"><strong>코일 온도 색상</strong><br />구역 TC에 따라 강판을 파랑~빨강으로 표시합니다. 켜면 내부가 함께 열립니다.<br />실제 표면색·경보 등급과 무관한 설명용 표시입니다.</span></div>
@@ -937,7 +938,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
                 {reducedMotion && <p>기기의 동작 줄이기 설정에 따라 재생을 껐습니다.</p>}
                 <section className="scene-part-picker" aria-label="장비·부품 보기">
                   <header><strong>장비·부품 보기</strong><button className="text-button" disabled={!selectedPartId} onClick={() => setSelectedPartId(null)}>선택 해제</button></header>
-                  <p className="scene-help-note">선택한 부품은 원래 재질로 보여줍니다. 목록에서 다른 부품도 계속 살펴보세요.</p>
+                  <p className="scene-help-note">부품을 선택해 위치와 구조를 살펴보세요. 목록은 계속 열려 있습니다.</p>
                   <div className="scene-part-list" role="group" aria-label="확인할 설비 부품">{PART_CATALOG.map(part => <button key={part.id} type="button" aria-pressed={selectedPartId === part.id} onClick={() => selectPart(part.id, true)}><span>{part.zoneId}</span><strong>{part.name}</strong>{selectedPartId === part.id && <Check size={15} aria-hidden="true" />}</button>)}</div>
                 </section>
                 <details className="advanced-scene-tools"><summary>고급 도구</summary>
@@ -1043,6 +1044,7 @@ function Workspace({ user, onLogout, theme, onThemeToggle }: { user: User; onLog
               chooseTime(value);
             }} /><span>{clockTime(lot.end)}</span></div>
           </section>
+          {focusedCandidate && <IncidentInvestigation datasetId={focusedCandidate.dataset_id} zoneId={focusedCandidate.zone_id} channelIds={[focusedCandidate.channel_id]} range={focusedCandidate} />}
           <RecordsPanel datasetId={datasetId} view={view} />
         </> : lotsQuery.isFetching || datasetsQuery.isPending ? <div className="panel data-loading"><LoaderCircle size={20} className="spin" />관측 자료를 불러오는 중</div> : null}
         </WorkspaceDrawer>

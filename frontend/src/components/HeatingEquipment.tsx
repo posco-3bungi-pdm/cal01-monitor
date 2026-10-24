@@ -38,8 +38,8 @@ function Instances({ geometry, entries, color, appearance, selected = false, rou
     mesh.current.computeBoundingSphere()
   }, [entries])
   return <instancedMesh ref={mesh} args={[geometry, undefined, entries.length]}>
-    {appearance === 'hologram' && !selected
-      ? <HologramMaterial color="#54c6df" opacity={0.48} />
+    {(appearance === 'hologram' ? !selected : selected)
+      ? <HologramMaterial color="#54c6df" opacity={0.48} selected={selected} xray={selected && appearance === 'realistic'} />
       : <meshStandardMaterial color={color} roughness={roughness} metalness={roughness > 0.9 ? 0 : 0.6} />}
   </instancedMesh>
 }
@@ -102,7 +102,7 @@ function HeatingEquipment({ showInterior, appearance, selectedPartId, onSelectPa
     {layout.banks.map(bank => <group key={bank.id} name={bank.id}
       userData={{ illustrative: true, zoneId: bank.zoneId }}
       onClick={pick(bank.id)}>
-      <group visible={internalVisible}>
+      <group visible={internalVisible || selectedPartId === bank.id}>
         <Instances geometry={resources.tube} entries={bank.tubes} color="#827064"
           selected={selectedPartId === bank.id} {...common} />
       </group>
@@ -133,7 +133,7 @@ function HeatingEquipment({ showInterior, appearance, selectedPartId, onSelectPa
       <Instances geometry={resources.box} entries={machinery.exchangerFeet} color="#59676b" selected={selectedPartId === 'HEAT-RECUP'} {...common} />
       <Instances geometry={resources.box} entries={machinery.exchangerRibs} color="#4f6268" selected={selectedPartId === 'HEAT-RECUP'} {...common} />
     </group>
-    <group name="HEAT-LINING" visible={internalVisible} userData={{ illustrative: true }}
+    <group name="HEAT-LINING" visible={internalVisible || selectedPartId === 'HEAT-LINING'} userData={{ illustrative: true }}
       onClick={pick('HEAT-LINING')}>
       <Instances geometry={resources.box} entries={layout.lining} color="#c7c1a7" roughness={0.98}
         selected={selectedPartId === 'HEAT-LINING'} {...common} />

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { HologramMaterial, IndustrialMaterial, PartSelectionContext, type FurnaceAppearance } from './furnace-appearance'
+import { HologramMaterial, IndustrialMaterial, PartSelectionContext, PartXrayContext, type FurnaceAppearance } from './furnace-appearance'
 import { PART_CATALOG } from './part-catalog'
 
 type Position = [number, number, number]
@@ -254,10 +254,10 @@ export default function ProcessEquipment({
       appearance={appearance} radius={0.05} />
     {PART_CATALOG.filter(part => part.evidence !== 'manufacturer-example').map(part => {
       const selected = selectedPartId === part.id
-      // Reveal the original metal, rubber and glass surfaces of the selected
-      // assembly, while the surrounding hologram remains transparent.
-      const partAppearance = selected ? 'realistic' : appearance
+      const selectedAppearance = appearance === 'realistic' ? 'hologram' : 'realistic'
+      const partAppearance = selected ? selectedAppearance : appearance
       return <PartSelectionContext.Provider key={part.id} value={selected}>
+        <PartXrayContext.Provider value={selected && appearance === 'realistic'}>
         <group name={`PART_${part.id}`} position={part.position}
           userData={{ partCode: part.partCode, representativePosition: true, selected }}
           onClick={event => { event.stopPropagation(); onSelectPart?.(part.id) }}>
@@ -267,6 +267,7 @@ export default function ProcessEquipment({
           {part.id === 'HTR-006' && <Probe appearance={partAppearance} oxygen={false} />}
           {part.id === 'HTR-008' && <Probe appearance={partAppearance} oxygen />}
         </group>
+        </PartXrayContext.Provider>
       </PartSelectionContext.Provider>
     })}
   </group>
