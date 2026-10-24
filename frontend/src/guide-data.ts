@@ -167,6 +167,20 @@ const CORE_GUIDE_STEPS: GuideStep[] = [
 ]
 
 const TOPIC_GUIDE_STEPS: GuideStep[] = [
+  { id: 'carbon-potential-atmosphere', category: 'equipment', kind: 'reading', title: '카본 포텐셜(CP)과 분위기 가스', channel: 'CP-Z4',
+    body: '분위기 가스는 뜨거운 강판을 둘러싼 노 안의 기체입니다. 산화·환원과 표면의 탄소 반응에 영향을 주므로 온도와 함께 읽습니다. 카본 포텐셜(Carbon Potential, 탄소 포텐셜)은 주어진 온도에서 분위기가 강재 표면과 탄소를 주고받으려는 경향을 나타내는 개념입니다.',
+    sections: [
+      { title: '질소(N₂)와 수소(H₂)는 무슨 역할인가요?', body: '소둔에서는 질소계·수소계 분위기를 사용하기도 합니다. 질소는 보호 분위기의 바탕이 되고 수소는 환원성·열전달에 관여합니다. 이 설비의 실제 가스 조성과 운전 조건은 현장 가스 계통과 관리 기준으로 확인합니다.' },
+      { title: '노점과 산소를 함께 보는 이유', body: '노점은 가스에 들어 있는 수분을 읽는 지표입니다. 같은 수소 농도라도 수분·산소와 온도에 따라 산화·환원 조건이 달라질 수 있습니다. 가스 조성, 노점, 잔류 산소, 유량·압력의 같은 시각 기록을 함께 확인합니다.' },
+      { title: 'CP가 높으면 무조건 좋은가요?', body: '그렇지 않습니다. 탄소의 유입·유출 경향은 온도, 가스 조성과 강재 상태에 따라 달라집니다. 침탄 공정의 CP 설명을 소둔로의 목표값으로 그대로 적용하지 않습니다. CP는 제품의 실제 탄소 함량이나 수소 농도 자체도 아닙니다.' },
+      { title: '이 화면의 CP-Z4·CP-Z4M', body: '제공 자료의 서로 다른 태그입니다. 화면의 단위와 지수 표기를 그대로 읽고, 두 값을 같은 농도나 같은 척도로 비교하지 않습니다. CP-Z4M이 작아 보여도 0으로 읽지 말고 계측 정의·보정식·교정 상태를 확인합니다.' },
+      { title: '변화가 보이면 무엇을 확인하나요?', body: 'TC·CP 변화 시각을 가스 전환·유량·노점·산소 기록과 맞춥니다. 조업팀에는 전환 기록, 계측 담당자에게는 센서·샘플링·교정 이력, 품질팀에는 해당 LOT의 표면·재질 결과를 확인합니다.' },
+    ], check: '가스 조성·노점·산소 등 미연결 값은 이 화면에서 추정하지 않습니다. 현장 기록과 계측 정의를 함께 확인합니다.',
+    sources: [
+      { title: 'Linde · 열처리 분위기의 역할', url: 'https://www.linde-gas.com/processes/heat-treatment/controlled-furnace-atmospheres' },
+      { title: 'Air Products · 소둔 분위기와 수소·질소·노점', url: 'https://www.airproducts.com/-/media/files/en/330/330-12-022-us-atmosphere-solutions-for-metals-processing.pdf' },
+      { title: 'Eurotherm · 탄소 포텐셜과 가스 반응 (침탄 공정의 일반 원리)', url: 'https://www.eurotherm.com/en/carburizing-control-applications/carburising-gas-reactions/' },
+    ] },
   { id: 'normal-transitions', category: 'process', kind: 'reading', title: '정상적인 운전 전환 읽기',
     body: '코일 연결, 강종·두께 변경, 설정값·라인 속도 조정 때는 여러 값이 함께 바뀔 수 있다. 전환 시각과 작업 기록을 먼저 맞추고, 출력 변화 뒤 온도가 따라오는 과정을 확인한다.',
     sections: [{ title: '전환 전 → 전환 중 → 안정화', body: '같은 구역의 앞뒤 추세를 비교한다. 이웃 존도 함께 바뀌는지, 전환 후 현장 기준에 맞게 안정화됐는지 확인한다. 서로 다른 강종이나 운전 조건의 평균을 그대로 정상 기준으로 쓰지 않는다.' }],

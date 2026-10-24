@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import { processReadoutGroups, PROCESS_READOUT_WIDTH, PROCESS_READOUT_HEIGHT } from '../src/components/process-readouts.ts'
 import { FURNACE_ZONES, workViewForViewport, overviewForViewport } from '../src/components/furnace-model.ts'
 import { layoutReadouts } from '../src/components/scene-label-layout.ts'
-import { layoutAnchoredReadouts, followAnchoredReadout } from '../src/components/anchored-readout-layout.ts'
+import { layoutAnchoredReadouts, followAnchoredReadout, leaderPoints } from '../src/components/anchored-readout-layout.ts'
 
 const ids = ['CLN-IN', ...Array.from({ length: 9 }, (_, index) => `TC-Z${index + 1}`),
   ...Array.from({ length: 8 }, (_, index) => `OP-Z${index + 1}`), 'TC-OUT1', 'TC-OUT2', 'CP-Z4', 'CP-Z4M']
@@ -30,6 +30,17 @@ test('zoomed cards show only neighbouring process sections while retaining both 
 test('CP leader uses the saved CP device placement rather than the middle of the Z4 housing', () => {
   const positions = new Map<string, [number, number, number]>([['CP-Z4', [-4.7, 4.9, 2.1]]])
   assert.deepEqual(processReadoutGroups(channels, undefined, 'Z4', positions).find(group => group.id === 'CP')!.position, [-4.7, 4.9, 2.1])
+})
+
+test('a Zone sliding under its card never swaps the leader between the card sides', () => {
+  const box = { x: 300, y: 200, width: PROCESS_READOUT_WIDTH, height: PROCESS_READOUT_HEIGHT }
+  const ends = Array.from({ length: 41 }, (_, step) => leaderPoints(300 + step * 3.7, 360, box).split(' ').at(-1)!.split(',').map(Number))
+  for (let step = 1; step < ends.length; step++) {
+    assert.ok(Math.hypot(ends[step][0] - ends[step - 1][0], ends[step][1] - ends[step - 1][1]) < 30, `leader end jumped at step ${step}`)
+  }
+  assert.equal(leaderPoints(374, 360, box), '374,360 374,304 374,294')
+  assert.equal(leaderPoints(250, 240, box), '250,240 286,240 300,240')
+  assert.equal(leaderPoints(500, 240, box), '500,240 462,240 448,240')
 })
 
 test('cards follow their own Zone while retaining the same attachment offset and ignoring hover priority', () => {

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import * as THREE from 'three'
+import { sceneOverlayOffset } from '../src/components/scene-viewport.ts'
 import { SceneGesture, movementForKeys, SCENE_KEYS } from '../src/components/scene-input.ts'
 import { anchorOccluded, labelOccluders } from '../src/components/scene-occlusion.ts'
 import { layoutReadouts } from '../src/components/scene-label-layout.ts'
@@ -9,6 +10,26 @@ import {
   STRIP_TRANSFER_Y, createStripGeometry, createStripLayout, housingPanels,
   overviewForViewport, workViewForViewport, partViewForViewport,
 } from '../src/components/furnace-model.ts'
+
+test('an open menu fits the process into the measured remaining space instead of shrinking it into half the screen', () => {
+  const width = 2560, height = 1600, menuWidth = 300
+  const offset = sceneOverlayOffset(width, height, true, 'left', menuWidth)
+  assert.deepEqual(offset, { x: -150, y: 0 })
+  const fit = overviewForViewport(width, height, 40, -2 * offset.x / width, 0)
+  const old = overviewForViewport(width, height, 40, .5, 0)
+  assert.ok(fit.distance < old.distance * .8)
+  const camera = new THREE.PerspectiveCamera(40, width / height, .1, 500)
+  camera.setViewOffset(width, height, offset.x, offset.y, width, height)
+  camera.position.set(...fit.position); camera.lookAt(...fit.target); camera.updateMatrixWorld(); camera.updateProjectionMatrix()
+  for (const x of [-20.5, 20.5]) for (const y of [-.1, 12.8]) for (const z of [-5, 3.4]) {
+    const point = new THREE.Vector3(x, y, z).project(camera)
+    const pixelX = (point.x + 1) * width / 2
+    assert.ok(pixelX >= menuWidth && pixelX <= width, `process corner ${pixelX} must stay outside the menu`)
+  }
+  assert.deepEqual(sceneOverlayOffset(width, height, false, 'left', menuWidth), { x: 0, y: 0 })
+  assert.deepEqual(sceneOverlayOffset(width, height, true, 'right', 800), { x: 400, y: 0 })
+  assert.deepEqual(sceneOverlayOffset(600, 900, true, 'left', 300), { x: 0, y: 270 })
+})
 
 test('click guard rejects out-and-back drags, multi-touch and cancellation', () => {
   const gesture = new SceneGesture()

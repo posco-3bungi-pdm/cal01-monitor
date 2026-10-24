@@ -20,6 +20,8 @@ import { PART_CATALOG } from './part-catalog'
 import { Focus, Maximize2 } from 'lucide-react'
 import type { FurnaceAppearance } from './furnace-appearance'
 import { ZoneLabels, ZoneLabelProjection, useZoneLabelBridge } from './ZoneLabels'
+import { sceneOverlayOffset } from './scene-viewport'
+import type { CoilArrival } from '../coil-arrival'
 import type { ZoneLabelBridgeRef } from './ZoneLabels'
 import { SceneGesture } from './scene-input'
 import { KeyboardNavigation, SceneDiagnostics, ShadowPolicy } from './SceneRuntime'
@@ -49,6 +51,8 @@ export type FurnaceSceneProps = {
   overlayOpen?: boolean
   overlaySide?: 'left' | 'right' | null
   overlayWidth?: number
+  coilArrival?: CoilArrival | null
+  onCoilArrivalDone?: (id: string) => void
   appearance: FurnaceAppearance
   showLabels?: boolean
   visibleLabelIds?: string[]
@@ -93,10 +97,8 @@ function SceneViewport({ overlayOpen, overlaySide, overlayWidth }: { overlayOpen
   useLayoutEffect(() => {
     if (!(camera instanceof THREE.PerspectiveCamera) || !size.width || !size.height) return
     if (overlayOpen) {
-      const mobile = size.width <= 760
-      camera.setViewOffset(size.width, size.height,
-        mobile ? 0 : overlaySide === 'left' ? -size.width * .25 : overlayWidth !== undefined ? overlayWidth / 2 : size.width * .3, mobile ? size.height * 0.3 : 0,
-        size.width, size.height)
+      const offset = sceneOverlayOffset(size.width, size.height, overlayOpen, overlaySide, overlayWidth)
+      camera.setViewOffset(size.width, size.height, offset.x, offset.y, size.width, size.height)
     } else camera.clearViewOffset()
     camera.updateProjectionMatrix()
     invalidate()
@@ -590,7 +592,8 @@ function Facility({ props, viewCommand, animateHeat, zoneLabelBridge, channelLab
       scene.fog.near = Math.max(65, fit.distance + 15)
       scene.fog.far = Math.max(130, fit.distance + 80)
     }
-    void controls.current.setLookAt(...fit.position, ...fit.target, animate).catch(() => {})
+    void controls.current.setLookAt(...fit.position, ...fit.target, animate)
+      .then(() => { channelLabelBridge.current.reflow = true; channelLabelBridge.current.invalidate?.() }).catch(() => {})
   }
   const selectZone = (zoneId: string) => {
     if (!editing && (props.zoneAttention?.[zoneId]?.count ?? 0) > 0 && props.onInspectZoneAlert) { props.onInspectZoneAlert(zoneId); return }
@@ -805,6 +808,7 @@ function FurnaceScene(props: FurnaceSceneProps) {
     </GestureContext.Provider>
     <div ref={setZoneLabelTarget} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 20 }} />
     <ZoneLabels zones={FURNACE_ZONES} target={zoneLabelTarget} bridge={zoneLabelBridge}
+      coilArrival={props.coilArrival} onCoilArrivalDone={props.onCoilArrivalDone}
       theme={props.theme} selectedZone={zoomedZone} alertZones={alertZones} attention={props.zoneAttention ?? {}} gesture={gesture}
       channels={props.channels} values={props.values} visibleIds={props.visibleLabelIds} measuredAt={props.measuredAt}
       showReadouts={props.showZoneReadouts} onToggleReadouts={props.onToggleZoneReadouts} onSelectChannel={props.onSelectChannel} cpSelected={props.cpReadoutsSelected} onToggleCP={props.onToggleCPReadouts} disabled={props.readoutsDisabled} onPreviewZone={props.onPreviewZone} onPreviewLeave={props.onPreviewLeave}

@@ -73,6 +73,20 @@ export function layoutAnchoredReadouts(items: LabelAnchor[], width: number, heig
   return placed
 }
 
+// While the Zone lies within the card's width, attach straight to its top or
+// bottom edge. Choosing a side edge there swapped the leader across the whole
+// card whenever a moving camera nudged the Zone past the card's centre.
+export function leaderPoints(x: number, y: number, box: LabelRect) {
+  const inset = 16
+  if (x >= box.x + inset && x <= box.x + box.width - inset) {
+    const edgeY = y > box.y + box.height / 2 ? box.y + box.height : box.y
+    return `${x},${y} ${x},${edgeY + (edgeY === box.y ? -10 : 10)} ${x},${edgeY}`
+  }
+  const edgeX = x < box.x + box.width / 2 ? box.x : box.x + box.width
+  const edgeY = Math.max(box.y + inset, Math.min(box.y + box.height - inset, y))
+  return `${x},${y} ${edgeX + (edgeX === box.x ? -14 : 14)},${edgeY} ${edgeX},${edgeY}`
+}
+
 export function followAnchoredReadout(old: AnchoredSeat | undefined, x: number, y: number, target: LabelRect, seconds: number, reducedMotion = false): LabelRect {
   if (!old || reducedMotion) return target
   const elapsed = Math.min(.05, Math.max(0, seconds))

@@ -1112,7 +1112,7 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
 .mascot-bubble strong { display: block; color: #f1f7fa; font-size: 16px; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
 .mascot-bubble p { color: #b8cbd4; font-size: 12px; line-height: 1.65; margin-top: 5px; word-break: keep-all; overflow-wrap: anywhere; }
 .mascot-character { position: relative; width: 108px; height: 142px; padding: 0; border-radius: 16px; }
-.mascot-response, .mascot-idle, .mascot-breath { display: block; position: relative; width: 100%; height: 100%; transform-origin: 50% 98%; }
+.mascot-pose, .mascot-idle, .mascot-breath { display: block; position: relative; width: 100%; height: 100%; transform-origin: 50% 98%; }
 .mascot-character img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; pointer-events: none; }
 .mascot-idle { animation: mascot-weight-shift 11s ease-in-out infinite; animation-play-state: paused; }
 .mascot-breath { animation: mascot-breathe 6.4s ease-in-out infinite; animation-play-state: paused; }
@@ -1126,7 +1126,27 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
 :root[data-theme="light"] .mascot-bubble p { color: #476474; }
 @keyframes mascot-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.006, 1.012); } }
 @keyframes mascot-weight-shift { 0%, 100% { transform: rotate(0); } 33% { transform: rotate(-.6deg); } 67% { transform: rotate(.6deg); } }
+.mascot-pose img { transform-origin: 50% 92%; }
+.menu-mascot[data-animated="true"] .mascot-pose-inspect img { animation: mascot-inspect 2.4s ease-in-out both; }
+.menu-mascot[data-animated="true"] .mascot-pose-fighting img { animation: mascot-fighting 1.8s ease-in-out both; }
+.menu-mascot[data-animated="true"] .mascot-pose-celebrate img { animation: mascot-celebrate 2s ease-in-out both; }
+@keyframes mascot-inspect { 0%, 100% { transform: rotate(0) scale(1); } 42% { transform: rotate(-5deg) scale(1.045); } 72% { transform: rotate(2deg) scale(1.02); } }
+@keyframes mascot-fighting { 0%, 100% { transform: translateY(0) scale(1); } 25% { transform: translateY(1px) scale(1.015,.98); } 48% { transform: translateY(-3px) scale(.99,1.02); } 72% { transform: translateY(0) scale(1); } }
+@keyframes mascot-celebrate { 0%, 100% { transform: translateY(0) rotate(0); } 30% { transform: translateY(-6px) rotate(-4deg); } 62% { transform: translateY(-2px) rotate(3deg); } }
 @media (prefers-reduced-motion: reduce) { .menu-mascot .mascot-idle, .menu-mascot .mascot-breath { animation: none; } }
+.coil-arrival-track { --coil-arrival-height: 32px; position: absolute; bottom: calc(100% + 6px); left: 0; width: 100%; height: var(--coil-arrival-height); overflow: hidden; pointer-events: none; }
+.coil-arrival-caravan { position: absolute; display: flex; align-items: center; gap: 7px; width: max-content; height: 100%; animation: coil-arrival-travel 10s linear both; }
+.coil-arrival-caravan img { height: 100%; width: auto; object-fit: contain; flex: none; }
+.coil-arrival-tag { position: relative; display: grid; gap: 1px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel); color: var(--text); font-size: 10px; line-height: 1.2; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.coil-arrival-tag::after { content: ''; position: absolute; width: 8px; height: 1px; background: var(--muted); left: 100%; top: 50%; }
+.coil-arrival-tag strong { font-size: 11px; font-weight: 600; }
+.coil-arrival-tag > span { color: var(--muted); }
+.immersive .zone-navigation[data-coil-arrival="true"] { opacity: 1; }
+@keyframes coil-arrival-travel { from { left: 0; transform: translateX(-100%); } to { left: 100%; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .coil-arrival-caravan { animation: none; left: 50%; transform: translateX(-50%); }
+  .menu-mascot .mascot-pose img { animation: none !important; }
+}
 .guide-search { display: flex; align-items: center; gap: 9px; padding: 10px 16px; flex: 0 0 auto; border-bottom: 1px solid var(--border); color: var(--muted); }
 .guide-search input { width: 100%; padding: 8px 0; border: 0; background: transparent; color: var(--text); font-size: 14px; }
 .guide-search-results { display: grid; gap: 10px; padding: 18px; }
@@ -1140,6 +1160,17 @@ button[data-hint]:hover::after, button[data-hint]:focus-visible::after,
 .guide-grade-dictionary summary strong { margin-right: 12px; color: var(--accent); }
 .guide-grade-dictionary p { margin-top: 10px; }
 .guide-grade-dictionary a { display: block; color: var(--accent); font-size: 13px; margin-top: 8px; }
+.guide-grade-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.guide-grade-picker button { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; font: 600 12px var(--mono); }
+.guide-grade-picker button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.guide-grade-card { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-alt); }
+.guide-grade-card header { display: grid; gap: 3px; }
+.guide-grade-card header > strong { color: var(--accent); font: 600 19px var(--mono); }
+.guide-grade-card header > span { color: var(--muted); font-size: 12px; }
+.guide-grade-card dt { font-weight: 600; margin: 17px 0 4px; }
+.guide-grade-card dd { margin: 0; word-break: keep-all; overflow-wrap: anywhere; }
+.guide-grade-card .guide-grade-scope { margin: 16px 0; color: var(--muted); font-size: 12px; }
+.guide-grade-card details { background: var(--panel); padding: 9px 12px; }
 .screen-tutorial { position: fixed; inset: 0; z-index: 10000; isolation: isolate; overflow: hidden; }
 .tutorial-spotlight { position: fixed; border: 2px solid var(--accent); border-radius: 16px; box-shadow: 0 0 0 200vmax #030b14b8; pointer-events: none; }
 .tutorial-dim { position: absolute; inset: 0; background: #030b14b8; }
