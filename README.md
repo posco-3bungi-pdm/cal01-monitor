@@ -5,9 +5,9 @@
   <img alt="CAL01 Monitor: 설비의 흐름을 보고 같은 구간을 함께 확인함" src="docs/readme/hero-light.svg" width="100%">
 </picture>
 
-[![관제 사이트](https://img.shields.io/badge/%EA%B4%80%EC%A0%9C-cal01--monitor.onrender.com-a8ff3e?style=flat-square&logo=render&logoColor=white&labelColor=0b0f0c)](https://cal01-monitor.onrender.com/)
-[![분석 저장소](https://img.shields.io/badge/%EB%B6%84%EC%84%9D-pdm--project-5ec8ff?style=flat-square&logo=github&logoColor=white&labelColor=0b0f0c)](https://github.com/posco-3bungi-pdm/pdm-project)
-[![공동 검토](https://img.shields.io/badge/%EA%B3%B5%EB%8F%99%20%EA%B2%80%ED%86%A0-cal01--review-ffb347?style=flat-square&logo=github&logoColor=white&labelColor=0b0f0c)](https://github.com/posco-3bungi-pdm/cal01-review)
+[![관제 사이트](https://img.shields.io/badge/%EA%B4%80%EC%A0%9C-cal01--monitor.onrender.com-39d8ff?style=flat-square&logo=render&logoColor=white&labelColor=050a0f)](https://cal01-monitor.onrender.com/)
+[![분석 저장소](https://img.shields.io/badge/%EB%B6%84%EC%84%9D-pdm--project-ffb020?style=flat-square&logo=github&logoColor=white&labelColor=050a0f)](https://github.com/posco-3bungi-pdm/pdm-project)
+[![공동 검토](https://img.shields.io/badge/%EA%B3%B5%EB%8F%99%20%EA%B2%80%ED%86%A0-cal01--review-39ff88?style=flat-square&logo=github&logoColor=white&labelColor=050a0f)](https://github.com/posco-3bungi-pdm/cal01-review)
 
 </div>
 
@@ -21,7 +21,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/flow-dark.svg">
-  <img alt="데이터 연결, Z-score와 3D, 현장 확인, 결과 공유 네 단계와 모델 레지스트리" src="docs/readme/flow-light.svg" width="100%">
+  <img alt="콘솔 기록처럼 보이는 네 단계: 데이터 연결, Z-score와 3D, 현장 확인, 결과 공유" src="docs/readme/flow-light.svg" width="100%">
 </picture>
 
 ## 화면
