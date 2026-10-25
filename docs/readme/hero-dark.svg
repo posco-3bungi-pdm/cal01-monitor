@@ -1,120 +1,65 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400" font-family="Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" width="1200" height="420" font-family="Pretendard, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
 <defs>
-<filter id="shadow" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity="0.45"/></filter>
-<filter id="shadow-sm" x="-10%" y="-10%" width="120%" height="140%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity="0.45"/></filter>
-<filter id="inset" x="-10%" y="-10%" width="120%" height="130%"><feOffset dx="0" dy="3"/><feGaussianBlur stdDeviation="3" result="ob"/><feComposite operator="out" in="SourceGraphic" in2="ob" result="inv"/><feFlood flood-color="#000" flood-opacity="0.55" result="col"/><feComposite operator="in" in="col" in2="inv" result="sh"/><feComposite operator="over" in="sh" in2="SourceGraphic"/></filter>
-<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0.6 0"/></filter>
-<linearGradient id="plate" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a231c"/><stop offset="1" stop-color="#212c23"/></linearGradient>
-<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0d110e"/><stop offset="1" stop-color="#161d17"/></linearGradient>
-<radialGradient id="coin" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.35"/></radialGradient>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#39d8ff" stroke-opacity="0.10" stroke-width="1"/></pattern>
+<pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1.2" fill="#000" fill-opacity="0.18"/></pattern>
+<filter id="glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="glow-lg" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
-<rect width="1200" height="400" rx="22" fill="url(#bg)"/>
-<rect width="1200" height="400" rx="22" filter="url(#grain)" opacity="0.05"/>
-<circle cx="1060" cy="90" r="190" fill="#5ec8ff" opacity="0.05"/>
-<circle cx="1034" cy="108" r="162" fill="#5ec8ff" opacity="0.08"/>
-<circle cx="1008" cy="126" r="134" fill="#5ec8ff" opacity="0.12"/>
-<circle cx="210" cy="390" r="150" fill="#a8ff3e" opacity="0.05"/>
-<circle cx="184" cy="408" r="122" fill="#a8ff3e" opacity="0.08"/>
-<circle cx="158" cy="426" r="94" fill="#a8ff3e" opacity="0.12"/>
-<text x="56" y="78" font-size="15" fill="#9fb39d" font-weight="normal" text-anchor="start" letter-spacing="3">CAL01 MONITOR · 소둔로 관제</text>
-<text x="57" y="136" font-size="40" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">설비의 흐름을 보고,</text>
-<text x="55" y="133" font-size="40" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">설비의 흐름을 보고,</text>
-<text x="56" y="134" font-size="40" fill="#eef4ec" font-weight="bold" text-anchor="start" >설비의 흐름을 보고,</text>
-<text x="57" y="188" font-size="40" fill="#000000" font-weight="bold" text-anchor="start" opacity="0.55">같은 구간을 함께 확인함</text>
-<text x="55" y="185" font-size="40" fill="#ffffff" font-weight="bold" text-anchor="start" opacity="0.10">같은 구간을 함께 확인함</text>
-<text x="56" y="186" font-size="40" fill="#a8ff3e" font-weight="bold" text-anchor="start" >같은 구간을 함께 확인함</text>
-<text x="56" y="226" font-size="16" fill="#9fb39d" font-weight="normal" text-anchor="start" >채널값과 설비 위치를 한 화면에서. 모니터링팀과 현장팀이 같은 기록을 봄</text>
-<rect x="56" y="250" width="225" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
-<rect x="56" y="250" width="225" height="36" rx="18" fill="none" stroke="#5ec8ff" stroke-opacity="0.55" stroke-width="1.5"/>
-<path d="M 57 268 L 57 268 Q 57 251 74 251 L 263 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<path d="M 74 285 L 263 285 Q 280 285 280 268 L 280 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
-<circle cx="74" cy="268" r="7" fill="#5ec8ff" filter="url(#shadow-sm)"/>
-<circle cx="74" cy="268" r="7" fill="url(#coin)"/>
-<text x="90" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >3D 소둔로 · 홀로그램 · 기록 재생</text>
-<rect x="295" y="250" width="264" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
-<rect x="295" y="250" width="264" height="36" rx="18" fill="none" stroke="#ffb347" stroke-opacity="0.55" stroke-width="1.5"/>
-<path d="M 296 268 L 296 268 Q 296 251 313 251 L 541 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<path d="M 313 285 L 541 285 Q 558 285 558 268 L 558 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
-<circle cx="313" cy="268" r="7" fill="#ffb347" filter="url(#shadow-sm)"/>
-<circle cx="313" cy="268" r="7" fill="url(#coin)"/>
-<text x="329.92" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >Z-score 경보 · 현장 요청 · 팀 알림</text>
-<rect x="573" y="250" width="244" height="36" rx="18" fill="url(#plate)" filter="url(#shadow)"/>
-<rect x="573" y="250" width="244" height="36" rx="18" fill="none" stroke="#a8ff3e" stroke-opacity="0.55" stroke-width="1.5"/>
-<path d="M 574 268 L 574 268 Q 574 251 591 251 L 800 251" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<path d="M 591 285 L 800 285 Q 817 285 817 268 L 817 268" fill="none" stroke="#000000" stroke-opacity="0.55" stroke-width="1.5"/>
-<circle cx="591" cy="268" r="7" fill="#a8ff3e" filter="url(#shadow-sm)"/>
-<circle cx="591" cy="268" r="7" fill="url(#coin)"/>
-<text x="607.9200000000001" y="273" font-size="14" fill="#eef4ec" font-weight="normal" text-anchor="start" >구역별 모델 9개 (v6 registry)</text>
-<rect x="40" y="308" width="1124" height="64" rx="16" fill="#080b09" filter="url(#inset)"/>
-<path d="M 56 373 L 1148 373" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<line x1="48" y1="340" x2="1158" y2="340" stroke="#000000" stroke-opacity="0.55" stroke-width="3" stroke-dasharray="6 6"/>
-<line x1="48" y1="342" x2="1158" y2="342" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5" stroke-dasharray="6 6"/>
-<rect x="56" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="56" y="318" width="92" height="44" rx="10" fill="#5ec8ff" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.00s" repeatCount="indefinite"/></rect>
-<path d="M 66 319 L 138 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="103.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">CLN</text>
-<text x="101.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">CLN</text>
-<text x="102.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >CLN</text>
-<rect x="156" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="156" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.45s" repeatCount="indefinite"/></rect>
-<path d="M 166 319 L 238 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="203.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z1</text>
-<text x="201.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z1</text>
-<text x="202.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z1</text>
-<rect x="256" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="256" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="0.90s" repeatCount="indefinite"/></rect>
-<path d="M 266 319 L 338 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="303.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z2</text>
-<text x="301.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z2</text>
-<text x="302.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z2</text>
-<rect x="356" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="356" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="1.35s" repeatCount="indefinite"/></rect>
-<path d="M 366 319 L 438 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="403.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z3</text>
-<text x="401.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z3</text>
-<text x="402.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z3</text>
-<rect x="456" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="456" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="1.80s" repeatCount="indefinite"/></rect>
-<path d="M 466 319 L 538 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="503.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z4</text>
-<text x="501.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z4</text>
-<text x="502.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z4</text>
-<rect x="556" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="556" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="2.25s" repeatCount="indefinite"/></rect>
-<path d="M 566 319 L 638 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="603.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z5</text>
-<text x="601.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z5</text>
-<text x="602.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z5</text>
-<rect x="656" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="656" y="318" width="92" height="44" rx="10" fill="#ff5a5f" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="2.70s" repeatCount="indefinite"/></rect>
-<path d="M 666 319 L 738 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="703.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z6</text>
-<text x="701.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z6</text>
-<text x="702.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z6</text>
-<rect x="756" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="756" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="3.15s" repeatCount="indefinite"/></rect>
-<path d="M 766 319 L 838 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="803.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z7</text>
-<text x="801.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z7</text>
-<text x="802.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z7</text>
-<rect x="856" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="856" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="3.60s" repeatCount="indefinite"/></rect>
-<path d="M 866 319 L 938 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="903.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z8</text>
-<text x="901.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z8</text>
-<text x="902.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z8</text>
-<rect x="956" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="956" y="318" width="92" height="44" rx="10" fill="#ffb347" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="4.05s" repeatCount="indefinite"/></rect>
-<path d="M 966 319 L 1038 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="1003.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">Z9</text>
-<text x="1001.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">Z9</text>
-<text x="1002.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >Z9</text>
-<rect x="1056" y="318" width="92" height="44" rx="10" fill="url(#plate)" filter="url(#shadow-sm)"/>
-<rect x="1056" y="318" width="92" height="44" rx="10" fill="#5ec8ff" fill-opacity="0.15"><animate attributeName="fill-opacity" values="0.15;0.85;0.15" keyTimes="0;0.5;1" dur="6s" begin="4.50s" repeatCount="indefinite"/></rect>
-<path d="M 1066 319 L 1138 319" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1.5"/>
-<text x="1103.0" y="348" font-size="15" fill="#000000" font-weight="bold" text-anchor="middle" opacity="0.55">OUT</text>
-<text x="1101.0" y="345" font-size="15" fill="#ffffff" font-weight="bold" text-anchor="middle" opacity="0.10">OUT</text>
-<text x="1102.0" y="346" font-size="15" fill="#eef4ec" font-weight="bold" text-anchor="middle" >OUT</text>
-<g><animateMotion dur="6s" repeatCount="indefinite" path="M 48 340 L 1158 340"/><circle r="9" fill="#a8ff3e" filter="url(#glow)"/><circle r="9" fill="url(#coin)"/></g>
+<rect width="1200" height="420" rx="8" fill="#050a0f"/>
+<rect width="1200" height="420" rx="8" fill="url(#grid)"/>
+<text x="40" y="40" font-size="13" fill="#39d8ff" font-weight="bold" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" letter-spacing="3">CAL01 MONITOR // CONTROL ROOM</text>
+<rect x="318" y="28" width="9" height="14" fill="#39d8ff"><animate attributeName="opacity" values="1;1;0;0" keyTimes="0;0.5;0.5;1" dur="1s" repeatCount="indefinite"/></rect>
+<text x="1160" y="40" font-size="12" fill="#6f98ad" font-weight="normal" text-anchor="end" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >SRC cal01_base_v1.csv · 1 s · 345,390 rows</text>
+<text x="40" y="104" font-size="40" fill="#d6f3ff" font-weight="bold" text-anchor="start" >설비의 흐름을 보고,</text>
+<text x="40" y="154" font-size="40" fill="#39d8ff" font-weight="bold" text-anchor="start" filter="url(#glow)">같은 구간을 함께 확인함</text>
+<text x="40" y="190" font-size="14" fill="#6f98ad" font-weight="normal" text-anchor="start" >팀 로그인 → 실제 CSV 재생 → 소둔로 3D → Z-score 경보 → 현장 확인 요청 → 조치와 확인을 한 건으로</text>
+<rect x="760" y="60" width="400" height="150" fill="#08131c" fill-opacity="0.75" stroke="#39d8ff" stroke-opacity="0.35" stroke-width="1"/>
+<polyline points="760,76 760,60 776,60" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="1160,76 1160,60 1144,60" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="760,194 760,210 776,210" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="1160,194 1160,210 1144,210" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<text x="774" y="52" font-size="11" fill="#39d8ff" font-weight="bold" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" letter-spacing="2">ZONE STATUS</text>
+<rect x="782" y="84" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="804" y="96" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >CLN</text>
+<rect x="878" y="84" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="900" y="96" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z1</text>
+<rect x="974" y="84" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="996" y="96" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z2</text>
+<rect x="1070" y="84" width="14" height="14" rx="2" fill="#ffb020" filter="url(#glow)"><animate attributeName="fill" values="#ffb020;#39ff88;#ffb020" dur="5s" repeatCount="indefinite"/></rect>
+<text x="1092" y="96" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z3</text>
+<rect x="782" y="124" width="14" height="14" rx="2" fill="#ffb020" filter="url(#glow)"><animate attributeName="fill" values="#ffb020;#ff3b5c;#ffb020;#ffb020" dur="2.4s" repeatCount="indefinite"/></rect>
+<text x="804" y="136" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z4</text>
+<rect x="878" y="124" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="900" y="136" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z5</text>
+<rect x="974" y="124" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="996" y="136" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z6</text>
+<rect x="1070" y="124" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="1092" y="136" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z7</text>
+<rect x="782" y="164" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="804" y="176" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z8</text>
+<rect x="878" y="164" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="900" y="176" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z9</text>
+<rect x="974" y="164" width="14" height="14" rx="2" fill="#39ff88" filter="url(#glow)"/>
+<text x="996" y="176" font-size="12" fill="#d6f3ff" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >OUT</text>
+<text x="782" y="196" font-size="11.5" fill="#ffb020" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >Z4 CP +3σ 02:28 ~ 02:42 → 현장 확인 요청</text>
+<rect x="40" y="230" width="1120" height="150" fill="#08131c" fill-opacity="0.75" stroke="#39d8ff" stroke-opacity="0.35" stroke-width="1"/>
+<polyline points="40,246 40,230 56,230" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="1160,246 1160,230 1144,230" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="40,364 40,380 56,380" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<polyline points="1160,364 1160,380 1144,380" fill="none" stroke="#39d8ff" stroke-width="2.5"/>
+<text x="54" y="222" font-size="11" fill="#39d8ff" font-weight="bold" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" letter-spacing="2">TC-Z4 · 1 min · LOT 069</text>
+<line x1="60" y1="285.0" x2="1140" y2="285.0" stroke="#ffb020" stroke-opacity="0.8" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="1140" y="280.0" font-size="11" fill="#ffb020" font-weight="normal" text-anchor="end" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >+3σ</text>
+<line x1="60" y1="315.0" x2="1140" y2="315.0" stroke="#6f98ad" stroke-opacity="0.35" stroke-width="1"/>
+<path d="M 60.0 320.6 L 64.9 322.1 L 69.9 323.3 L 74.8 324.1 L 79.7 324.5 L 84.7 324.7 L 89.6 324.6 L 94.5 324.3 L 99.5 323.8 L 104.4 323.4 L 109.3 323.0 L 114.2 322.7 L 119.2 322.6 L 124.1 322.7 L 129.0 323.1 L 134.0 323.8 L 138.9 324.7 L 143.8 326.0 L 148.8 327.4 L 153.7 329.1 L 158.6 330.8 L 163.6 332.5 L 168.5 334.2 L 173.4 335.7 L 178.4 337.0 L 183.3 337.9 L 188.2 338.5 L 193.2 338.7 L 198.1 338.5 L 203.0 337.9 L 207.9 336.9 L 212.9 335.5 L 217.8 333.8 L 222.7 331.9 L 227.7 329.8 L 232.6 327.7 L 237.5 325.6 L 242.5 323.6 L 247.4 321.8 L 252.3 320.2 L 257.3 319.0 L 262.2 318.0 L 267.1 317.3 L 272.1 317.0 L 277.0 316.9 L 281.9 317.0 L 286.8 317.2 L 291.8 317.5 L 296.7 317.8 L 301.6 318.0 L 306.6 318.0 L 311.5 317.8 L 316.4 317.4 L 321.4 316.6 L 326.3 315.4 L 331.2 314.0 L 336.2 312.3 L 341.1 310.3 L 346.0 308.1 L 351.0 305.8 L 355.9 303.4 L 360.8 301.1 L 365.8 299.0 L 370.7 297.0 L 375.6 295.4 L 380.5 294.1 L 385.5 293.2 L 390.4 292.7 L 395.3 292.6 L 400.3 292.9 L 405.2 293.6 L 410.1 294.6 L 415.1 295.8 L 420.0 297.1 L 424.9 298.5 L 429.9 299.9 L 434.8 301.3 L 439.7 302.4 L 444.7 303.3 L 449.6 304.0 L 454.5 304.4 L 459.5 304.5 L 464.4 304.3 L 469.3 304.0 L 474.2 303.4 L 479.2 302.8 L 484.1 302.1 L 489.0 301.5 L 494.0 301.1 L 498.9 300.9 L 503.8 300.9 L 508.8 301.3 L 513.7 302.0 L 518.6 303.1 L 523.6 304.6 L 528.5 306.4 L 533.4 308.5 L 538.4 310.9 L 543.3 313.4 L 548.2 316.0 L 553.2 318.6 L 558.1 321.0 L 563.0 323.3 L 567.9 325.4 L 572.9 327.1 L 577.8 328.5 L 582.7 329.5 L 587.7 330.1 L 592.6 330.3 L 597.5 330.2 L 602.5 329.9 L 607.4 329.3 L 612.3 328.7 L 617.3 327.9 L 622.2 327.2 L 627.1 326.7 L 632.1 326.3 L 637.0 326.1 L 641.9 326.2 L 646.8 326.5 L 651.8 327.2 L 656.7 328.1 L 661.6 329.1 L 666.6 330.4 L 671.5 331.7 L 676.4 333.0 L 681.4 334.3 L 686.3 335.4 L 691.2 336.2 L 696.2 336.7 L 701.1 336.8 L 706.0 336.6 L 711.0 335.9 L 715.9 334.9 L 720.8 333.4 L 725.8 331.6 L 730.7 329.6 L 735.6 327.3 L 740.5 325.0 L 745.5 322.6 L 750.4 320.2 L 755.3 318.0 L 760.3 316.1 L 765.2 314.3 L 770.1 312.9 L 775.1 306.6 L 780.0 294.7 L 784.9 284.1 L 789.9 275.2 L 794.8 268.6 L 799.7 264.6 L 804.7 263.2 L 809.6 264.6 L 814.5 268.6 L 819.5 274.8 L 824.4 283.0 L 829.3 292.6 L 834.2 302.9 L 839.2 309.7 L 844.1 308.4 L 849.0 306.8 L 854.0 305.0 L 858.9 303.1 L 863.8 301.1 L 868.8 299.0 L 873.7 297.1 L 878.6 295.3 L 883.6 293.7 L 888.5 292.5 L 893.4 291.6 L 898.4 291.2 L 903.3 291.1 L 908.2 291.5 L 913.2 292.3 L 918.1 293.4 L 923.0 294.8 L 927.9 296.5 L 932.9 298.2 L 937.8 300.1 L 942.7 301.8 L 947.7 303.5 L 952.6 305.0 L 957.5 306.3 L 962.5 307.3 L 967.4 307.9 L 972.3 308.3 L 977.3 308.5 L 982.2 308.4 L 987.1 308.1 L 992.1 307.7 L 997.0 307.3 L 1001.9 306.9 L 1006.8 306.7 L 1011.8 306.7 L 1016.7 306.9 L 1021.6 307.5 L 1026.6 308.4 L 1031.5 309.6 L 1036.4 311.2 L 1041.4 313.1 L 1046.3 315.2 L 1051.2 317.6 L 1056.2 320.0 L 1061.1 322.6 L 1066.0 325.0 L 1071.0 327.4 L 1075.9 329.5 L 1080.8 331.3 L 1085.8 332.7 L 1090.7 333.8 L 1095.6 334.5 L 1100.5 334.8 L 1105.5 334.7 L 1110.4 334.3 L 1115.3 333.6 L 1120.3 332.7 L 1125.2 331.6 L 1130.1 330.5 L 1135.1 329.5 L 1140.0 328.6" fill="none" stroke="#39d8ff" stroke-width="2" stroke-linejoin="round" filter="url(#glow)" stroke-dasharray="1170" stroke-dashoffset="1170"><animate attributeName="stroke-dashoffset" values="1170;0;0" keyTimes="0;0.85;1" dur="8s" repeatCount="indefinite"/></path>
+<line x1="60" y1="248" x2="60" y2="366" stroke="#39ff88" stroke-opacity="0.9" stroke-width="1.5"><animate attributeName="x1" values="60;1140;1140" keyTimes="0;0.85;1" dur="8s" repeatCount="indefinite"/><animate attributeName="x2" values="60;1140;1140" keyTimes="0;0.85;1" dur="8s" repeatCount="indefinite"/></line>
+<rect x="772.8" y="248" width="64.8" height="118" fill="#ff3b5c" fill-opacity="0"><animate attributeName="fill-opacity" values="0;0;0.22;0.22" keyTimes="0;0.6;0.64;1" dur="8s" repeatCount="indefinite"/></rect>
+<g opacity="0"><animate attributeName="opacity" values="0;0;1;1" keyTimes="0;0.62;0.66;1" dur="8s" repeatCount="indefinite"/><text x="845.6" y="264" font-size="12" fill="#ff3b5c" font-weight="bold" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >ALERT  Z4  CP 0.88 ↑</text>
+</g>
+<text x="1136" y="282" font-size="22" font-weight="bold" fill="#d6f3ff" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" text-anchor="end" opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.02;0.33;0.35;1" dur="3s" begin="0s" repeatCount="indefinite"/>812.4 ℃</text>
+<text x="1136" y="282" font-size="22" font-weight="bold" fill="#d6f3ff" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" text-anchor="end" opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.02;0.33;0.35;1" dur="3s" begin="1s" repeatCount="indefinite"/>812.9 ℃</text>
+<text x="1136" y="282" font-size="22" font-weight="bold" fill="#d6f3ff" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" text-anchor="end" opacity="0"><animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.02;0.33;0.35;1" dur="3s" begin="2s" repeatCount="indefinite"/>811.7 ℃</text>
+<text x="1136" y="300" font-size="10.5" fill="#6f98ad" font-weight="normal" text-anchor="end" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" >NOW · 1 s</text>
+<text x="40" y="406" font-size="11" fill="#6f98ad" font-weight="normal" text-anchor="start" font-family="'JetBrains Mono', Consolas, 'Cascadia Mono', 'Courier New', monospace" letter-spacing="1">LOT 14 · SENSORS 21 · ZONES 11 · MODEL REGISTRY v6 → v7 · RENDER + POSTGRES</text>
+<rect width="1200" height="420" rx="8" fill="url(#scan)" pointer-events="none"/>
 </svg>
