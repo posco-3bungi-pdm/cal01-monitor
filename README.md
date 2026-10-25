@@ -11,7 +11,9 @@
 
 </div>
 
-연속 소둔로(CAL01)에서 기준을 벗어난 채널을 찾고 모니터링팀과 현장팀이 같은 근거로 확인·요청·조치하는 소프트웨어임. 팀 로그인, 실제 CSV 재생, 소둔로 3D, Z-score 후보·알림·현장 요청, 구역별 예측 모델을 한 화면에 연결함. Windows exe는 같은 서버에 접속하는 전용 앱임.
+- 연속 소둔로(CAL01)에서 기준을 벗어난 채널을 찾고 모니터링팀과 현장팀이 같은 근거로 확인·요청·조치하는 소프트웨어임
+- 팀 로그인, 실제 CSV 재생, 소둔로 3D, Z-score 후보·알림·현장 요청, 구역별 예측 모델을 한 화면에 연결함
+- Windows exe는 같은 서버에 접속하는 전용 앱임
 
 <img alt="관제 화면: 3D 소둔로, 홀로그램, 기록 재생, Z4 확대, 내부 보기, 채널 그래프, 과거 LOT 이상 후보, 팀 확인 요청" src="docs/readme/monitor.gif" width="100%">
 
@@ -46,11 +48,14 @@
 | 실시간 시연 | 2026년 하루치 CSV를 만들어 재생하는 노트북 | `simulation/` |
 | 배포 | Render (Docker), PostgreSQL. `render.yaml` | 루트 |
 
-원본 CSV, 비밀번호, API 키, 실행 DB는 Git에 올리지 않음.
+- 원본 CSV, 비밀번호, API 키, 실행 DB는 Git에 올리지 않음
 
 ## 모델 레지스트리
 
-`models/registry.json`에 구역 9개(CLN, Z1 ~ Z8)의 RandomForest, IsolationForest와 Z-score 기준을 적어 둠. 이름은 `cal01-<정답 버전>-<입력 태그>-<구역>-<모델>-<학습 범위>-<날짜>`이고 항목마다 근거 단계(팀 판단 1과 0이 있는지), 시간 순서 걷기 F1, 입력 컬럼 목록(`features.json`), 설정(`config.json`)이 붙음. 지금은 v6 정답으로 만든 모델이며 v7 규칙이 확정되면 바꿔 넣음. 자세한 규칙은 [04 감지와 해석 §8](docs/04-detection.md).
+- `models/registry.json`에 구역 9개(CLN, Z1 ~ Z8)의 RandomForest, IsolationForest와 Z-score 기준을 적어 둠
+- 이름은 `cal01-<정답 버전>-<입력 태그>-<구역>-<모델>-<학습 범위>-<날짜>`이고 항목마다 근거 단계(팀 판단 1과 0이 있는지), 시간 순서 걷기 F1, 입력 컬럼 목록(`features.json`), 설정(`config.json`)이 붙음
+- 지금은 v6 정답으로 만든 모델이며 v7 규칙이 확정되면 바꿔 넣음
+- 자세한 규칙은 [04 감지와 해석 §8](docs/04-detection.md)
 
 ## 설계 문서
 
@@ -70,7 +75,8 @@
 
 ## 실행
 
-Python 3.12 이상, Node 22 이상, pnpm, PostgreSQL 18을 씀. 순서는 [08 로컬 실행](docs/08-local-development.md)에 있음.
+- Python 3.12 이상, Node 22 이상, pnpm, PostgreSQL 18을 씀
+- 순서는 [08 로컬 실행](docs/08-local-development.md)에 있음
 
 ```powershell
 python -m venv .venv
@@ -80,11 +86,13 @@ pnpm --dir frontend install --frozen-lockfile
 .venv/Scripts/python.exe backend/manage.py import_cal01 "원본 폴더/cal01_base_v1.csv"
 ```
 
-검증은 `backend/manage.py test monitor`와 `pnpm --dir frontend build`로 함.
+- 검증은 `backend/manage.py test monitor`와 `pnpm --dir frontend build`로 함
 
 ## 지금 상태와 남은 것
 
 - 돌아가는 것: 팀 로그인, 실제 CSV 재생, 3D(금속·홀로그램·내부), 채널 그래프, 과거 LOT 이상 후보, 팀 확인 요청과 알림, v6 모델 9개 선택과 분별 예측
 - 남은 것: 실시간 수집 연결, 고정 기준 감지, AI 설명 초안, 달력, v7 모델 교체
 
-제품 이름은 CAL01 Monitor, 저장소는 `posco-3bungi-pdm/cal01-monitor`임. 비공개임.
+- 제품 이름은 CAL01 Monitor, 저장소는 `posco-3bungi-pdm/cal01-monitor`임
+- 2026년 10월 25일부터 공개 저장소임
+- 만든 팀: 포스코 K-뉴딜 아카데미 3조 오운완<sub>(오늘 운전 완벽)</sub>
